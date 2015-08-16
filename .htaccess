@@ -14,3 +14,9 @@ AddType image/svg+xml svgz
   Deny from all
   Satisfy all
 </files>
+
+# PROTECT git or svn files
+<IfModule mod_alias.c>
+	RedirectMatch 404 /\.git/
+	RedirectMatch 404 /\.svn/
+</IfModule>
