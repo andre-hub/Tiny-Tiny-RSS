@@ -1,6 +1,6 @@
 <?php
 	define('EXPECTED_CONFIG_VERSION', 26);
-	define('SCHEMA_VERSION', 129);
+	define('SCHEMA_VERSION', 130);
 
 	define('LABEL_BASE_INDEX', -1024);
 	define('PLUGIN_FEED_BASE_INDEX', -128);
@@ -351,16 +351,7 @@
 
 			$fetch_curl_used = true;
 
-			if (ini_get("safe_mode") || ini_get("open_basedir") || defined("FORCE_GETURL")) {
-				$new_url = geturl($url);
-				if (!$new_url) {
-				    // geturl has already populated $fetch_last_error
-				    return false;
-				}
-				$ch = curl_init($new_url);
-			} else {
-				$ch = curl_init($url);
-			}
+			$ch = curl_init($url);
 
 			if ($timestamp && !$post_query) {
 				curl_setopt($ch, CURLOPT_HTTPHEADER,
@@ -369,7 +360,7 @@
 
 			curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, $timeout ? $timeout : FILE_FETCH_CONNECT_TIMEOUT);
 			curl_setopt($ch, CURLOPT_TIMEOUT, $timeout ? $timeout : FILE_FETCH_TIMEOUT);
-			curl_setopt($ch, CURLOPT_FOLLOWLOCATION, !ini_get("safe_mode") && !ini_get("open_basedir"));
+			curl_setopt($ch, CURLOPT_FOLLOWLOCATION, !ini_get("open_basedir"));
 			curl_setopt($ch, CURLOPT_MAXREDIRS, 20);
 			curl_setopt($ch, CURLOPT_BINARYTRANSFER, true);
 			curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
@@ -379,7 +370,7 @@
 			curl_setopt($ch, CURLOPT_ENCODING, "");
 			//curl_setopt($ch, CURLOPT_REFERER, $url);
 
-			if (!ini_get("safe_mode") && !ini_get("open_basedir")) {
+			if (!ini_get("open_basedir")) {
 				curl_setopt($ch, CURLOPT_COOKIEJAR, "/dev/null");
 			}
 
@@ -1146,7 +1137,7 @@
 
 						db_query("UPDATE ttrss_user_entries
 							SET unread = false, last_read = NOW() WHERE ref_id IN
-								(SELECT id FROM
+								(SELECT DISTINCT id FROM
 									(SELECT id FROM ttrss_entries, ttrss_user_entries WHERE ref_id = id
 										AND owner_uid = $owner_uid AND unread = true AND feed_id IN
 											(SELECT id FROM ttrss_feeds WHERE $cat_qpart) AND $date_qpart) as tmp)");
@@ -1163,7 +1154,7 @@
 
 					db_query("UPDATE ttrss_user_entries
 						SET unread = false, last_read = NOW() WHERE ref_id IN
-							(SELECT id FROM
+							(SELECT DISTINCT id FROM
 								(SELECT id FROM ttrss_entries, ttrss_user_entries WHERE ref_id = id
 									AND owner_uid = $owner_uid AND unread = true AND feed_id = $feed AND $date_qpart) as tmp)");
 
@@ -1172,7 +1163,7 @@
 					if ($feed == -1) {
 						db_query("UPDATE ttrss_user_entries
 							SET unread = false, last_read = NOW() WHERE ref_id IN
-								(SELECT id FROM
+								(SELECT DISTINCT id FROM
 									(SELECT id FROM ttrss_entries, ttrss_user_entries WHERE ref_id = id
 										AND owner_uid = $owner_uid AND unread = true AND marked = true AND $date_qpart) as tmp)");
 					}
@@ -1180,7 +1171,7 @@
 					if ($feed == -2) {
 						db_query("UPDATE ttrss_user_entries
 							SET unread = false, last_read = NOW() WHERE ref_id IN
-								(SELECT id FROM
+								(SELECT DISTINCT id FROM
 									(SELECT id FROM ttrss_entries, ttrss_user_entries WHERE ref_id = id
 										AND owner_uid = $owner_uid AND unread = true AND published = true AND $date_qpart) as tmp)");
 					}
@@ -1198,7 +1189,7 @@
 
 						db_query("UPDATE ttrss_user_entries
 							SET unread = false, last_read = NOW() WHERE ref_id IN
-								(SELECT id FROM
+								(SELECT DISTINCT id FROM
 									(SELECT id FROM ttrss_entries, ttrss_user_entries WHERE ref_id = id
 										AND owner_uid = $owner_uid AND score >= 0 AND unread = true AND $date_qpart AND $match_part) as tmp)");
 					}
@@ -1206,7 +1197,7 @@
 					if ($feed == -4) {
 						db_query("UPDATE ttrss_user_entries
 							SET unread = false, last_read = NOW() WHERE ref_id IN
-								(SELECT id FROM
+								(SELECT DISTINCT id FROM
 									(SELECT id FROM ttrss_entries, ttrss_user_entries WHERE ref_id = id
 										AND owner_uid = $owner_uid AND unread = true AND $date_qpart) as tmp)");
 					}
@@ -1217,7 +1208,7 @@
 
 					db_query("UPDATE ttrss_user_entries
 						SET unread = false, last_read = NOW() WHERE ref_id IN
-							(SELECT id FROM
+							(SELECT DISTINCT id FROM
 								(SELECT ttrss_entries.id FROM ttrss_entries, ttrss_user_entries, ttrss_user_labels2 WHERE ref_id = id
 									AND label_id = '$label_id' AND ref_id = article_id
 									AND owner_uid = $owner_uid AND unread = true AND $date_qpart) as tmp)");
@@ -1229,7 +1220,7 @@
 			} else { // tag
 				db_query("UPDATE ttrss_user_entries
 					SET unread = false, last_read = NOW() WHERE ref_id IN
-						(SELECT id FROM
+						(SELECT DISTINCT id FROM
 							(SELECT ttrss_entries.id FROM ttrss_entries, ttrss_user_entries, ttrss_tags WHERE ref_id = ttrss_entries.id
 								AND post_int_id = int_id AND tag_name = '$feed'
 								AND ttrss_user_entries.owner_uid = $owner_uid AND unread = true AND $date_qpart) as tmp)");

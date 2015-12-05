@@ -244,7 +244,7 @@ class Af_RedditImgur extends Plugin {
 
 			$found = $this->inline_stuff($article, $doc, $xpath);
 
-			if (function_exists("curl_init") && !$found && $this->host->get($this, "enable_readability") &&
+			if (!defined('NO_CURL') && function_exists("curl_init") && !$found && $this->host->get($this, "enable_readability") &&
 				mb_strlen(strip_tags($article["content"])) <= 150) {
 
 				if (!class_exists("Readability")) require_once(dirname(dirname(__DIR__)). "/lib/readability/Readability.php");
@@ -262,8 +262,7 @@ class Af_RedditImgur extends Plugin {
 					curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
 					curl_setopt($ch, CURLOPT_HEADER, true);
 					curl_setopt($ch, CURLOPT_NOBODY, true);
-					curl_setopt($ch, CURLOPT_FOLLOWLOCATION,
-						!ini_get("safe_mode") && !ini_get("open_basedir"));
+					curl_setopt($ch, CURLOPT_FOLLOWLOCATION, !ini_get("open_basedir"));
 					curl_setopt($ch, CURLOPT_USERAGENT, SELF_USER_AGENT);
 
 					@$result = curl_exec($ch);

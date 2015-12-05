@@ -43,8 +43,8 @@
 				array_push($errors, "Please don't run this script as root.");
 			}
 
-			if (version_compare(PHP_VERSION, '5.3.0', '<')) {
-				array_push($errors, "PHP version 5.3.0 or newer required.");
+			if (version_compare(PHP_VERSION, '5.4.0', '<')) {
+				array_push($errors, "PHP version 5.4.0 or newer required.");
 			}
 
 			if (CONFIG_VERSION != EXPECTED_CONFIG_VERSION) {
@@ -134,13 +134,9 @@
 				array_push($errors, "PHP support for hash() function is required but was not found.");
 			}
 
-			if (!function_exists("ctype_lower")) {
-				array_push($errors, "PHP support for ctype functions are required by HTMLPurifier.");
+			if (ini_get("safe_mode")) {
+				array_push($errors, "PHP safe mode setting is obsolete and not supported by tt-rss.");
 			}
-
-			/* if (ini_get("safe_mode")) {
-				array_push($errors, "PHP safe mode setting is not supported.");
-			} */
 
 			if ((PUBSUBHUBBUB_HUB || PUBSUBHUBBUB_ENABLED) && !function_exists("curl_init")) {
 				array_push($errors, "PHP support for CURL is required for PubSubHubbub.");

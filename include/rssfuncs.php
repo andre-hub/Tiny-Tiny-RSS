@@ -9,7 +9,11 @@
 
 		foreach ($article as $k => $v) {
 			if ($k != "feed" && isset($v)) {
-				$tmp .= sha1("$k:" . (is_array($v) ? implode(",", $v) : $v));
+				$x = strip_tags(is_array($v) ? implode(",", $v) : $v);
+
+				//_debug("$k:" . sha1($x) . ":" . htmlspecialchars($x), true);
+
+				$tmp .= sha1("$k:" . sha1($x));
 			}
 		}
 
@@ -227,7 +231,7 @@
 
 		$feed = db_escape_string($feed);
 
-		$result = db_query("SELECT feed_url,auth_pass,auth_pass_encrypted
+		$result = db_query("SELECT feed_url,auth_pass,auth_login,auth_pass_encrypted
 					FROM ttrss_feeds WHERE id = '$feed'");
 
 		$auth_pass_encrypted = sql_bool_to_bool(db_fetch_result($result,
@@ -1043,6 +1047,8 @@
 							SET score = '$score' WHERE ref_id = '$ref_id'");
 
 					if ($mark_unread_on_update) {
+						_debug("article updated, marking unread as requested.", $debug_enabled);
+
 						db_query("UPDATE ttrss_user_entries
 							SET last_read = null, unread = true WHERE ref_id = '$ref_id'");
 					}
@@ -1405,7 +1411,7 @@
 					array_push($matches, $action);
 
 					// if Stop action encountered, perform no further processing
-					if ($action["type"] == "stop") return $matches;
+					if (isset($action["type"]) && $action["type"] == "stop") return $matches;
 				}
 			}
 		}
