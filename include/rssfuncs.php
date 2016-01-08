@@ -134,6 +134,10 @@
 		$query_limit = "";
 		if($limit) $query_limit = sprintf("LIMIT %d", $limit);
 
+		// Update the least recently updated feeds first
+		$query_order = "ORDER BY last_updated";
+		if (DB_TYPE == "pgsql") $query_order .= " NULLS FIRST";
+
 		$query = "SELECT DISTINCT ttrss_feeds.feed_url, ttrss_feeds.last_updated
 			FROM
 				ttrss_feeds, ttrss_users, ttrss_user_prefs
@@ -144,7 +148,7 @@
 				AND ttrss_user_prefs.pref_name = 'DEFAULT_UPDATE_INTERVAL'
 				$login_thresh_qpart $update_limit_qpart
 				$updstart_thresh_qpart
-				ORDER BY last_updated $query_limit";
+				$query_order $query_limit";
 
 		// We search for feed needing update.
 		$result = db_query($query);
@@ -746,11 +750,7 @@
 					db_query("UPDATE ttrss_entries SET date_updated = NOW()
 						WHERE id = '$base_entry_id'");
 
-                    // if we allow duplicate posts, we have to continue to
-                    // create the user entries for this feed
-                    if (!get_pref("ALLOW_DUPLICATE_POSTS", $owner_uid, false)) {
-                        continue;
-                    }
+					continue;
 				}
 
 				_debug("hash differs, applying plugin filters:", $debug_enabled);
@@ -915,15 +915,6 @@
 							id = '$ref_id'");
 					} */
 
-					// check for user post link to main table
-
-					// do we allow duplicate posts with same GUID in different feeds?
-					if (get_pref("ALLOW_DUPLICATE_POSTS", $owner_uid, false)) {
-						$dupcheck_qpart = "AND (feed_id = '$feed' OR feed_id IS NULL)";
-					} else {
-						$dupcheck_qpart = "";
-					}
-
 					if (find_article_filter($article_filters, "filter")) {
 						//db_query("COMMIT"); // close transaction in progress
 						continue;
@@ -933,9 +924,10 @@
 
 					_debug("initial score: $score [including plugin modifier: $entry_score_modifier]", $debug_enabled);
 
+					// check for user post link to main table
+
 					$query = "SELECT ref_id, int_id FROM ttrss_user_entries WHERE
-							ref_id = '$ref_id' AND owner_uid = '$owner_uid'
-							$dupcheck_qpart";
+							ref_id = '$ref_id' AND owner_uid = '$owner_uid'";
 
 //					if ($_REQUEST["xdebug"]) print "$query\n";
 
@@ -1516,9 +1508,9 @@
 
 		purge_orphans( true);
 		cleanup_counters_cache($debug);
-		$rc = cleanup_tags( 14, 50000);
 
-		_debug("Cleaned $rc cached tags.");
+		//$rc = cleanup_tags( 14, 50000);
+		//_debug("Cleaned $rc cached tags.");
 
 		PluginHost::getInstance()->run_hooks(PluginHost::HOOK_HOUSE_KEEPING, "hook_house_keeping", "");
 
