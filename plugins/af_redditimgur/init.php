@@ -27,6 +27,9 @@ class Af_RedditImgur extends Plugin {
 		$enable_readability = $this->host->get($this, "enable_readability");
 		$enable_readability_checked = $enable_readability ? "checked" : "";
 
+		$enable_content_dupcheck = $this->host->get($this, "enable_content_dupcheck");
+		$enable_content_dupcheck_checked = $enable_content_dupcheck ? "checked" : "";
+		
 		print "<form dojoType=\"dijit.form.Form\">";
 
 		print "<script type=\"dojo/method\" event=\"onSubmit\" args=\"evt\">
@@ -55,6 +58,12 @@ class Af_RedditImgur extends Plugin {
 
 		print "<label for=\"enable_readability\">" . __("Extract missing content using Readability") . "</label>";
 
+		print "<br/>";
+		
+		print "<input dojoType=\"dijit.form.CheckBox\" id=\"enable_content_dupcheck\"
+			$enable_content_dupcheck_checked name=\"enable_content_dupcheck\">&nbsp;";
+
+		print "<label for=\"enable_content_dupcheck\">" . __("Enable additional duplicate checking") . "</label>";
 		print "<p><button dojoType=\"dijit.form.Button\" type=\"submit\">".
 			__("Save")."</button>";
 
@@ -65,8 +74,10 @@ class Af_RedditImgur extends Plugin {
 
 	function save() {
 		$enable_readability = checkbox_to_sql_bool($_POST["enable_readability"]) == "true";
+		$enable_content_dupcheck = checkbox_to_sql_bool($_POST["enable_content_dupcheck"]) == "true";
 
-		$this->host->set($this, "enable_readability", $enable_readability);
+		$this->host->set($this, "enable_readability", $enable_readability, false);
+		$this->host->set($this, "enable_content_dupcheck", $enable_content_dupcheck);
 
 		echo __("Configuration saved");
 	}
@@ -244,35 +255,37 @@ class Af_RedditImgur extends Plugin {
 			@$doc->loadHTML($article["content"]);
 			$xpath = new DOMXPath($doc);
 
-			$content_link = $xpath->query("(//a[contains(., '[link]')])")->item(0);
+			if ($this->host->get($this, "enable_content_dupcheck")) {
+				$content_link = $xpath->query("(//a[contains(., '[link]')])")->item(0);
 
-			$found = $this->inline_stuff($article, $doc, $xpath);
+				if ($content_link) {
+					$content_href = db_escape_string($content_link->getAttribute("href"));
+					$entry_guid = db_escape_string($article["guid_hashed"]);
+					$owner_uid = $article["owner_uid"];
 
-			// reddit decided to break its rss because of thunderbird so let's implement a temporary hack
-			// see also: https://www.reddit.com/r/changelog/comments/428vdq/upcoming_reddit_change_switching_from_rss_20_to/
+					if (DB_TYPE == "pgsql") {
+						$interval_qpart = "date_entered < NOW() - INTERVAL '1 day'";
+					} else {
+						$interval_qpart = "date_entered < DATE_SUB(NOW(), INTERVAL 1 DAY)";
+					}
 
-			$textnode = $xpath->query("//*[text()[contains(.,'!-- SC_OFF')]]/text()")->item(0);
+					$result = db_query("SELECT COUNT(id) AS cid
+						FROM ttrss_entries, ttrss_user_entries WHERE
+							ref_id = id AND
+							$interval_qpart AND
+							guid != '$entry_guid' AND
+							owner_uid = '$owner_uid' AND
+							content LIKE '%href=\"$content_href\">[link]%'");
 
-			if ($textnode) {
+					if ($result) {
+						$num_found = db_fetch_result($result, 0, "cid");
 
-				$badhtml = htmlspecialchars_decode($textnode->textContent);
-				$textnode->textContent = "";
-
-				if ($badhtml) {
-					$body = $doc->getElementsByTagName("body")->item(0);
-
-					$tmp = new DOMDocument;
-
-					if (@$tmp->loadHTML($badhtml)) {
-						$newnode = $doc->importNode($tmp->documentElement, TRUE);
-
-						if ($newnode) {
-							$body->insertBefore($newnode, $body->firstChild);
-							$found = 1;
-						}
+						if ($num_found > 0) $article["force_catchup"] = true;
 					}
 				}
 			}
+
+			$found = $this->inline_stuff($article, $doc, $xpath);
 
 			if (!defined('NO_CURL') && function_exists("curl_init") && !$found && $this->host->get($this, "enable_readability") &&
 				mb_strlen(strip_tags($article["content"])) <= 150) {
