@@ -912,6 +912,14 @@
 
 					if (file_exists($cached_filename)) {
 						$src = SELF_URL_PATH . '/public.php?op=cached_image&hash=' . sha1($src);
+
+						if ($entry->hasAttribute('srcset')) {
+							$entry->removeAttribute('srcset');
+						}
+
+						if ($entry->hasAttribute('sizes')) {
+							$entry->removeAttribute('sizes');
+						}
 					}
 
 					$entry->setAttribute('src', $src);
@@ -2040,15 +2048,15 @@
 	 * @return string Absolute URL
 	 */
 	function rewrite_relative_url($url, $rel_url) {
-		if (strpos($rel_url, ":") !== false) {
-			return $rel_url;
-		} else if (strpos($rel_url, "://") !== false) {
+		if (strpos($rel_url, "://") !== false) {
 			return $rel_url;
 		} else if (strpos($rel_url, "//") === 0) {
 			# protocol-relative URL (rare but they exist)
 			return $rel_url;
-		} else if (strpos($rel_url, "/") === 0)
-		{
+		} else if (preg_match("/^[a-z]+:/i", $rel_url)) {
+			# magnet:, feed:, etc
+			return $rel_url;
+		} else if (strpos($rel_url, "/") === 0) {
 			$parts = parse_url($url);
 			$parts['path'] = $rel_url;
 
