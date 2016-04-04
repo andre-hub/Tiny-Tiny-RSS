@@ -64,8 +64,6 @@
 				"toggle_publ" => __("Toggle published"),
 				"toggle_unread" => __("Toggle unread"),
 				"edit_tags" => __("Edit tags"),
-				"dismiss_selected" => __("Dismiss selected"),
-				"dismiss_read" => __("Dismiss read"),
 				"open_in_new_window" => __("Open in new window"),
 				"catchup_below" => __("Mark below as read"),
 				"catchup_above" => __("Mark above as read"),
@@ -135,8 +133,6 @@
 				"*s" => "toggle_publ",
 				"u" => "toggle_unread",
 				"*t" => "edit_tags",
-				"*d" => "dismiss_selected",
-				"*x" => "dismiss_read",
 				"o" => "open_in_new_window",
 				"c p" => "catchup_below",
 				"c n" => "catchup_above",
@@ -207,7 +203,7 @@
 
 	function check_for_update() {
 		if (defined("GIT_VERSION_TIMESTAMP")) {
-			$content = @fetch_file_contents("http://tt-rss.org/version.json");
+			$content = @fetch_file_contents(array("url" => "http://tt-rss.org/version.json", "timeout" => 5));
 
 			if ($content) {
 				$content = json_decode($content, true);
@@ -225,7 +221,7 @@
 		return "";
 	}
 
-	function make_runtime_info() {
+	function make_runtime_info($disable_update_check = false) {
 		$data = array();
 
 		$result = db_query("SELECT MAX(id) AS mid, COUNT(*) AS nf FROM
@@ -244,7 +240,7 @@
 		$data['reload_on_ts_change'] = !defined('_NO_RELOAD_ON_TS_CHANGE');
 
 
-		if (CHECK_FOR_UPDATES && $_SESSION["last_version_check"] + 86400 + rand(-1000, 1000) < time()) {
+		if (CHECK_FOR_UPDATES && !$disable_update_check && $_SESSION["last_version_check"] + 86400 + rand(-1000, 1000) < time()) {
 			$update_result = @check_for_update();
 
 			$data["update_result"] = $update_result;
