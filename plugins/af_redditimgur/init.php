@@ -179,7 +179,9 @@ class Af_RedditImgur extends Plugin {
 					$found = true;
 				}
 
-				if (preg_match("/\.(jpg|jpeg|gif|png)(\?[0-9][0-9]*)?$/i", $entry->getAttribute("href"))) {
+				if (preg_match("/\.(jpg|jpeg|gif|png)(\?[0-9][0-9]*)?$/i", $entry->getAttribute("href")) ||
+					mb_strpos($entry->getAttribute("href"), "i.reddituploads.com") !== FALSE) {
+
 					_debug("Handling as a picture", $debug);
 
 					$img = $doc->createElement('img');
@@ -301,8 +303,9 @@ class Af_RedditImgur extends Plugin {
 			@$doc->loadHTML($article["content"]);
 			$xpath = new DOMXPath($doc);
 
+			$content_link = $xpath->query("(//a[contains(., '[link]')])")->item(0);
+
 			if ($this->host->get($this, "enable_content_dupcheck")) {
-				$content_link = $xpath->query("(//a[contains(., '[link]')])")->item(0);
 
 				if ($content_link) {
 					$content_href = db_escape_string($content_link->getAttribute("href"));
