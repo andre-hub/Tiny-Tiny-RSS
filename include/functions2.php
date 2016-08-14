@@ -89,6 +89,7 @@
 				"feed_edit" => __("Edit feed"),
 				"feed_catchup" => __("Mark as read"),
 				"feed_reverse" => __("Reverse headlines"),
+				"feed_toggle_vgroup" => __("Toggle headline grouping"),
 				"feed_debug_update" => __("Debug feed update"),
 				"feed_debug_viewfeed" => __("Debug viewfeed()"),
 				"catchup_all" => __("Mark all feeds as read"),
@@ -158,6 +159,7 @@
 				"f e" => "feed_edit",
 				"f q" => "feed_catchup",
 				"f x" => "feed_reverse",
+				"f g" => "feed_toggle_vgroup",
 				"f *d" => "feed_debug_update",
 				"f *g" => "feed_debug_viewfeed",
 				"f *c" => "toggle_combined_mode",
@@ -1059,6 +1061,10 @@
 				foreach ($entry->attributes as $attr) {
 
 					if (strpos($attr->nodeName, 'on') === 0) {
+						array_push($attrs_to_remove, $attr);
+					}
+
+					if ($attr->nodeName == 'href' && stripos($attr->value, 'javascript:') === 0) {
 						array_push($attrs_to_remove, $attr);
 					}
 
