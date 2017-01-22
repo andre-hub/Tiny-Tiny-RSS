@@ -84,6 +84,7 @@ function updateFeedList() {
 		},
 		openOnClick: false,
 		showRoot: false,
+		persist: true,
 		id: "feedTree",
 		}, "feedTree");
 
@@ -222,6 +223,7 @@ function init() {
 				"dojo/ready",
 				"dojo/parser",
 				"dojo/_base/loader",
+				"dojo/_base/html",
 				"dijit/ProgressBar",
 				"dijit/ColorPalette",
 				"dijit/Dialog",

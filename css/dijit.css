@@ -94,10 +94,6 @@
 	background : white;
 }
 
-.claro #feedTree.dijitTree .dijitTreeRowSelected {
-	box-shadow : -1px 0px 2px -1px rgba(0,0,0,0.1);
-}
-
 .claro .dijitTree .dijitTreeRowHover {
 	background : #f0f0f0;
 	border-color : #ddd;
@@ -417,10 +413,8 @@ button[disabled],
 	border-color: rgba(82, 168, 236, 0.8);
 }
 
-.claro .dijitMenu .dijitMenuItem.dijitHover,
-.claro .dijitMenu .dijitMenuItem.dijitFocused,
-.claro .dijitMenuTable .dijitMenuItem.dijitHover .dijitMenuItemLabel,
-.claro .dijitMenuTable .dijitMenuItem.dijitFocused .dijitMenuItemLabel {
+.claro .dijitMenu .dijitMenuItemSelected,
+.claro .dijitMenu .dijitMenuItemSelected td {
 	background :  rgb(82, 168, 236);
 	color : white;
 	border-color : rgba(82, 168, 236, 0.8);

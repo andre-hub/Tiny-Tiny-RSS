@@ -919,6 +919,7 @@ function init() {
 			"dojo/ready",
 			"dojo/parser",
 			"dojo/_base/loader",
+			"dojo/_base/html",
 			"dijit/ColorPalette",
 			"dijit/Dialog",
 			"dijit/form/Button",
@@ -1808,4 +1809,7 @@ function clearSqlLog() {
 	}
 }
 
+function updateSelectedPrompt() {
+	// no-op shim for toggleSelectedRow()
+}
 

@@ -1776,6 +1776,16 @@
 			$url .= '/';
 		}
 
+		//convert IDNA hostname to punycode if possible
+		if (function_exists("idn_to_ascii")) {
+			$parts = parse_url($url);
+			if (mb_detect_encoding($parts['host']) != 'ASCII')
+			{
+				$parts['host'] = idn_to_ascii($parts['host']);
+				$url = build_url($parts);
+			}
+		}
+
 		if ($url != "http:///")
 			return $url;
 		else
@@ -1934,7 +1944,8 @@
 
 				if (!$ctype) $ctype = __("unknown type");
 
-				$filename = substr($url, strrpos($url, "/")+1);
+				//$filename = substr($url, strrpos($url, "/")+1);
+				$filename = basename($url);
 
 				$player = format_inline_player($url, $ctype);
 
@@ -2015,12 +2026,17 @@
 
 			foreach ($entries as $entry) {
 				if ($entry["title"])
-					$title = "&mdash; " . truncate_string($entry["title"], 30);
+					$title = " &mdash; " . truncate_string($entry["title"], 30);
 				else
 					$title = "";
 
+				if ($entry["filename"])
+					$filename = truncate_middle(htmlspecialchars($entry["filename"]), 60);
+				else
+					$filename = "";
+
 				$rv .= "<div onclick='window.open(\"".htmlspecialchars($entry["url"])."\")'
-					dojoType=\"dijit.MenuItem\">".htmlspecialchars($entry["filename"])."$title</div>";
+					dojoType=\"dijit.MenuItem\">".$filename . $title."</div>";
 
 			};
 
