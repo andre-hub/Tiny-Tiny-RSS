@@ -398,7 +398,7 @@ class Feeds extends Handler_Protected {
 						alt=\"Publish article\" onclick='togglePub($id)'>";
 				}
 
-#				$content_link = "<a target=\"_blank\" href=\"".$line["link"]."\">" .
+#				$content_link = "<a target=\"_blank\" rel=\"noopener noreferrer\" href=\"".$line["link"]."\">" .
 #					$line["title"] . "</a>";
 
 #				$content_link = "<a
@@ -484,7 +484,7 @@ class Feeds extends Handler_Protected {
 					$mouseover_attrs = "onmouseover='postMouseIn(event, $id)'
 						onmouseout='postMouseOut($id)'";
 
-					$reply['content'] .= "<div class='hl $class' data-orig-feed-id='$feed_id' data-article-id='$id' id='RROW-$id' $mouseover_attrs>";
+					$reply['content'] .= "<div class='hl hlMenuAttach $class' data-orig-feed-id='$feed_id' data-article-id='$id' id='RROW-$id' $mouseover_attrs>";
 
 					$reply['content'] .= "<div class='hlLeft'>";
 
@@ -611,12 +611,14 @@ class Feeds extends Handler_Protected {
 						}
 					}
 
+					// data-article-id included for context menu
 					$reply['content'] .= "<span id=\"RTITLE-$id\"
 						onclick=\"return cdmClicked(event, $id);\"
-						class=\"titleWrap $hlc_suffix\">
+						data-article-id=\"$id\"
+						class=\"titleWrap hlMenuAttach $hlc_suffix\">						
 						<a class=\"title $hlc_suffix\"
 						title=\"".htmlspecialchars($line["title"])."\"
-						target=\"_blank\" href=\"".
+						target=\"_blank\" rel=\"noopener noreferrer\" href=\"".
 						htmlspecialchars($line["link"])."\">".
 						$line["title"] .
 						"</a> <span class=\"author\">$entry_author</span>";
@@ -664,7 +666,7 @@ class Feeds extends Handler_Protected {
 					$reply['content'] .= "</div>";
 
 					$reply['content'] .= "<div class=\"cdmContent\" $content_hidden
-						onclick=\"return cdmClicked(event, $id);\"
+						onclick=\"return cdmClicked(event, $id, true);\"
 						id=\"CICD-$id\">";
 
 					$reply['content'] .= "<div id=\"POSTNOTE-$id\">";
@@ -691,13 +693,13 @@ class Feeds extends Handler_Protected {
 
 							$tmp_line = $this->dbh->fetch_assoc($tmp_result);
 
-							$reply['content'] .= "<a target='_blank'
+							$reply['content'] .= "<a target='_blank' rel='noopener noreferrer'
 								href=' " . htmlspecialchars($tmp_line['site_url']) . "'>" .
 								$tmp_line['title'] . "</a>";
 
 							$reply['content'] .= "&nbsp;";
 
-							$reply['content'] .= "<a target='_blank' href='" . htmlspecialchars($tmp_line['feed_url']) . "'>";
+							$reply['content'] .= "<a target='_blank' rel='noopener noreferrer' href='" . htmlspecialchars($tmp_line['feed_url']) . "'>";
 							$reply['content'] .= "<img title='".__('Feed URL')."'class='tinyFeedIcon' src='images/pub_unset.png'></a>";
 
 							$reply['content'] .= "</div>";
@@ -706,14 +708,9 @@ class Feeds extends Handler_Protected {
 
 					$reply['content'] .= "<span id=\"CWRAP-$id\">";
 
-//					if (!$expand_cdm) {
-						$reply['content'] .= "<span id=\"CENCW-$id\" style=\"display : none\">";
-						$reply['content'] .= htmlspecialchars($line["content"]);
-						$reply['content'] .= "</span.";
-
-//					} else {
-//						$reply['content'] .= $line["content"];
-//					}
+					$reply['content'] .= "<span id=\"CENCW-$id\" class=\"cencw\" style=\"display : none\">";
+					$reply['content'] .= htmlspecialchars($line["content"]);
+					$reply['content'] .= "</span>";
 
 					$reply['content'] .= "</span>";
 
@@ -741,7 +738,7 @@ class Feeds extends Handler_Protected {
 						<a title=\"".__('Edit tags for this article')."\"
 						href=\"#\" onclick=\"editArticleTags($id)\">(+)</a>";
 
-					$num_comments = $line["num_comments"];
+					$num_comments = (int) $line["num_comments"];
 					$entry_comments = "";
 
 					if ($num_comments > 0) {
@@ -751,12 +748,12 @@ class Feeds extends Handler_Protected {
 							$comments_url = htmlspecialchars($line["link"]);
 						}
 						$entry_comments = "<a class=\"postComments\"
-							target='_blank' href=\"$comments_url\">$num_comments ".
+							target='_blank' rel='noopener noreferrer' href=\"$comments_url\">$num_comments ".
 							_ngettext("comment", "comments", $num_comments)."</a>";
 
 					} else {
 						if ($line["comments"] && $line["link"] != $line["comments"]) {
-							$entry_comments = "<a class=\"postComments\" target='_blank' href=\"".htmlspecialchars($line["comments"])."\">".__("comments")."</a>";
+							$entry_comments = "<a class=\"postComments\" target='_blank' rel='noopener noreferrer' href=\"".htmlspecialchars($line["comments"])."\">".__("comments")."</a>";
 						}
 					}
 
@@ -1032,8 +1029,10 @@ class Feeds extends Handler_Protected {
 	}
 
 	function quickAddFeed() {
-		print "<input dojoType=\"dijit.form.TextBox\" style=\"display : none\" name=\"op\" value=\"rpc\">";
-		print "<input dojoType=\"dijit.form.TextBox\" style=\"display : none\" name=\"method\" value=\"addfeed\">";
+		print_hidden("op", "rpc");
+		print_hidden("method", "addfeed");
+
+		print "<div id='fadd_error_message' style='display : none' class='alert alert-danger'></div>";
 
 		print "<div id='fadd_multiple_notify' style='display : none'>";
 		print_notice("Provided URL is a HTML page referencing multiple feeds, please select required feed from the dropdown menu below.");
@@ -1114,8 +1113,8 @@ class Feeds extends Handler_Protected {
 
 		$browser_search = $this->dbh->escape_string($_REQUEST["search"]);
 
-		print "<input dojoType=\"dijit.form.TextBox\" style=\"display : none\" name=\"op\" value=\"rpc\">";
-		print "<input dojoType=\"dijit.form.TextBox\" style=\"display : none\" name=\"method\" value=\"updateFeedBrowser\">";
+		print_hidden("op", "rpc");
+		print_hidden("method", "updateFeedBrowser");
 
 		print "<div dojoType=\"dijit.Toolbar\">
 			<div style='float : right'>

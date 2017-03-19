@@ -42,6 +42,7 @@ div.postReply div.postDate {
 
 div.postReply div.postContent {
 	padding : 10px;
+	font-size : 16px;
 }
 
 div.postReply div.postContent img,
@@ -179,8 +180,8 @@ a:hover {
 	width : 100%;
 }
 
-#notify span.close {
-	text-align : right;
+#notify img.close {
+	cursor : pointer;
 }
 
 #notify span {
@@ -311,6 +312,7 @@ div.filterTestHolder {
 	top: -2px;
 	right: -21px;
 	line-height: 20px;
+	cursor : pointer;
 }
 
 .alert-success {
@@ -815,8 +817,8 @@ div.fatalError button {
 }
 
 div.fatalError textarea {
-	width : 100%;
-	height : 100px;
+	width : 565px;
+	height : 200px;
 }
 
 #ttrssMain #main {
@@ -1013,6 +1015,10 @@ span.collapseBtn {
 	cursor : pointer;
 }
 
+span.collapseBtn img {
+	vertical-align : middle;
+}
+
 div.postContent h1 {
 	font-size : 16px;
 }
@@ -1065,6 +1071,15 @@ span.sel_links {
 body#ttrssMain.claro #feedTree.dijitTree .dijitTreeNode .dijitTreeRowSelected {
 	box-shadow : -1px 0px 2px -1px rgba(0,0,0,0.1);
 	border-right-color : white;
+}
+
+body#ttrssMain #feedTree.dijitTree .dijitTreeContainer {
+	max-width : 100%;
+}
+
+body#ttrssMain #feedTree.dijitTree .dijitTreeRow {
+	overflow: hidden;
+	text-overflow: ellipsis;
 }
 
 body#ttrssMain #feedTree.dijitTree .dijitTreeNode .dijitTreeRow {

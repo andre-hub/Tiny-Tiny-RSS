@@ -68,7 +68,7 @@
 		if ($theme && theme_valid("$theme")) {
 			echo stylesheet_tag(get_theme_path($theme));
 		} else {
-			echo stylesheet_tag("themes/default.css");
+			echo stylesheet_tag("themes/default.php");
 		}
 	}
 	?>
@@ -91,6 +91,7 @@
 	<script>
 		dojoConfig = {
 			async: true,
+			cacheBust: new Date(),
 			packages: [
 				{ name: "fox", location: "../../js" },
 			]
@@ -231,8 +232,7 @@
 
 			<button id="net-alert" dojoType="dijit.form.Button" style="display : none" disabled="true"
 				title="<?php echo __("Communication problem with server.") ?>">
-			<img
-				src="images/error.png" />
+				<img src="images/error.png" />
 			</button>
 
 			<div dojoType="dijit.form.DropDownButton">

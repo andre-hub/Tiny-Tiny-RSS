@@ -44,6 +44,11 @@
 
 		$params['simple_update'] = defined('SIMPLE_UPDATE_MODE') && SIMPLE_UPDATE_MODE;
 
+		$params["icon_alert"] = base64_img("images/alert.png");
+		$params["icon_information"] = base64_img("images/information.png");
+		$params["icon_cross"] = base64_img("images/cross.png");
+		$params["icon_indicator_white"] = base64_img("images/indicator_white.gif");
+
 		return $params;
 	}
 
@@ -888,28 +893,31 @@
 		$doc->loadHTML($charset_hack . $res);
 		$xpath = new DOMXPath($doc);
 
-		$entries = $xpath->query('(//a[@href]|//img[@src])');
-
 		$ttrss_uses_https = parse_url(get_self_url_prefix(), PHP_URL_SCHEME) === 'https';
+		$rewrite_base_url = $site_url ? $site_url : SELF_URL_PATH;
+
+		$entries = $xpath->query('(//a[@href]|//img[@src]|//video/source[@src]|//audio/source[@src])');
 
 		foreach ($entries as $entry) {
 
-			if ($site_url) {
+			if ($entry->hasAttribute('href')) {
+				$entry->setAttribute('href',
+					rewrite_relative_url($rewrite_base_url, $entry->getAttribute('href')));
 
-				if ($entry->hasAttribute('href')) {
-					$entry->setAttribute('href',
-						rewrite_relative_url($site_url, $entry->getAttribute('href')));
+				$entry->setAttribute('rel', 'noopener noreferrer');
+			}
 
-					$entry->setAttribute('rel', 'noreferrer');
-				}
+			if ($entry->hasAttribute('src')) {
+				$src = rewrite_relative_url($rewrite_base_url, $entry->getAttribute('src'));
 
-				if ($entry->hasAttribute('src')) {
-					$src = rewrite_relative_url($site_url, $entry->getAttribute('src'));
+				// check cache only for video and images for the time being
+				if ($entry->nodeName == 'img' || ($entry->parentNode && $entry->parentNode->nodeName == "video")) {
 
-					$cached_filename = CACHE_DIR . '/images/' . sha1($src) . '.png';
+					$extension = $entry->tagName == 'source' ? '.mp4' : '.png';
+					$cached_filename = CACHE_DIR . '/images/' . sha1($src) . $extension;
 
 					if (file_exists($cached_filename)) {
-						$src = SELF_URL_PATH . '/public.php?op=cached_image&hash=' . sha1($src);
+						$src = get_self_url_prefix() . '/public.php?op=cached_image&hash=' . sha1($src) . $extension;
 
 						if ($entry->hasAttribute('srcset')) {
 							$entry->removeAttribute('srcset');
@@ -919,46 +927,49 @@
 							$entry->removeAttribute('sizes');
 						}
 					}
-
-					$entry->setAttribute('src', $src);
 				}
 
-				if ($entry->nodeName == 'img') {
-					if ($entry->hasAttribute('src')) {
-						$is_https_url = parse_url($entry->getAttribute('src'), PHP_URL_SCHEME) === 'https';
+				$entry->setAttribute('src', $src);
+			}
 
-						if ($ttrss_uses_https && !$is_https_url) {
+			if ($entry->nodeName == 'img') {
 
-							if ($entry->hasAttribute('srcset')) {
-								$entry->removeAttribute('srcset');
-							}
+				if ($entry->hasAttribute('src')) {
+					$is_https_url = parse_url($entry->getAttribute('src'), PHP_URL_SCHEME) === 'https';
 
-							if ($entry->hasAttribute('sizes')) {
-								$entry->removeAttribute('sizes');
-							}
+					if ($ttrss_uses_https && !$is_https_url) {
+
+						if ($entry->hasAttribute('srcset')) {
+							$entry->removeAttribute('srcset');
+						}
+
+						if ($entry->hasAttribute('sizes')) {
+							$entry->removeAttribute('sizes');
 						}
 					}
+				}
 
-					if (($owner && get_pref("STRIP_IMAGES", $owner)) ||
-							$force_remove_images || $_SESSION["bw_limit"]) {
+				if (($owner && get_pref("STRIP_IMAGES", $owner)) ||
+						$force_remove_images || $_SESSION["bw_limit"]) {
 
-						$p = $doc->createElement('p');
+					$p = $doc->createElement('p');
 
-						$a = $doc->createElement('a');
-						$a->setAttribute('href', $entry->getAttribute('src'));
+					$a = $doc->createElement('a');
+					$a->setAttribute('href', $entry->getAttribute('src'));
 
-						$a->appendChild(new DOMText($entry->getAttribute('src')));
-						$a->setAttribute('target', '_blank');
+					$a->appendChild(new DOMText($entry->getAttribute('src')));
+					$a->setAttribute('target', '_blank');
+					$a->setAttribute('rel', 'noopener noreferrer');
 
-						$p->appendChild($a);
+					$p->appendChild($a);
 
-						$entry->parentNode->replaceChild($p, $entry);
-					}
+					$entry->parentNode->replaceChild($p, $entry);
 				}
 			}
 
 			if (strtolower($entry->nodeName) == "a") {
 				$entry->setAttribute("target", "_blank");
+				$entry->setAttribute("rel", "noopener noreferrer");
 			}
 		}
 
@@ -975,10 +986,10 @@
 			}
 		}
 
-		$allowed_elements = array('a', 'address', 'audio', 'article', 'aside',
+		$allowed_elements = array('a', 'address', 'acronym', 'audio', 'article', 'aside',
 			'b', 'bdi', 'bdo', 'big', 'blockquote', 'body', 'br',
 			'caption', 'cite', 'center', 'code', 'col', 'colgroup',
-			'data', 'dd', 'del', 'details', 'description', 'div', 'dl', 'font',
+			'data', 'dd', 'del', 'details', 'description', 'dfn', 'div', 'dl', 'font',
 			'dt', 'em', 'footer', 'figure', 'figcaption',
 			'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'header', 'html', 'i',
 			'img', 'ins', 'kbd', 'li', 'main', 'mark', 'nav', 'noscript',
@@ -1244,7 +1255,7 @@
 					</object>";
 			}
 
-			if ($entry) $entry .= "&nbsp; <a target=\"_blank\"
+			if ($entry) $entry .= "&nbsp; <a target=\"_blank\" rel=\"noopener noreferrer\"
 				href=\"$url\">" . basename($url) . "</a>";
 
 			return $entry;
@@ -1255,7 +1266,7 @@
 
 /*		$filename = substr($url, strrpos($url, "/")+1);
 
-		$entry .= " <a target=\"_blank\" href=\"" . htmlspecialchars($url) . "\">" .
+		$entry .= " <a target=\"_blank\" rel=\"noopener noreferrer\" href=\"" . htmlspecialchars($url) . "\">" .
 			$filename . " (" . $ctype . ")" . "</a>"; */
 
 	}
@@ -1296,6 +1307,7 @@
 			num_comments,
 			tag_cache,
 			author,
+			guid,
 			orig_feed_id,
 			note
 			FROM ttrss_entries,ttrss_user_entries
@@ -1316,7 +1328,7 @@
 				$line = $p->hook_render_article($line);
 			}
 
-			$num_comments = $line["num_comments"];
+			$num_comments = (int) $line["num_comments"];
 			$entry_comments = "";
 
 			if ($num_comments > 0) {
@@ -1326,12 +1338,12 @@
 					$comments_url = htmlspecialchars($line["link"]);
 				}
 				$entry_comments = "<a class=\"postComments\"
-					target='_blank' href=\"$comments_url\">$num_comments ".
+					target='_blank' rel=\"noopener noreferrer\" href=\"$comments_url\">$num_comments ".
 					_ngettext("comment", "comments", $num_comments)."</a>";
 
 			} else {
 				if ($line["comments"] && $line["link"] != $line["comments"]) {
-					$entry_comments = "<a class=\"postComments\" target='_blank' href=\"".htmlspecialchars($line["comments"])."\">".__("comments")."</a>";
+					$entry_comments = "<a class=\"postComments\" target='_blank' rel=\"noopener noreferrer\" href=\"".htmlspecialchars($line["comments"])."\">".__("comments")."</a>";
 				}
 			}
 
@@ -1367,7 +1379,7 @@
 				$rv['content'] .= "<div class=\"postDate\">$parsed_updated</div>";
 
 			if ($line["link"]) {
-				$rv['content'] .= "<div class='postTitle'><a target='_blank'
+				$rv['content'] .= "<div class='postTitle'><a target='_blank' rel='noopener noreferrer'
 					title=\"".htmlspecialchars($line['title'])."\"
 					href=\"" .
 					htmlspecialchars($line["link"]) . "\">" .
@@ -1436,13 +1448,13 @@
 
 					$tmp_line = db_fetch_assoc($tmp_result);
 
-					$rv['content'] .= "<a target='_blank'
+					$rv['content'] .= "<a target='_blank' rel='noopener noreferrer'
 						href=' " . htmlspecialchars($tmp_line['site_url']) . "'>" .
 						$tmp_line['title'] . "</a>";
 
 					$rv['content'] .= "&nbsp;";
 
-					$rv['content'] .= "<a target='_blank' href='" . htmlspecialchars($tmp_line['feed_url']) . "'>";
+					$rv['content'] .= "<a target='_blank' rel='noopener noreferrer' href='" . htmlspecialchars($tmp_line['feed_url']) . "'>";
 					$rv['content'] .= "<img title='".__('Feed URL')."' class='tinyFeedIcon' src='images/pub_set.png'></a>";
 
 					$rv['content'] .= "</div>";
@@ -1894,7 +1906,7 @@
 			WHERE owner_uid = '".$_SESSION["uid"]."' ORDER BY caption");
 
 		print "<select default=\"$value\" name=\"" . htmlspecialchars($name) .
-			"\" $attributes onchange=\"labelSelectOnChange(this)\" >";
+			"\" $attributes>";
 
 		while ($line = db_fetch_assoc($result)) {
 
@@ -1936,6 +1948,10 @@
 
 			foreach ($result as $line) {
 
+				foreach (PluginHost::getInstance()->get_hooks(PluginHost::HOOK_ENCLOSURE_ENTRY) as $plugin) {
+					$line = $plugin->hook_enclosure_entry($line);
+				}
+				
 				$url = $line["content_url"];
 				$ctype = $line["content_type"];
 				$title = $line["title"];
@@ -1951,10 +1967,10 @@
 
 				if ($player) array_push($entries_inline, $player);
 
-#				$entry .= " <a target=\"_blank\" href=\"" . htmlspecialchars($url) . "\">" .
+#				$entry .= " <a target=\"_blank\" href=\"" . htmlspecialchars($url) . "\" rel=\"noopener noreferrer\">" .
 #					$filename . " (" . $ctype . ")" . "</a>";
 
-				$entry = "<div onclick=\"window.open('".htmlspecialchars($url)."')\"
+				$entry = "<div onclick=\"openUrlPopup('".htmlspecialchars($url)."')\"
 					dojoType=\"dijit.MenuItem\">$filename ($ctype)</div>";
 
 				array_push($entries_html, $entry);
@@ -1986,7 +2002,7 @@
 						} else {
 
 							if (preg_match("/image/", $entry["type"]) ||
-									preg_match("/\.(jpg|png|gif|bmp)/i", $entry["filename"])) {
+									preg_match("/\.(jpe?g|png|gif|bmp)/i", $entry["filename"])) {
 
 									if (!$hide_images) {
 										$encsize = '';
@@ -1999,7 +2015,7 @@
 										src=\"" .htmlspecialchars($entry["url"]) . "\"
 										" . $encsize . " /></p>";
 									} else {
-										$rv .= "<p><a target=\"_blank\"
+										$rv .= "<p><a target=\"_blank\" rel=\"noopener noreferrer\"
 										href=\"".htmlspecialchars($entry["url"])."\"
 										>" .htmlspecialchars($entry["url"]) . "</a></p>";
 									}
@@ -2035,7 +2051,7 @@
 				else
 					$filename = "";
 
-				$rv .= "<div onclick='window.open(\"".htmlspecialchars($entry["url"])."\")'
+				$rv .= "<div onclick='openUrlPopup(\"".htmlspecialchars($entry["url"])."\")'
 					dojoType=\"dijit.MenuItem\">".$filename . $title."</div>";
 
 			};
@@ -2062,6 +2078,13 @@
 		return $parts['scheme'] . "://" . $parts['host'] . $parts['path'];
 	}
 
+	function cleanup_url_path($path) {
+		$path = str_replace("/./", "/", $path);
+		$path = str_replace("//", "/", $path);
+
+		return $path;
+	}
+
 	/**
 	 * Converts a (possibly) relative URL to a absolute one.
 	 *
@@ -2082,6 +2105,7 @@
 		} else if (strpos($rel_url, "/") === 0) {
 			$parts = parse_url($url);
 			$parts['path'] = $rel_url;
+			$parts['path'] = cleanup_url_path($parts['path']);
 
 			return build_url($parts);
 
@@ -2096,6 +2120,7 @@
 				$dir !== '/' && $dir .= '/';
 			}
 			$parts['path'] = $dir . $rel_url;
+			$parts['path'] = cleanup_url_path($parts['path']);
 
 			return build_url($parts);
 		}
@@ -2427,7 +2452,10 @@
 	}
 
 	function theme_valid($theme) {
-		if ($theme == "default.css" || $theme == "night.css") return true; // needed for array_filter
+		$bundled_themes = [ "default.php", "night.css", "compact.css" ];
+		
+		if (in_array($theme, $bundled_themes)) return true;
+
 		$file = "themes/" . basename($theme);
 
 		if (!file_exists($file)) $file = "themes.local/" . basename($theme);
@@ -2478,5 +2506,15 @@
 		);
 
 		return $errors[$code];
+	}
+
+	function base64_img($filename) {
+		if (file_exists($filename)) {
+			 $ext = pathinfo($filename, PATHINFO_EXTENSION);
+
+			return "data:image/$ext;base64," . base64_encode(file_get_contents($filename));
+		} else {
+			return "";
+		}
 	}
 ?>

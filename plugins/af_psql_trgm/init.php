@@ -85,7 +85,7 @@ class Af_Psql_Trgm extends Plugin {
 				style='vertical-align : middle'>";
 
 			$article_link = htmlspecialchars($line["link"]);
-			print " <a target=\"_blank\" href=\"$article_link\">".
+			print " <a target=\"_blank\" rel=\"noopener noreferrer\" href=\"$article_link\">".
 				$line["title"]."</a>";
 
 			print " (<a href=\"#\" onclick=\"viewfeed({feed:".$line["feed_id"]."})\">".
@@ -134,8 +134,6 @@ class Af_Psql_Trgm extends Plugin {
 			if (!$similarity) $similarity = '0.75';
 			if (!$min_title_length) $min_title_length = '32';
 
-			$enable_globally_checked = $enable_globally ? "checked" : "";
-
 			print "<form dojoType=\"dijit.form.Form\">";
 
 			print "<script type=\"dojo/method\" event=\"onSubmit\" args=\"evt\">
@@ -152,9 +150,9 @@ class Af_Psql_Trgm extends Plugin {
 				}
 				</script>";
 
-			print "<input dojoType=\"dijit.form.TextBox\" style=\"display : none\" name=\"op\" value=\"pluginhandler\">";
-			print "<input dojoType=\"dijit.form.TextBox\" style=\"display : none\" name=\"method\" value=\"save\">";
-			print "<input dojoType=\"dijit.form.TextBox\" style=\"display : none\" name=\"plugin\" value=\"af_psql_trgm\">";
+			print_hidden("op", "pluginhandler");
+			print_hidden("method", "save");
+			print_hidden("plugin", "af_psql_trgm");
 
 			print "<p>" . __("PostgreSQL trigram extension returns string similarity as a floating point number (0-1). Setting it too low might produce false positives, zero disables checking.") . "</p>";
 			print_notice("Enable the plugin for specific feeds in the feed editor.");
@@ -174,15 +172,13 @@ class Af_Psql_Trgm extends Plugin {
 				placeholder=\"32\"
 				required=\"1\" name=\"min_title_length\" value=\"$min_title_length\"></td></tr>";
 			print "<tr><td width=\"40%\">" . __("Enable for all feeds:") . "</td>";
-			print "<td>
-				<input dojoType=\"dijit.form.CheckBox\"
-				$enable_globally_checked name=\"enable_globally\"></td></tr>";
+			print "<td>";
+			print_checkbox("enable_globally", $enable_globally);
+			print "</td></tr>";
 
 			print "</table>";
 
-			print "<p><button dojoType=\"dijit.form.Button\" type=\"submit\">" .
-				__("Save") . "</button>";
-
+			print "<p>"; print_button("submit", __("Save"));
 			print "</form>";
 
 			$enabled_feeds = $this->host->get($this, "enabled_feeds");

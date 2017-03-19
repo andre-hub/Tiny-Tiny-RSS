@@ -345,10 +345,25 @@
 		global $fetch_last_content_type;
 		global $fetch_curl_used;
 
+		$fetch_last_error = false;
+		$fetch_last_error_code = -1;
+		$fetch_last_error_content = "";
+		$fetch_last_content_type = "";
+		$fetch_curl_used = false;
+
 		if (!is_array($options)) {
 
 			// falling back on compatibility shim
-			$options = array(
+			$option_names = [ "url", "type", "login", "pass", "post_query", "timeout", "timestamp", "useragent" ];
+			$tmp = [];
+
+			for ($i = 0; $i < func_num_args(); $i++) {
+				$tmp[$option_names[$i]] = func_get_arg($i);
+			}
+
+			$options = $tmp;
+
+			/*$options = array(
 					"url" => func_get_arg(0),
 					"type" => @func_get_arg(1),
 					"login" => @func_get_arg(2),
@@ -357,7 +372,7 @@
 					"timeout" => @func_get_arg(5),
 					"timestamp" => @func_get_arg(6),
 					"useragent" => @func_get_arg(7)
-			);
+			); */
 		}
 
 		$url = $options["url"];
@@ -368,6 +383,7 @@
 		$timeout = isset($options["timeout"]) ? $options["timeout"] : false;
 		$timestamp = isset($options["timestamp"]) ? $options["timestamp"] : 0;
 		$useragent = isset($options["useragent"]) ? $options["useragent"] : false;
+		$followlocation = isset($options["followlocation"]) ? $options["followlocation"] : true;
 
 		$url = ltrim($url, ' ');
 		$url = str_replace(' ', '%20', $url);
@@ -388,7 +404,7 @@
 
 			curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, $timeout ? $timeout : FILE_FETCH_CONNECT_TIMEOUT);
 			curl_setopt($ch, CURLOPT_TIMEOUT, $timeout ? $timeout : FILE_FETCH_TIMEOUT);
-			curl_setopt($ch, CURLOPT_FOLLOWLOCATION, !ini_get("open_basedir"));
+			curl_setopt($ch, CURLOPT_FOLLOWLOCATION, !ini_get("open_basedir") && $followlocation);
 			curl_setopt($ch, CURLOPT_MAXREDIRS, 20);
 			curl_setopt($ch, CURLOPT_BINARYTRANSFER, true);
 			curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
@@ -468,6 +484,7 @@
 				 $context = stream_context_create(array(
 					  'http' => array(
 							'method' => 'GET',
+						    'ignore_errors' => true,
 						    'timeout' => $timeout ? $timeout : FILE_FETCH_TIMEOUT,
 							'protocol_version'=> 1.1,
 							'header' => "If-Modified-Since: ".gmdate("D, d M Y H:i:s \\G\\M\\T\r\n", $timestamp)
@@ -476,6 +493,7 @@
 				 $context = stream_context_create(array(
 					  'http' => array(
 							'method' => 'GET',
+						    'ignore_errors' => true,
 						    'timeout' => $timeout ? $timeout : FILE_FETCH_TIMEOUT,
 							'protocol_version'=> 1.1
 					  )));
@@ -485,7 +503,6 @@
 
 			$data = @file_get_contents($url, false, $context);
 
-			$fetch_last_content_type = false;  // reset if no type was sent from server
 			if (isset($http_response_header) && is_array($http_response_header)) {
 				foreach ($http_response_header as $h) {
 					if (substr(strtolower($h), 0, 13) == 'content-type:') {
@@ -500,7 +517,7 @@
 				}
 			}
 
-			if (!$data) {
+			if ($fetch_last_error_code != 200) {
 				$error = error_get_last();
 
 				if ($error['message'] != $old_error['message']) {
@@ -508,6 +525,10 @@
 				} else {
 					$fetch_last_error = "HTTP Code: $fetch_last_error_code";
 				}
+
+				$fetch_last_error_content = $data;
+
+				return false;
 			}
 			return $data;
 		}
@@ -640,6 +661,21 @@
 		}
 
 		print "</select>";
+	}
+
+	function print_hidden($name, $value) {
+		print "<input dojoType=\"dijit.form.TextBox\" style=\"display : none\" name=\"$name\" value=\"$value\">";
+	}
+
+	function print_checkbox($id, $checked, $value = "", $attributes = "") {
+		$checked_str = $checked ? "checked" : "";
+		$value_str = $value ? "value=\"$value\"" : "";
+
+		print "<input dojoType=\"dijit.form.CheckBox\" id=\"$id\" $value_str $checked_str $attributes name=\"$id\">";
+	}
+
+	function print_button($type, $value, $attributes = "") {
+		print "<p><button dojoType=\"dijit.form.Button\" $attributes type=\"$type\">$value</button>";
 	}
 
 	function print_radio($id, $default, $true_is, $values, $attributes = "") {
@@ -1582,7 +1618,7 @@
 
 			$cv = array("id" => $i,
 				"counter" => (int) $count,
-				"auxcounter" => $auxctr);
+				"auxcounter" => (int) $auxctr);
 
 //			if (get_pref('EXTENDED_FEEDLIST'))
 //				$cv["xmsg"] = getFeedArticles($i)." ".__("total");
@@ -1710,6 +1746,8 @@
 			$auth_login = '', $auth_pass = '') {
 
 		global $fetch_last_error;
+		global $fetch_last_error_content;
+		global $fetch_last_error_code;
 
 		require_once "include/rssfuncs.php";
 
@@ -1720,6 +1758,10 @@
 		$contents = @fetch_file_contents($url, false, $auth_login, $auth_pass);
 
 		if (!$contents) {
+			if (preg_match("/cloudflare\.com/", $fetch_last_error_content)) {
+				$fetch_last_error .= " (feed behind Cloudflare)";
+			}
+
 			return array("code" => 5, "message" => $fetch_last_error);
 		}
 
@@ -1875,7 +1917,7 @@
 		$attributes, $include_all_cats = true, $root_id = false, $nest_level = 0) {
 
 			if (!$root_id) {
-					print "<select id=\"$id\" name=\"$id\" default=\"$default_id\" onchange=\"catSelectOnChange(this)\" $attributes>";
+					print "<select id=\"$id\" name=\"$id\" default=\"$default_id\" $attributes>";
 			}
 
 			if ($root_id)

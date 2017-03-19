@@ -340,10 +340,10 @@ class Pref_Filters extends Handler_Protected {
 
 		print "<form id=\"filter_edit_form\" onsubmit='return false'>";
 
-		print "<input dojoType=\"dijit.form.TextBox\" style=\"display : none\" name=\"op\" value=\"pref-filters\">";
-		print "<input dojoType=\"dijit.form.TextBox\" style=\"display : none\" name=\"id\" value=\"$filter_id\">";
-		print "<input dojoType=\"dijit.form.TextBox\" style=\"display : none\" name=\"method\" value=\"editSave\">";
-		print "<input dojoType=\"dijit.form.TextBox\" style=\"display : none\" name=\"csrf_token\" value=\"".$_SESSION['csrf_token']."\">";
+		print_hidden("op", "pref-filters");
+		print_hidden("id", "$filter_id");
+		print_hidden("method", "editSave");
+		print_hidden("csrf_token", $_SESSION['csrf_token']);
 
 		print "<div class=\"dlgSec\">".__("Caption")."</div>";
 
@@ -816,9 +816,9 @@ class Pref_Filters extends Handler_Protected {
 
 		print "<form name='filter_new_form' id='filter_new_form'>";
 
-		print "<input dojoType=\"dijit.form.TextBox\" style=\"display : none\" name=\"op\" value=\"pref-filters\">";
-		print "<input dojoType=\"dijit.form.TextBox\" style=\"display : none\" name=\"method\" value=\"add\">";
-		print "<input dojoType=\"dijit.form.TextBox\" style=\"display : none\" name=\"csrf_token\" value=\"".$_SESSION['csrf_token']."\">";
+		print_hidden("op", "pref-filters");
+		print_hidden("method", "add");
+		print_hidden("csrf_token", $_SESSION['csrf_token']);
 
 		print "<div class=\"dlgSec\">".__("Caption")."</div>";
 
@@ -1096,7 +1096,7 @@ class Pref_Filters extends Handler_Protected {
 
 		if (!$title) $title = __("[No caption]");
 
-		$title = sprintf(_ngettext("%s (%d rule)", "%s (%d rules)", $num_rules), $title, $num_rules);
+		$title = sprintf(_ngettext("%s (%d rule)", "%s (%d rules)", (int) $num_rules), $title, $num_rules);
 
 
 		$result = $this->dbh->query(
@@ -1114,7 +1114,7 @@ class Pref_Filters extends Handler_Protected {
 		if ($match_any_rule) $title .= " (" . __("matches any rule") . ")";
 
 		if ($num_actions > 0)
-			$actions = sprintf(_ngettext("%s (+%d action)", "%s (+%d actions)", $num_actions), $actions, $num_actions);
+			$actions = sprintf(_ngettext("%s (+%d action)", "%s (+%d actions)", (int) $num_actions), $actions, $num_actions);
 
 		return array($title, $actions);
 	}

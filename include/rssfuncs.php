@@ -23,9 +23,8 @@
 	function update_feedbrowser_cache() {
 
 		$result = db_query("SELECT feed_url, site_url, title, COUNT(id) AS subscribers
-	  		FROM ttrss_feeds WHERE (SELECT COUNT(id) = 0 FROM ttrss_feeds AS tf
-				WHERE tf.feed_url = ttrss_feeds.feed_url
-				AND (private IS true OR auth_login != '' OR auth_pass != '' OR feed_url LIKE '%:%@%/%'))
+			FROM ttrss_feeds WHERE feed_url NOT IN (SELECT feed_url FROM ttrss_feeds
+				WHERE private IS true OR auth_login != '' OR auth_pass != '' OR feed_url LIKE '%:%@%/%')
 				GROUP BY feed_url, site_url, title ORDER BY subscribers DESC LIMIT 1000");
 
 		db_query("BEGIN");
@@ -600,7 +599,7 @@
 					$callback_url = get_self_url_prefix() .
 						"/public.php?op=pubsub&id=$feed";
 
-					$s = new Subscriber($feed_hub_url, $callback_url);
+					$s = new Pubsubhubbub\Subscriber\Subscriber($feed_hub_url, $callback_url);
 
 					$rc = $s->subscribe($feed_self_url);
 
@@ -999,7 +998,7 @@
 								"/public.php?op=rss&id=-2&key=" .
 								get_feed_access_key(-2, false, $owner_uid);
 
-							$p = new Publisher(PUBSUBHUBBUB_HUB);
+							$p = new pubsubhubbub\publisher\Publisher(PUBSUBHUBBUB_HUB);
 
 							/* $pubsub_result = */ $p->publish_update($rss_link);
 						}
@@ -1239,13 +1238,14 @@
 		$doc->loadHTML($charset_hack . $html);
 		$xpath = new DOMXPath($doc);
 
-		$entries = $xpath->query('(//img[@src])');
+		$entries = $xpath->query('(//img[@src])|(//video/source[@src])');
 
 		foreach ($entries as $entry) {
-			if ($entry->hasAttribute('src')) {
+			if ($entry->hasAttribute('src') && strpos($entry->getAttribute('src'), "data:") !== 0) {
 				$src = rewrite_relative_url($site_url, $entry->getAttribute('src'));
 
-				$local_filename = CACHE_DIR . "/images/" . sha1($src) . ".png";
+				$extension = $entry->tagName == 'source' ? '.mp4' : '.png';
+				$local_filename = CACHE_DIR . "/images/" . sha1($src) . $extension;
 
 				if ($debug) _debug("cache_images: downloading: $src to $local_filename");
 

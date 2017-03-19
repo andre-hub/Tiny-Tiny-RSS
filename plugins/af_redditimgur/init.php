@@ -22,13 +22,10 @@ class Af_RedditImgur extends Plugin {
 	function hook_prefs_tab($args) {
 		if ($args != "prefFeeds") return;
 
-		print "<div id=\"af_redditimgur_prefs\" dojoType=\"dijit.layout.AccordionPane\" title=\"".__('af_redditimgur settings')."\">";
+		print "<div dojoType=\"dijit.layout.AccordionPane\" title=\"".__('Reddit content settings (af_redditimgur)')."\">";
 
 		$enable_readability = $this->host->get($this, "enable_readability");
-		$enable_readability_checked = $enable_readability ? "checked" : "";
-
 		$enable_content_dupcheck = $this->host->get($this, "enable_content_dupcheck");
-		$enable_content_dupcheck_checked = $enable_content_dupcheck ? "checked" : "";
 
 		print "<form dojoType=\"dijit.form.Form\">";
 
@@ -46,27 +43,21 @@ class Af_RedditImgur extends Plugin {
 			}
 			</script>";
 
-		print "<input dojoType=\"dijit.form.TextBox\" style=\"display : none\" name=\"op\" value=\"pluginhandler\">";
-		print "<input dojoType=\"dijit.form.TextBox\" style=\"display : none\" name=\"method\" value=\"save\">";
-		print "<input dojoType=\"dijit.form.TextBox\" style=\"display : none\" name=\"plugin\" value=\"af_redditimgur\">";
+		print_hidden("op", "pluginhandler");
+		print_hidden("method", "save");
+		print_hidden("plugin", "af_redditimgur");
 
 		print "<p>" . __("Uses Readability (full-text-rss) implementation by <a target='_blank' href='https://bitbucket.org/fivefilters/'>FiveFilters.org</a>");
 		print "<p/>";
 
-		print "<input dojoType=\"dijit.form.CheckBox\" id=\"enable_readability\"
-			$enable_readability_checked name=\"enable_readability\">&nbsp;";
-
-		print "<label for=\"enable_readability\">" . __("Extract missing content using Readability") . "</label>";
+		print_checkbox("enable_readability", $enable_readability);
+		print "&nbsp;<label for=\"enable_readability\">" . __("Extract missing content using Readability") . "</label>";
 
 		print "<br/>";
 
-		print "<input dojoType=\"dijit.form.CheckBox\" id=\"enable_content_dupcheck\"
-			$enable_content_dupcheck_checked name=\"enable_content_dupcheck\">&nbsp;";
-
-		print "<label for=\"enable_content_dupcheck\">" . __("Enable additional duplicate checking") . "</label>";
-		print "<p><button dojoType=\"dijit.form.Button\" type=\"submit\">".
-			__("Save")."</button>";
-
+		print_checkbox("enable_content_dupcheck", $enable_content_dupcheck);
+		print "&nbsp;<label for=\"enable_content_dupcheck\">" . __("Enable additional duplicate checking") . "</label>";
+		print "<p>"; print_button("submit", __("Save"));
 		print "</form>";
 
 		print "</div>";
@@ -140,6 +131,32 @@ class Af_RedditImgur extends Plugin {
 
 							$source_node = $tmpxpath->query("//video[contains(@class,'share-video')]//source[contains(@src, '.mp4')]")->item(0);
 							$poster_node = $tmpxpath->query("//video[contains(@class,'share-video') and @poster]")->item(0);
+
+							if ($source_node && $poster_node) {
+								$source_stream = $source_node->getAttribute("src");
+								$poster_url = $poster_node->getAttribute("poster");
+
+								$this->handle_as_video($doc, $entry, $source_stream, $poster_url);
+								$found = 1;
+							}
+						}
+					}
+				}
+
+				if (!$found && preg_match("/https?:\/\/(www\.)?streamable.com\//i", $entry->getAttribute("href"))) {
+
+					_debug("Handling as Streamable", $debug);
+
+					$tmp = fetch_file_contents($entry->getAttribute("href"));
+
+					if ($tmp) {
+						$tmpdoc = new DOMDocument();
+
+						if (@$tmpdoc->loadHTML($tmp)) {
+							$tmpxpath = new DOMXPath($tmpdoc);
+
+							$source_node = $tmpxpath->query("//video[contains(@class,'video-player-tag')]//source[contains(@src, '.mp4')]")->item(0);
+							$poster_node = $tmpxpath->query("//video[contains(@class,'video-player-tag') and @poster]")->item(0);
 
 							if ($source_node && $poster_node) {
 								$source_stream = $source_node->getAttribute("src");
