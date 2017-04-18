@@ -909,23 +909,29 @@
 
 			if ($entry->hasAttribute('src')) {
 				$src = rewrite_relative_url($rewrite_base_url, $entry->getAttribute('src'));
+				$cached_filename = CACHE_DIR . '/images/' . sha1($src);
 
-				// check cache only for video and images for the time being
-				if ($entry->nodeName == 'img' || ($entry->parentNode && $entry->parentNode->nodeName == "video")) {
+				if (file_exists($cached_filename)) {
 
-					$extension = $entry->tagName == 'source' ? '.mp4' : '.png';
-					$cached_filename = CACHE_DIR . '/images/' . sha1($src) . $extension;
+					// this is strictly cosmetic
+					if ($entry->tagName == 'img') {
+						$suffix = ".png";
+					} else if ($entry->parentNode && $entry->parentNode->tagName == "video") {
+						$suffix = ".mp4";
+					} else if ($entry->parentNode && $entry->parentNode->tagName == "audio") {
+						$suffix = ".ogg";
+					} else {
+						$suffix = "";
+					}
 
-					if (file_exists($cached_filename)) {
-						$src = get_self_url_prefix() . '/public.php?op=cached_image&hash=' . sha1($src) . $extension;
+					$src = get_self_url_prefix() . '/public.php?op=cached_url&hash=' . sha1($src) . $suffix;
 
-						if ($entry->hasAttribute('srcset')) {
-							$entry->removeAttribute('srcset');
-						}
+					if ($entry->hasAttribute('srcset')) {
+						$entry->removeAttribute('srcset');
+					}
 
-						if ($entry->hasAttribute('sizes')) {
-							$entry->removeAttribute('sizes');
-						}
+					if ($entry->hasAttribute('sizes')) {
+						$entry->removeAttribute('sizes');
 					}
 				}
 
@@ -1822,6 +1828,11 @@
 
 		if (db_num_rows($result) > 0) {
 			while ($line = db_fetch_assoc($result)) {
+
+				if (file_exists(CACHE_DIR . '/images/' . sha1($line["content_url"]))) {
+					$line["content_url"] = get_self_url_prefix() . '/public.php?op=cached_url&hash=' . sha1($line["content_url"]);
+				}
+
 				array_push($rv, $line);
 			}
 		}
@@ -2001,8 +2012,7 @@
 							$rv .= $retval;
 						} else {
 
-							if (preg_match("/image/", $entry["type"]) ||
-									preg_match("/\.(jpe?g|png|gif|bmp)/i", $entry["filename"])) {
+							if (preg_match("/image/", $entry["type"])) {
 
 									if (!$hide_images) {
 										$encsize = '';
