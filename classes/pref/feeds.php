@@ -84,7 +84,7 @@ class Pref_Feeds extends Handler_Protected {
 			$feed['checkbox'] = false;
 			$feed['unread'] = 0;
 			$feed['error'] = $feed_line['last_error'];
-			$feed['icon'] = getFeedIcon($feed_line['id']);
+			$feed['icon'] = Feeds::getFeedIcon($feed_line['id']);
 			$feed['param'] = make_local_datetime(
 				$feed_line['last_updated'], true);
 
@@ -171,7 +171,7 @@ class Pref_Feeds extends Handler_Protected {
 
 				while ($line = $this->dbh->fetch_assoc($result)) {
 
-					$label_id = label_to_feed_id($line['id']);
+					$label_id = Labels::label_to_feed_id($line['id']);
 
 					$feed = $this->feedlist_init_feed($label_id, false, 0);
 
@@ -246,7 +246,7 @@ class Pref_Feeds extends Handler_Protected {
 				$feed['name'] = $feed_line['title'];
 				$feed['checkbox'] = false;
 				$feed['error'] = $feed_line['last_error'];
-				$feed['icon'] = getFeedIcon($feed_line['id']);
+				$feed['icon'] = Feeds::getFeedIcon($feed_line['id']);
 				$feed['param'] = make_local_datetime(
 					$feed_line['last_updated'], true);
 				$feed['unread'] = 0;
@@ -278,7 +278,7 @@ class Pref_Feeds extends Handler_Protected {
 				$feed['name'] = $feed_line['title'];
 				$feed['checkbox'] = false;
 				$feed['error'] = $feed_line['last_error'];
-				$feed['icon'] = getFeedIcon($feed_line['id']);
+				$feed['icon'] = Feeds::getFeedIcon($feed_line['id']);
 				$feed['param'] = make_local_datetime(
 					$feed_line['last_updated'], true);
 				$feed['unread'] = 0;
@@ -784,19 +784,7 @@ class Pref_Feeds extends Handler_Protected {
 			<button class=\"danger\" dojoType=\"dijit.form.Button\" onclick='return unsubscribeFeed($feed_id, \"$title\")'>".
 				__('Unsubscribe')."</button>";
 
-		if (PUBSUBHUBBUB_ENABLED) {
-			$pubsub_state = $this->dbh->fetch_result($result, 0, "pubsub_state");
-			$pubsub_btn_disabled = ($pubsub_state == 2) ? "" : "disabled=\"1\"";
-
-			print "<button dojoType=\"dijit.form.Button\" id=\"pubsubReset_Btn\" $pubsub_btn_disabled
-					onclick='return resetPubSub($feed_id, \"$title\")'>".__('Resubscribe to push updates').
-					"</button>";
-		}
-
 		print "</div>";
-
-		print "<div dojoType=\"dijit.Tooltip\" connectId=\"pubsubReset_Btn\" position=\"below\">".
-			__('Resets PubSubHubbub subscription status for push-enabled feeds.')."</div>";
 
 		print "<button dojoType=\"dijit.form.Button\" onclick=\"return dijit.byId('feedEditDlg').execute()\">".__('Save')."</button>
 			<button dojoType=\"dijit.form.Button\" onclick=\"return dijit.byId('feedEditDlg').hide()\">".__('Cancel')."</button>
@@ -1024,9 +1012,7 @@ class Pref_Feeds extends Handler_Protected {
 			WHERE id = '$feed_id' AND owner_uid = " . $_SESSION["uid"]);
 
 			if ($reset_basic_info) {
-				require_once "rssfuncs.php";
-
-				set_basic_feed_info($feed_id);
+				RSSUtils::set_basic_feed_info($feed_id);
 			}
 
 			PluginHost::getInstance()->run_hooks(PluginHost::HOOK_PREFS_SAVE_FEED,
@@ -1120,16 +1106,6 @@ class Pref_Feeds extends Handler_Protected {
 		return;
 	}
 
-	function resetPubSub() {
-
-		$ids = $this->dbh->escape_string($_REQUEST["ids"]);
-
-		$this->dbh->query("UPDATE ttrss_feeds SET pubsub_state = 0 WHERE id IN ($ids)
-			AND owner_uid = " . $_SESSION["uid"]);
-
-		return;
-	}
-
 	function remove() {
 
 		$ids = explode(",", $this->dbh->escape_string($_REQUEST["ids"]));
@@ -1147,8 +1123,6 @@ class Pref_Feeds extends Handler_Protected {
 	}
 
 	function rescore() {
-		require_once "rssfuncs.php";
-
 		$ids = explode(",", $this->dbh->escape_string($_REQUEST["ids"]));
 
 		foreach ($ids as $id) {
@@ -1168,13 +1142,13 @@ class Pref_Feeds extends Handler_Protected {
 
 			while ($line = $this->dbh->fetch_assoc($result)) {
 
-				$tags = get_article_tags($line["ref_id"]);
+				$tags = Article::get_article_tags($line["ref_id"]);
 
-				$article_filters = get_article_filters($filters, $line['title'],
+				$article_filters = RSSUtils::get_article_filters($filters, $line['title'],
 					$line['content'], $line['link'], strtotime($line['updated']),
 					$line['author'], $tags);
 
-				$new_score = calculate_article_score($article_filters);
+				$new_score = RSSUtils::calculate_article_score($article_filters);
 
 				if (!$scores[$new_score]) $scores[$new_score] = array();
 
@@ -1225,13 +1199,13 @@ class Pref_Feeds extends Handler_Protected {
 
 			while ($line = $this->dbh->fetch_assoc($tmp_result)) {
 
-				$tags = get_article_tags($line["ref_id"]);
+				$tags = Article::get_article_tags($line["ref_id"]);
 
-				$article_filters = get_article_filters($filters, $line['title'],
+				$article_filters = RSSUtils::get_article_filters($filters, $line['title'],
 					$line['content'], $line['link'], strtotime($line['updated']),
 					$line['author'], $tags);
 
-				$new_score = calculate_article_score($article_filters);
+				$new_score = RSSUtils::calculate_article_score($article_filters);
 
 				if (!$scores[$new_score]) $scores[$new_score] = array();
 
@@ -1493,7 +1467,7 @@ class Pref_Feeds extends Handler_Protected {
 
 			print "<button onclick='window.navigator.registerContentHandler(" .
                       "\"application/vnd.mozilla.maybe.feed\", " .
-                      "\"" . add_feed_url() . "\", " . " \"Tiny Tiny RSS\")'>" .
+                      "\"" . $this->subscribe_to_feed_url() . "\", " . " \"Tiny Tiny RSS\")'>" .
 							 __('Click here to register this site as a feed reader.') .
 				"</button>";
 
@@ -1535,14 +1509,14 @@ class Pref_Feeds extends Handler_Protected {
 		$cat_id = (int) $cat_id;
 
 		if ($cat_id > 0) {
-			$cat_unread = ccache_find($cat_id, $_SESSION["uid"], true);
+			$cat_unread = CCache::find($cat_id, $_SESSION["uid"], true);
 		} else if ($cat_id == 0 || $cat_id == -2) {
-			$cat_unread = getCategoryUnread($cat_id);
+			$cat_unread = Feeds::getCategoryUnread($cat_id);
 		}
 
 		$obj['id'] = 'CAT:' . $cat_id;
 		$obj['items'] = array();
-		$obj['name'] = getCategoryTitle($cat_id);
+		$obj['name'] = Feeds::getCategoryTitle($cat_id);
 		$obj['type'] = 'category';
 		$obj['unread'] = (int) $cat_unread;
 		$obj['bare_id'] = $cat_id;
@@ -1555,7 +1529,7 @@ class Pref_Feeds extends Handler_Protected {
 		$feed_id = (int) $feed_id;
 
 		if (!$title)
-			$title = getFeedTitle($feed_id, false);
+			$title = Feeds::getFeedTitle($feed_id, false);
 
 		if ($unread === false)
 			$unread = getFeedUnread($feed_id, false);
@@ -1566,7 +1540,7 @@ class Pref_Feeds extends Handler_Protected {
 		$obj['type'] = 'feed';
 		$obj['error'] = $error;
 		$obj['updated'] = $updated;
-		$obj['icon'] = getFeedIcon($feed_id);
+		$obj['icon'] = Feeds::getFeedIcon($feed_id);
 		$obj['bare_id'] = $feed_id;
 		$obj['auxcounter'] = 0;
 
@@ -1740,7 +1714,7 @@ class Pref_Feeds extends Handler_Protected {
 		$result = $this->dbh->query("DELETE FROM ttrss_entries WHERE
 			(SELECT COUNT(int_id) FROM ttrss_user_entries WHERE ref_id = id) = 0");
 
-		ccache_update($id, $_SESSION['uid']);
+		CCache::update($id, $_SESSION['uid']);
 	} // function clear_feed_articles
 
 	private function remove_feed_category($id, $owner_uid) {
@@ -1748,7 +1722,7 @@ class Pref_Feeds extends Handler_Protected {
 		$this->dbh->query("DELETE FROM ttrss_feed_categories
 			WHERE id = '$id' AND owner_uid = $owner_uid");
 
-		ccache_remove($id, $owner_uid, true);
+		CCache::remove($id, $owner_uid, true);
 	}
 
 	static function remove_feed($id, $owner_uid) {
@@ -1803,11 +1777,11 @@ class Pref_Feeds extends Handler_Protected {
 				unlink(ICONS_DIR . "/$id.ico");
 			}
 
-			ccache_remove($id, $owner_uid);
+			CCache::remove($id, $owner_uid);
 
 		} else {
-			label_remove(feed_to_label_id($id), $owner_uid);
-			//ccache_remove($id, $owner_uid); don't think labels are cached
+			Labels::remove(Labels::feed_to_label_id($id), $owner_uid);
+			//CCache::remove($id, $owner_uid); don't think labels are cached
 		}
 	}
 
@@ -1976,5 +1950,11 @@ class Pref_Feeds extends Handler_Protected {
 
 		print (int) $this->dbh->fetch_result($result, 0, "num_inactive");
 	}
+
+	static function subscribe_to_feed_url() {
+		$url_path = get_self_url_prefix() .
+			"/public.php?op=subscribe&feed_url=%s";
+		return $url_path;
+	}
+
 }
-?>

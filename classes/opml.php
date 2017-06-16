@@ -182,7 +182,7 @@ class Opml extends Handler_Protected {
 					$cat_filter = sql_bool_to_bool($tmp_line["cat_filter"]);
 
 					if ($cat_filter && $tmp_line["cat_id"] || $tmp_line["feed_id"]) {
-						$tmp_line["feed"] = getFeedTitle(
+						$tmp_line["feed"] = Feeds::getFeedTitle(
 							$cat_filter ? $tmp_line["cat_id"] : $tmp_line["feed_id"],
 							$cat_filter);
 					} else {
@@ -251,7 +251,7 @@ class Opml extends Handler_Protected {
 
 	// Import
 
-	private function opml_import_feed($doc, $node, $cat_id, $owner_uid) {
+	private function opml_import_feed($node, $cat_id, $owner_uid) {
 		$attrs = $node->attributes;
 
 		$feed_title = $this->dbh->escape_string(mb_substr($attrs->getNamedItem('text')->nodeValue, 0, 250));
@@ -284,7 +284,7 @@ class Opml extends Handler_Protected {
 		}
 	}
 
-	private function opml_import_label($doc, $node, $owner_uid) {
+	private function opml_import_label($node, $owner_uid) {
 		$attrs = $node->attributes;
 		$label_name = $this->dbh->escape_string($attrs->getNamedItem('label-name')->nodeValue);
 
@@ -292,16 +292,16 @@ class Opml extends Handler_Protected {
 			$fg_color = $this->dbh->escape_string($attrs->getNamedItem('label-fg-color')->nodeValue);
 			$bg_color = $this->dbh->escape_string($attrs->getNamedItem('label-bg-color')->nodeValue);
 
-			if (!label_find_id($label_name, $_SESSION['uid'])) {
+			if (!Labels::find_id($label_name, $_SESSION['uid'])) {
 				$this->opml_notice(T_sprintf("Adding label %s", htmlspecialchars($label_name)));
-				label_create($label_name, $fg_color, $bg_color, $owner_uid);
+				Labels::create($label_name, $fg_color, $bg_color, $owner_uid);
 			} else {
 				$this->opml_notice(T_sprintf("Duplicate label: %s", htmlspecialchars($label_name)));
 			}
 		}
 	}
 
-	private function opml_import_preference($doc, $node, $owner_uid) {
+	private function opml_import_preference($node) {
 		$attrs = $node->attributes;
 		$pref_name = $this->dbh->escape_string($attrs->getNamedItem('pref-name')->nodeValue);
 
@@ -315,7 +315,7 @@ class Opml extends Handler_Protected {
 		}
 	}
 
-	private function opml_import_filter($doc, $node, $owner_uid) {
+	private function opml_import_filter($node) {
 		$attrs = $node->attributes;
 
 		$filter_type = $this->dbh->escape_string($attrs->getNamedItem('filter-type')->nodeValue);
@@ -386,9 +386,7 @@ class Opml extends Handler_Protected {
 	}
 
 	private function opml_import_category($doc, $root_node, $owner_uid, $parent_id) {
-		$body = $doc->getElementsByTagName('body');
-
-		$default_cat_id = (int) get_feed_category('Imported feeds', false);
+		$default_cat_id = (int) $this->get_feed_category('Imported feeds', false);
 
 		if ($root_node) {
 			$cat_title = $this->dbh->escape_string(mb_substr($root_node->attributes->getNamedItem('text')->nodeValue, 0, 250));
@@ -397,11 +395,11 @@ class Opml extends Handler_Protected {
 				$cat_title = $this->dbh->escape_string(mb_substr($root_node->attributes->getNamedItem('title')->nodeValue, 0, 250));
 
 			if (!in_array($cat_title, array("tt-rss-filters", "tt-rss-labels", "tt-rss-prefs"))) {
-				$cat_id = get_feed_category($cat_title, $parent_id);
+				$cat_id = $this->get_feed_category($cat_title, $parent_id);
 				$this->dbh->query("BEGIN");
 				if ($cat_id === false) {
 					add_feed_category($cat_title, $parent_id);
-					$cat_id = get_feed_category($cat_title, $parent_id);
+					$cat_id = $this->get_feed_category($cat_title, $parent_id);
 				}
 				$this->dbh->query("COMMIT");
 			} else {
@@ -442,16 +440,16 @@ class Opml extends Handler_Protected {
 
 					switch ($cat_title) {
 					case "tt-rss-prefs":
-						$this->opml_import_preference($doc, $node, $owner_uid);
+						$this->opml_import_preference($node);
 						break;
 					case "tt-rss-labels":
-						$this->opml_import_label($doc, $node, $owner_uid);
+						$this->opml_import_label($node, $owner_uid);
 						break;
 					case "tt-rss-filters":
-						$this->opml_import_filter($doc, $node, $owner_uid);
+						$this->opml_import_filter($node);
 						break;
 					default:
-						$this->opml_import_feed($doc, $node, $dst_cat_id, $owner_uid);
+						$this->opml_import_feed($node, $dst_cat_id, $owner_uid);
 					}
 				}
 			}
@@ -461,18 +459,13 @@ class Opml extends Handler_Protected {
 	function opml_import($owner_uid) {
 		if (!$owner_uid) return;
 
-		$debug = isset($_REQUEST["debug"]);
 		$doc = false;
-
-#		if ($debug) $doc = DOMDocument::load("/tmp/test.opml");
 
 		if ($_FILES['opml_file']['error'] != 0) {
 			print_error(T_sprintf("Upload failed with error code %d",
 				$_FILES['opml_file']['error']));
 			return;
 		}
-
-		$tmp_file = false;
 
 		if (is_uploaded_file($_FILES['opml_file']['tmp_name'])) {
 			$tmp_file = tempnam(CACHE_DIR . '/upload', 'opml');
@@ -520,6 +513,25 @@ class Opml extends Handler_Protected {
 		return $url_path;
 	}
 
+	function get_feed_category($feed_cat, $parent_cat_id = false) {
+		if ($parent_cat_id) {
+			$parent_qpart = "parent_cat = '$parent_cat_id'";
+			$parent_insert = "'$parent_cat_id'";
+		} else {
+			$parent_qpart = "parent_cat IS NULL";
+			$parent_insert = "NULL";
+		}
+
+		$result = db_query(
+			"SELECT id FROM ttrss_feed_categories
+			WHERE $parent_qpart AND title = '$feed_cat' AND owner_uid = ".$_SESSION["uid"]);
+
+		if (db_num_rows($result) == 0) {
+			return false;
+		} else {
+			return db_fetch_result($result, 0, "id");
+		}
+	}
+
 
 }
-?>

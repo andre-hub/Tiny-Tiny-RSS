@@ -52,6 +52,8 @@ class PluginHost {
 	const HOOK_ARTICLE_EXPORT_FEED = 31;
 	const HOOK_MAIN_TOOLBAR_BUTTON = 32;
 	const HOOK_ENCLOSURE_ENTRY = 33;
+	const HOOK_FORMAT_ARTICLE = 34;
+	const HOOK_FORMAT_ARTICLE_CDM = 35;
 
 	const KIND_ALL = 1;
 	const KIND_SYSTEM = 2;
@@ -288,7 +290,7 @@ class PluginHost {
 		}
 	}
 
-	function load_data($force = false) {
+	function load_data() {
 		if ($this->owner_uid)  {
 			$result = $this->dbh->query("SELECT name, content FROM ttrss_plugin_storage
 				WHERE owner_uid = '".$this->owner_uid."'");
@@ -435,4 +437,3 @@ class PluginHost {
 		return $this->plugin_actions;
 	}
 }
-?>

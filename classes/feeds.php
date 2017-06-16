@@ -13,7 +13,7 @@ class Feeds extends Handler_Protected {
 
 	private function format_headline_subtoolbar($feed_site_url, $feed_title,
 			$feed_id, $is_cat, $search,
-			$view_mode, $error, $feed_last_updated) {
+			$error, $feed_last_updated) {
 
 		$catchup_sel_link = "catchupSelection()";
 
@@ -153,7 +153,7 @@ class Feeds extends Handler_Protected {
 	}
 
 	private function format_headlines_list($feed, $method, $view_mode, $limit, $cat_view,
-					$next_unread_feed, $offset, $vgr_last_feed = false,
+					$offset, $vgr_last_feed = false,
 					$override_order = false, $include_children = false, $check_first_id = false,
 					$skip_first_id_check = false) {
 
@@ -202,8 +202,7 @@ class Feeds extends Handler_Protected {
 					$cache_images = sql_bool_to_bool($this->dbh->fetch_result($result, 0, "cache_images"));
 
 					if (!$cache_images && time() - $last_updated > 120) {
-						include "rssfuncs.php";
-						update_rss_feed($feed, true, true);
+						RSSUtils::update_rss_feed($feed, true);
 					} else {
 						$this->dbh->query("UPDATE ttrss_feeds SET last_updated = '1970-01-01', last_update_started = '1970-01-01'
 								WHERE id = '$feed'");
@@ -216,7 +215,7 @@ class Feeds extends Handler_Protected {
 		}
 
 		if ($method_split[0] == "MarkAllReadGR")  {
-			catchup_feed($method_split[1], false);
+			$this->catchup_feed($method_split[1], false);
 		}
 
 		// FIXME: might break tag display?
@@ -262,14 +261,6 @@ class Feeds extends Handler_Protected {
 			}
 
 		} else {
-			/*$qfh_ret = queryFeedHeadlines($feed, $limit, $view_mode, $cat_view,
-				$search, false, $override_order, $offset, 0,
-				false, 0, $include_children, $topid);*/
-
-			//function queryFeedHeadlines($feed, $limit,
-			// $view_mode, $cat_view, $search, $search_mode,
-			// $override_order = false, $offset = 0, $owner_uid = 0, $filter = false, $since_id = 0, $include_children = false,
-			// $ignore_vfeed_group = false, $override_strategy = false, $override_vfeed = false, $start_ts = false, $check_top_id = false) {
 
 			$params = array(
 				"feed" => $feed,
@@ -285,7 +276,7 @@ class Feeds extends Handler_Protected {
 				"skip_first_id_check" => $skip_first_id_check
 			);
 
-			$qfh_ret = queryFeedHeadlines($params);
+			$qfh_ret = $this->queryFeedHeadlines($params);
 		}
 
 		$vfeed_group_enabled = get_pref("VFEED_GROUP_BY_FEED") && $feed != -6;
@@ -306,7 +297,7 @@ class Feeds extends Handler_Protected {
 
 		$reply['toolbar'] = $this->format_headline_subtoolbar($feed_site_url,
 			$feed_title,
-			$feed, $cat_view, $search, $view_mode,
+			$feed, $cat_view, $search,
 			$last_error, $last_updated);
 
 		$headlines_count = is_numeric($result) ? 0 : $this->dbh->num_rows($result);
@@ -358,10 +349,10 @@ class Feeds extends Handler_Protected {
 					}
 				}
 
-				if (!is_array($labels)) $labels = get_article_labels($id);
+				if (!is_array($labels)) $labels = Article::get_article_labels($id);
 
 				$labels_str = "<span class=\"HLLCTR-$id\">";
-				$labels_str .= format_article_labels($labels, $id);
+				$labels_str .= Article::format_article_labels($labels);
 				$labels_str .= "</span>";
 
 				if (count($topmost_article_ids) < 3) {
@@ -589,21 +580,21 @@ class Feeds extends Handler_Protected {
 						onmouseout='postMouseOut($id)'";
 
 					$expanded_class = $expand_cdm ? "expanded" : "expandable";
-
-					$reply['content'] .= "<div class=\"cdm $hlc_suffix $expanded_class $class\"
+					
+					$tmp_content = "<div class=\"cdm $hlc_suffix $expanded_class $class\"
 						id=\"RROW-$id\" data-article-id='$id' data-orig-feed-id='$feed_id' $mouseover_attrs>";
 
-					$reply['content'] .= "<div class=\"cdmHeader\">";
-					$reply['content'] .= "<div style=\"vertical-align : middle\">";
+					$tmp_content .= "<div class=\"cdmHeader\">";
+					$tmp_content .= "<div style=\"vertical-align : middle\">";
 
-					$reply['content'] .= "<input dojoType=\"dijit.form.CheckBox\"
+					$tmp_content .= "<input dojoType=\"dijit.form.CheckBox\"
 							type=\"checkbox\" onclick=\"toggleSelectRow2(this, false, true)\"
 							class='rchk'>";
 
-					$reply['content'] .= "$marked_pic";
-					$reply['content'] .= "$published_pic";
+					$tmp_content .= "$marked_pic";
+					$tmp_content .= "$published_pic";
 
-					$reply['content'] .= "</div>";
+					$tmp_content .= "</div>";
 
 					if ($highlight_words && count($highlight_words > 0)) {
 						foreach ($highlight_words as $word) {
@@ -613,7 +604,7 @@ class Feeds extends Handler_Protected {
 					}
 
 					// data-article-id included for context menu
-					$reply['content'] .= "<span id=\"RTITLE-$id\"
+					$tmp_content .= "<span id=\"RTITLE-$id\"
 						onclick=\"return cdmClicked(event, $id);\"
 						data-article-id=\"$id\"
 						class=\"titleWrap hlMenuAttach $hlc_suffix\">						
@@ -624,9 +615,9 @@ class Feeds extends Handler_Protected {
 						$line["title"] .
 						"</a> <span class=\"author\">$entry_author</span>";
 
-					$reply['content'] .= $labels_str;
+					$tmp_content .= $labels_str;
 
-					$reply['content'] .= "<span class='collapseBtn' style='display : none'>
+					$tmp_content .= "<span class='collapseBtn' style='display : none'>
 						<img src=\"images/collapse.png\" onclick=\"cdmCollapseArticle(event, $id)\"
 						title=\"".__("Collapse article")."\"/></span>";
 
@@ -635,15 +626,15 @@ class Feeds extends Handler_Protected {
 					else
 						$excerpt_hidden = "style=\"display : none\"";
 
-					$reply['content'] .= "<span $excerpt_hidden id=\"CEXC-$id\" class=\"cdmExcerpt\">" . $content_preview . "</span>";
+					$tmp_content .= "<span $excerpt_hidden id=\"CEXC-$id\" class=\"cdmExcerpt\">" . $content_preview . "</span>";
 
-					$reply['content'] .= "</span>";
+					$tmp_content .= "</span>";
 
 					if (!$vfeed_group_enabled) {
 						if (@$line["feed_title"]) {
 							$rgba = @$rgba_cache[$feed_id];
 
-							$reply['content'] .= "<div class=\"hlFeed\">
+							$tmp_content .= "<div class=\"hlFeed\">
 								<a href=\"#\" style=\"background-color: rgba($rgba,0.3)\"
 								onclick=\"viewfeed({feed:$feed_id})\">".
 								truncate_string($line["feed_title"],30)."</a>
@@ -651,90 +642,87 @@ class Feeds extends Handler_Protected {
 						}
 					}
 
-					$reply['content'] .= "<span class='updated' title='$date_entered_fmt'>
-						$updated_fmt</span>";
+					$tmp_content .= "<span class='updated' title='$date_entered_fmt'>$updated_fmt</span>";
 
-					$reply['content'] .= "<div class='scoreWrap' style=\"vertical-align : middle\">";
-					$reply['content'] .= "$score_pic";
+					$tmp_content .= "<div class='scoreWrap' style=\"vertical-align : middle\">";
+					$tmp_content .= "$score_pic";
 
 					if (!get_pref("VFEED_GROUP_BY_FEED") && $line["feed_title"]) {
-						$reply['content'] .= "<span style=\"cursor : pointer\"
+						$tmp_content .= "<span style=\"cursor : pointer\"
 							title=\"".htmlspecialchars($line["feed_title"])."\"
 							onclick=\"viewfeed({feed:$feed_id})\">$feed_icon_img</span>";
 					}
-					$reply['content'] .= "</div>";
+					$tmp_content .= "</div>"; //scoreWrap
 
-					$reply['content'] .= "</div>";
+					$tmp_content .= "</div>"; //cdmHeader
 
-					$reply['content'] .= "<div class=\"cdmContent\" $content_hidden
+					$tmp_content .= "<div class=\"cdmContent\" $content_hidden
 						onclick=\"return cdmClicked(event, $id, true);\"
 						id=\"CICD-$id\">";
 
-					$reply['content'] .= "<div id=\"POSTNOTE-$id\">";
+					$tmp_content .= "<div id=\"POSTNOTE-$id\">";
 					if ($line['note']) {
-						$reply['content'] .= format_article_note($id, $line['note']);
+						$tmp_content .= Article::format_article_note($id, $line['note']);
 					}
-					$reply['content'] .= "</div>";
+					$tmp_content .= "</div>"; //POSTNOTE
 
 					if (!$line['lang']) $line['lang'] = 'en';
 
-					$reply['content'] .= "<div class=\"cdmContentInner\" lang=\"".$line['lang']."\">";
+					$tmp_content .= "<div class=\"cdmContentInner\" lang=\"".$line['lang']."\">";
 
-			if ($line["orig_feed_id"]) {
+					if ($line["orig_feed_id"]) {
 
-				$tmp_result = $this->dbh->query("SELECT * FROM ttrss_archived_feeds
-					WHERE id = ".$line["orig_feed_id"] . " AND owner_uid = " . $_SESSION["uid"]);
+						$tmp_result = $this->dbh->query("SELECT * FROM ttrss_archived_feeds
+							WHERE id = ".$line["orig_feed_id"] . " AND owner_uid = " . $_SESSION["uid"]);
 
 						if ($this->dbh->num_rows($tmp_result) != 0) {
 
-							$reply['content'] .= "<div clear='both'>";
-							$reply['content'] .= __("Originally from:");
+							$tmp_content .= "<div clear='both'>";
+							$tmp_content .= __("Originally from:");
 
-							$reply['content'] .= "&nbsp;";
+							$tmp_content .= "&nbsp;";
 
 							$tmp_line = $this->dbh->fetch_assoc($tmp_result);
 
-							$reply['content'] .= "<a target='_blank' rel='noopener noreferrer'
+							$tmp_content .= "<a target='_blank' rel='noopener noreferrer'
 								href=' " . htmlspecialchars($tmp_line['site_url']) . "'>" .
 								$tmp_line['title'] . "</a>";
 
-							$reply['content'] .= "&nbsp;";
+							$tmp_content .= "&nbsp;";
 
-							$reply['content'] .= "<a target='_blank' rel='noopener noreferrer' href='" . htmlspecialchars($tmp_line['feed_url']) . "'>";
-							$reply['content'] .= "<img title='".__('Feed URL')."'class='tinyFeedIcon' src='images/pub_unset.png'></a>";
+							$tmp_content .= "<a target='_blank' rel='noopener noreferrer' href='" . htmlspecialchars($tmp_line['feed_url']) . "'>";
+							$tmp_content .= "<img title='".__('Feed URL')."'class='tinyFeedIcon' src='images/pub_unset.png'></a>";
 
-							$reply['content'] .= "</div>";
+							$tmp_content .= "</div>";
 						}
 					}
 
-					$reply['content'] .= "<span id=\"CWRAP-$id\">";
+					$tmp_content .= "<span id=\"CWRAP-$id\">";
+					$tmp_content .= "<span id=\"CENCW-$id\" class=\"cencw\" style=\"display : none\">";
+					$tmp_content .= htmlspecialchars($line["content"]);
+					$tmp_content .= "</span>";
+					$tmp_content .= "</span>";
 
-					$reply['content'] .= "<span id=\"CENCW-$id\" class=\"cencw\" style=\"display : none\">";
-					$reply['content'] .= htmlspecialchars($line["content"]);
-					$reply['content'] .= "</span>";
+					$tmp_content .= "</div>"; //cdmContentInner
 
-					$reply['content'] .= "</span>";
-
-					$reply['content'] .= "</div>";
-
-					$reply['content'] .= "<div class=\"cdmIntermediate\">";
+					$tmp_content .= "<div class=\"cdmIntermediate\">";
 
 					$always_display_enclosures = sql_bool_to_bool($line["always_display_enclosures"]);
-					$reply['content'] .= format_article_enclosures($id, $always_display_enclosures, $line["content"], sql_bool_to_bool($line["hide_images"]));
+					$tmp_content .= Article::format_article_enclosures($id, $always_display_enclosures, $line["content"], sql_bool_to_bool($line["hide_images"]));
 
-					$reply['content'] .= "</div>";
+					$tmp_content .= "</div>"; // cdmIntermediate
 
-					$reply['content'] .= "<div class=\"cdmFooter\" onclick=\"cdmFooterClick(event)\">";
+					$tmp_content .= "<div class=\"cdmFooter\" onclick=\"cdmFooterClick(event)\">";
 
 					foreach (PluginHost::getInstance()->get_hooks(PluginHost::HOOK_ARTICLE_LEFT_BUTTON) as $p) {
-						$reply['content'] .= $p->hook_article_left_button($line);
+						$tmp_content .= $p->hook_article_left_button($line);
 					}
 
-					$tags_str = format_tags_string($tags, $id);
+					$tags_str = Article::format_tags_string($tags, $id);
 
-					$reply['content'] .= "<span class='left'>";
+					$tmp_content .= "<span class='left'>";
 
-					$reply['content'] .= "<img src='images/tag.png' alt='Tags' title='Tags'>
+					$tmp_content .= "<img src='images/tag.png' alt='Tags' title='Tags'>
 						<span id=\"ATSTR-$id\">$tags_str</span>
 						<a title=\"".__('Edit tags for this article')."\"
 						href=\"#\" onclick=\"editArticleTags($id)\">(+)</a>";
@@ -758,25 +746,29 @@ class Feeds extends Handler_Protected {
 						}
 					}
 
-					if ($entry_comments) $reply['content'] .= "&nbsp;($entry_comments)";
+					if ($entry_comments) $tmp_content .= "&nbsp;($entry_comments)";
 
-					$reply['content'] .= "</span>";
-					$reply['content'] .= "<div>";
+					$tmp_content .= "</span>";
+					$tmp_content .= "<div>";
 
-//					$reply['content'] .= "$marked_pic";
-//					$reply['content'] .= "$published_pic";
+//					$tmp_content .= "$marked_pic";
+//					$tmp_content .= "$published_pic";
 
 					foreach (PluginHost::getInstance()->get_hooks(PluginHost::HOOK_ARTICLE_BUTTON) as $p) {
-						$reply['content'] .= $p->hook_article_button($line);
+						$tmp_content .= $p->hook_article_button($line);
 					}
 
-					$reply['content'] .= "</div>";
-					$reply['content'] .= "</div>";
+					$tmp_content .= "</div>"; // buttons
 
-					$reply['content'] .= "</div>";
+					$tmp_content .= "</div>"; // cdmFooter
+					$tmp_content .= "</div>"; // cdmContent
+					$tmp_content .= "</div>"; // RROW.cdm
 
-					$reply['content'] .= "</div>";
+					foreach (PluginHost::getInstance()->get_hooks(PluginHost::HOOK_FORMAT_ARTICLE_CDM) as $p) {
+						$tmp_content = $p->hook_format_article_cdm($tmp_content, $line);
+					}
 
+					$reply['content'] .= $tmp_content;
 				}
 
 				++$lnum;
@@ -844,7 +836,7 @@ class Feeds extends Handler_Protected {
 	function catchupAll() {
 		$this->dbh->query("UPDATE ttrss_user_entries SET
 						last_read = NOW(), unread = false WHERE unread = true AND owner_uid = " . $_SESSION["uid"]);
-		ccache_zero_all($_SESSION["uid"]);
+		CCache::zero_all($_SESSION["uid"]);
 	}
 
 	function view() {
@@ -878,7 +870,7 @@ class Feeds extends Handler_Protected {
 		$result = false;
 
 		if ($feed < LABEL_BASE_INDEX) {
-			$label_feed = feed_to_label_id($feed);
+			$label_feed = Labels::feed_to_label_id($feed);
 			$result = $this->dbh->query("SELECT id FROM ttrss_labels2 WHERE
 							id = '$label_feed' AND owner_uid = " . $_SESSION['uid']);
 		} else if (!$cat_view && is_numeric($feed) && $feed > 0) {
@@ -898,7 +890,7 @@ class Feeds extends Handler_Protected {
 		 * so for performance reasons we don't do that here */
 
 		if ($feed >= 0) {
-			ccache_update($feed, $_SESSION["uid"], $cat_view);
+			CCache::update($feed, $_SESSION["uid"], $cat_view);
 		}
 
 		set_pref("_DEFAULT_VIEW_MODE", $view_mode);
@@ -937,7 +929,7 @@ class Feeds extends Handler_Protected {
 		if ($_REQUEST["debug"]) $timing_info = print_checkpoint("04", $timing_info);
 
 		$ret = $this->format_headlines_list($feed, $method,
-			$view_mode, $limit, $cat_view, $next_unread_feed, $offset,
+			$view_mode, $limit, $cat_view, $offset,
 			$vgroup_last_feed, $override_order, true, $check_first_id, $skip_first_id_check);
 
 		//$topmost_article_ids = $ret[0];
@@ -1171,7 +1163,7 @@ class Feeds extends Handler_Protected {
 			style=\"font-size : 16px; width : 20em;\"
 			required=\"1\" name=\"query\" type=\"search\" value=''>";
 
-		print "<hr/><span style='float : right'>".T_sprintf('in %s', getFeedTitle($active_feed_id, $is_cat))."</span>";
+		print "<hr/><span style='float : right'>".T_sprintf('in %s', $this->getFeedTitle($active_feed_id, $is_cat))."</span>";
 
 		if (DB_TYPE == "pgsql") {
 			print "<hr/>";
@@ -1211,7 +1203,7 @@ class Feeds extends Handler_Protected {
 			<title>Feed Debugger</title>
 		</head>
 		<body class="small_margins">
-		<h1>Feed Debugger: <?php echo "$feed_id: " . getFeedTitle($feed_id) ?></h1>
+		<h1>Feed Debugger: <?php echo "$feed_id: " . $this->getFeedTitle($feed_id) ?></h1>
 		<form method="GET" action="">
 			<input type="hidden" name="op" value="feeds">
 			<input type="hidden" name="method" value="update_debugger">
@@ -1230,8 +1222,7 @@ class Feeds extends Handler_Protected {
 		<pre><?php
 
 		if ($do_update) {
-			include "rssfuncs.php";
-			update_rss_feed($feed_id, true, true);
+			RSSUtils::update_rss_feed($feed_id, true);
 		}
 
 		?></pre>
@@ -1241,5 +1232,967 @@ class Feeds extends Handler_Protected {
 		<?php
 
 	}
+
+	static function catchup_feed($feed, $cat_view, $owner_uid = false, $mode = 'all', $search = false) {
+
+		if (!$owner_uid) $owner_uid = $_SESSION['uid'];
+
+		// Todo: all this interval stuff needs some generic generator function
+
+		$date_qpart = "false";
+		$search_qpart = is_array($search) && $search[0] ? search_to_sql($search[0], $search[1])[0] : 'true';
+
+		switch ($mode) {
+			case "1day":
+				if (DB_TYPE == "pgsql") {
+					$date_qpart = "date_entered < NOW() - INTERVAL '1 day' ";
+				} else {
+					$date_qpart = "date_entered < DATE_SUB(NOW(), INTERVAL 1 DAY) ";
+				}
+				break;
+			case "1week":
+				if (DB_TYPE == "pgsql") {
+					$date_qpart = "date_entered < NOW() - INTERVAL '1 week' ";
+				} else {
+					$date_qpart = "date_entered < DATE_SUB(NOW(), INTERVAL 1 WEEK) ";
+				}
+				break;
+			case "2week":
+				if (DB_TYPE == "pgsql") {
+					$date_qpart = "date_entered < NOW() - INTERVAL '2 week' ";
+				} else {
+					$date_qpart = "date_entered < DATE_SUB(NOW(), INTERVAL 2 WEEK) ";
+				}
+				break;
+			default:
+				$date_qpart = "true";
+		}
+
+		if (is_numeric($feed)) {
+			if ($cat_view) {
+
+				if ($feed >= 0) {
+
+					if ($feed > 0) {
+						$children = Feeds::getChildCategories($feed, $owner_uid);
+						array_push($children, $feed);
+
+						$children = join(",", $children);
+
+						$cat_qpart = "cat_id IN ($children)";
+					} else {
+						$cat_qpart = "cat_id IS NULL";
+					}
+
+					db_query("UPDATE ttrss_user_entries
+						SET unread = false, last_read = NOW() WHERE ref_id IN
+							(SELECT id FROM
+								(SELECT DISTINCT id FROM ttrss_entries, ttrss_user_entries WHERE ref_id = id
+									AND owner_uid = $owner_uid AND unread = true AND feed_id IN
+										(SELECT id FROM ttrss_feeds WHERE $cat_qpart) AND $date_qpart AND $search_qpart) as tmp)");
+
+				} else if ($feed == -2) {
+
+					db_query("UPDATE ttrss_user_entries
+						SET unread = false,last_read = NOW() WHERE (SELECT COUNT(*)
+							FROM ttrss_user_labels2, ttrss_entries WHERE article_id = ref_id AND id = ref_id AND $date_qpart AND $search_qpart) > 0
+							AND unread = true AND owner_uid = $owner_uid");
+				}
+
+			} else if ($feed > 0) {
+
+				db_query("UPDATE ttrss_user_entries
+					SET unread = false, last_read = NOW() WHERE ref_id IN
+						(SELECT id FROM
+							(SELECT DISTINCT id FROM ttrss_entries, ttrss_user_entries WHERE ref_id = id
+								AND owner_uid = $owner_uid AND unread = true AND feed_id = $feed AND $date_qpart AND $search_qpart) as tmp)");
+
+			} else if ($feed < 0 && $feed > LABEL_BASE_INDEX) { // special, like starred
+
+				if ($feed == -1) {
+					db_query("UPDATE ttrss_user_entries
+						SET unread = false, last_read = NOW() WHERE ref_id IN
+							(SELECT id FROM
+								(SELECT DISTINCT id FROM ttrss_entries, ttrss_user_entries WHERE ref_id = id
+									AND owner_uid = $owner_uid AND unread = true AND marked = true AND $date_qpart AND $search_qpart) as tmp)");
+				}
+
+				if ($feed == -2) {
+					db_query("UPDATE ttrss_user_entries
+						SET unread = false, last_read = NOW() WHERE ref_id IN
+							(SELECT id FROM
+								(SELECT DISTINCT id FROM ttrss_entries, ttrss_user_entries WHERE ref_id = id
+									AND owner_uid = $owner_uid AND unread = true AND published = true AND $date_qpart AND $search_qpart) as tmp)");
+				}
+
+				if ($feed == -3) {
+
+					$intl = get_pref("FRESH_ARTICLE_MAX_AGE");
+
+					if (DB_TYPE == "pgsql") {
+						$match_part = "date_entered > NOW() - INTERVAL '$intl hour' ";
+					} else {
+						$match_part = "date_entered > DATE_SUB(NOW(),
+							INTERVAL $intl HOUR) ";
+					}
+
+					db_query("UPDATE ttrss_user_entries
+						SET unread = false, last_read = NOW() WHERE ref_id IN
+							(SELECT id FROM
+								(SELECT DISTINCT id FROM ttrss_entries, ttrss_user_entries WHERE ref_id = id
+									AND owner_uid = $owner_uid AND score >= 0 AND unread = true AND $date_qpart AND $match_part AND $search_qpart) as tmp)");
+				}
+
+				if ($feed == -4) {
+					db_query("UPDATE ttrss_user_entries
+						SET unread = false, last_read = NOW() WHERE ref_id IN
+							(SELECT id FROM
+								(SELECT DISTINCT id FROM ttrss_entries, ttrss_user_entries WHERE ref_id = id
+									AND owner_uid = $owner_uid AND unread = true AND $date_qpart AND $search_qpart) as tmp)");
+				}
+
+			} else if ($feed < LABEL_BASE_INDEX) { // label
+
+				$label_id = Labels::feed_to_label_id($feed);
+
+				db_query("UPDATE ttrss_user_entries
+					SET unread = false, last_read = NOW() WHERE ref_id IN
+						(SELECT id FROM
+							(SELECT DISTINCT ttrss_entries.id FROM ttrss_entries, ttrss_user_entries, ttrss_user_labels2 WHERE ref_id = id
+								AND label_id = '$label_id' AND ref_id = article_id
+								AND owner_uid = $owner_uid AND unread = true AND $date_qpart AND $search_qpart) as tmp)");
+
+			}
+
+			CCache::update($feed, $owner_uid, $cat_view);
+
+		} else { // tag
+			db_query("UPDATE ttrss_user_entries
+				SET unread = false, last_read = NOW() WHERE ref_id IN
+					(SELECT id FROM
+						(SELECT DISTINCT ttrss_entries.id FROM ttrss_entries, ttrss_user_entries, ttrss_tags WHERE ref_id = ttrss_entries.id
+							AND post_int_id = int_id AND tag_name = '$feed'
+							AND ttrss_user_entries.owner_uid = $owner_uid AND unread = true AND $date_qpart AND $search_qpart) as tmp)");
+
+		}
+	}
+
+	static function getFeedArticles($feed, $is_cat = false, $unread_only = false,
+							 $owner_uid = false) {
+
+		$n_feed = (int) $feed;
+		$need_entries = false;
+
+		if (!$owner_uid) $owner_uid = $_SESSION["uid"];
+
+		if ($unread_only) {
+			$unread_qpart = "unread = true";
+		} else {
+			$unread_qpart = "true";
+		}
+
+		if ($is_cat) {
+			return Feeds::getCategoryUnread($n_feed, $owner_uid);
+		} else if ($n_feed == -6) {
+			return 0;
+		} else if ($feed != "0" && $n_feed == 0) {
+
+			$feed = db_escape_string($feed);
+
+			$result = db_query("SELECT SUM((SELECT COUNT(int_id)
+				FROM ttrss_user_entries,ttrss_entries WHERE int_id = post_int_id
+					AND ref_id = id AND $unread_qpart)) AS count FROM ttrss_tags
+				WHERE owner_uid = $owner_uid AND tag_name = '$feed'");
+			return db_fetch_result($result, 0, "count");
+
+		} else if ($n_feed == -1) {
+			$match_part = "marked = true";
+		} else if ($n_feed == -2) {
+			$match_part = "published = true";
+		} else if ($n_feed == -3) {
+			$match_part = "unread = true AND score >= 0";
+
+			$intl = get_pref("FRESH_ARTICLE_MAX_AGE", $owner_uid);
+
+			if (DB_TYPE == "pgsql") {
+				$match_part .= " AND date_entered > NOW() - INTERVAL '$intl hour' ";
+			} else {
+				$match_part .= " AND date_entered > DATE_SUB(NOW(), INTERVAL $intl HOUR) ";
+			}
+
+			$need_entries = true;
+
+		} else if ($n_feed == -4) {
+			$match_part = "true";
+		} else if ($n_feed >= 0) {
+
+			if ($n_feed != 0) {
+				$match_part = "feed_id = '$n_feed'";
+			} else {
+				$match_part = "feed_id IS NULL";
+			}
+
+		} else if ($feed < LABEL_BASE_INDEX) {
+
+			$label_id = Labels::feed_to_label_id($feed);
+
+			return Feeds::getLabelUnread($label_id, $owner_uid);
+
+		}
+
+		if ($match_part) {
+
+			if ($need_entries) {
+				$from_qpart = "ttrss_user_entries,ttrss_entries";
+				$from_where = "ttrss_entries.id = ttrss_user_entries.ref_id AND";
+			} else {
+				$from_qpart = "ttrss_user_entries";
+				$from_where = "";
+			}
+
+			$query = "SELECT count(int_id) AS unread
+				FROM $from_qpart WHERE
+				$unread_qpart AND $from_where ($match_part) AND ttrss_user_entries.owner_uid = $owner_uid";
+
+			//echo "[$feed/$query]\n";
+
+			$result = db_query($query);
+
+		} else {
+
+			$result = db_query("SELECT COUNT(post_int_id) AS unread
+				FROM ttrss_tags,ttrss_user_entries,ttrss_entries
+				WHERE tag_name = '$feed' AND post_int_id = int_id AND ref_id = ttrss_entries.id
+				AND $unread_qpart AND ttrss_tags.owner_uid = " . $owner_uid);
+		}
+
+		$unread = db_fetch_result($result, 0, "unread");
+
+		return $unread;
+	}
+
+	/**
+	 * @return array (code => Status code, message => error message if available)
+	 *
+	 *                 0 - OK, Feed already exists
+	 *                 1 - OK, Feed added
+	 *                 2 - Invalid URL
+	 *                 3 - URL content is HTML, no feeds available
+	 *                 4 - URL content is HTML which contains multiple feeds.
+	 *                     Here you should call extractfeedurls in rpc-backend
+	 *                     to get all possible feeds.
+	 *                 5 - Couldn't download the URL content.
+	 *                 6 - Content is an invalid XML.
+	 */
+	static function subscribe_to_feed($url, $cat_id = 0,
+							   $auth_login = '', $auth_pass = '') {
+
+		global $fetch_last_error;
+		global $fetch_last_error_content;
+
+		$url = fix_url($url);
+
+		if (!$url || !validate_feed_url($url)) return array("code" => 2);
+
+		$contents = @fetch_file_contents($url, false, $auth_login, $auth_pass);
+
+		if (!$contents) {
+			if (preg_match("/cloudflare\.com/", $fetch_last_error_content)) {
+				$fetch_last_error .= " (feed behind Cloudflare)";
+			}
+
+			return array("code" => 5, "message" => $fetch_last_error);
+		}
+
+		foreach (PluginHost::getInstance()->get_hooks(PluginHost::HOOK_SUBSCRIBE_FEED) as $plugin) {
+			$contents = $plugin->hook_subscribe_feed($contents, $url, $auth_login, $auth_pass);
+		}
+
+		if (is_html($contents)) {
+			$feedUrls = get_feeds_from_html($url, $contents);
+
+			if (count($feedUrls) == 0) {
+				return array("code" => 3);
+			} else if (count($feedUrls) > 1) {
+				return array("code" => 4, "feeds" => $feedUrls);
+			}
+			//use feed url as new URL
+			$url = key($feedUrls);
+		}
+
+		if ($cat_id == "0" || !$cat_id) {
+			$cat_qpart = "NULL";
+		} else {
+			$cat_qpart = "'$cat_id'";
+		}
+
+		$result = db_query(
+			"SELECT id FROM ttrss_feeds
+			WHERE feed_url = '$url' AND owner_uid = ".$_SESSION["uid"]);
+
+		$auth_pass_encrypted = 'false';
+		$auth_pass = db_escape_string($auth_pass);
+
+		if (db_num_rows($result) == 0) {
+			$result = db_query(
+				"INSERT INTO ttrss_feeds
+					(owner_uid,feed_url,title,cat_id, auth_login,auth_pass,update_method,auth_pass_encrypted)
+				VALUES ('".$_SESSION["uid"]."', '$url',
+				'[Unknown]', $cat_qpart, '$auth_login', '$auth_pass', 0, $auth_pass_encrypted)");
+
+			$result = db_query(
+				"SELECT id FROM ttrss_feeds WHERE feed_url = '$url'
+					AND owner_uid = " . $_SESSION["uid"]);
+
+			$feed_id = db_fetch_result($result, 0, "id");
+
+			if ($feed_id) {
+				RSSUtils::set_basic_feed_info($feed_id);
+			}
+
+			return array("code" => 1, "feed_id" => (int) $feed_id);
+		} else {
+			return array("code" => 0, "feed_id" => (int) db_fetch_result($result, 0, "id"));
+		}
+	}
+
+	static function getFeedIcon($id) {
+		switch ($id) {
+			case 0:
+				return "images/archive.png";
+				break;
+			case -1:
+				return "images/star.png";
+				break;
+			case -2:
+				return "images/feed.png";
+				break;
+			case -3:
+				return "images/fresh.png";
+				break;
+			case -4:
+				return "images/folder.png";
+				break;
+			case -6:
+				return "images/time.png";
+				break;
+			default:
+				if ($id < LABEL_BASE_INDEX) {
+					return "images/label.png";
+				} else {
+					if (file_exists(ICONS_DIR . "/$id.ico"))
+						return ICONS_URL . "/$id.ico";
+				}
+				break;
+		}
+
+		return false;
+	}
+
+	static function getFeedTitle($id, $cat = false) {
+		if ($cat) {
+			return Feeds::getCategoryTitle($id);
+		} else if ($id == -1) {
+			return __("Starred articles");
+		} else if ($id == -2) {
+			return __("Published articles");
+		} else if ($id == -3) {
+			return __("Fresh articles");
+		} else if ($id == -4) {
+			return __("All articles");
+		} else if ($id === 0 || $id === "0") {
+			return __("Archived articles");
+		} else if ($id == -6) {
+			return __("Recently read");
+		} else if ($id < LABEL_BASE_INDEX) {
+			$label_id = Labels::feed_to_label_id($id);
+			$result = db_query("SELECT caption FROM ttrss_labels2 WHERE id = '$label_id'");
+			if (db_num_rows($result) == 1) {
+				return db_fetch_result($result, 0, "caption");
+			} else {
+				return "Unknown label ($label_id)";
+			}
+
+		} else if (is_numeric($id) && $id > 0) {
+			$result = db_query("SELECT title FROM ttrss_feeds WHERE id = '$id'");
+			if (db_num_rows($result) == 1) {
+				return db_fetch_result($result, 0, "title");
+			} else {
+				return "Unknown feed ($id)";
+			}
+		} else {
+			return $id;
+		}
+	}
+
+	static function getCategoryUnread($cat, $owner_uid = false) {
+
+		if (!$owner_uid) $owner_uid = $_SESSION["uid"];
+
+		if ($cat >= 0) {
+
+			if ($cat != 0) {
+				$cat_query = "cat_id = '$cat'";
+			} else {
+				$cat_query = "cat_id IS NULL";
+			}
+
+			$result = db_query("SELECT id FROM ttrss_feeds WHERE $cat_query
+					AND owner_uid = " . $owner_uid);
+
+			$cat_feeds = array();
+			while ($line = db_fetch_assoc($result)) {
+				array_push($cat_feeds, "feed_id = " . $line["id"]);
+			}
+
+			if (count($cat_feeds) == 0) return 0;
+
+			$match_part = implode(" OR ", $cat_feeds);
+
+			$result = db_query("SELECT COUNT(int_id) AS unread
+				FROM ttrss_user_entries
+				WHERE	unread = true AND ($match_part)
+				AND owner_uid = " . $owner_uid);
+
+			$unread = 0;
+
+			# this needs to be rewritten
+			while ($line = db_fetch_assoc($result)) {
+				$unread += $line["unread"];
+			}
+
+			return $unread;
+		} else if ($cat == -1) {
+			return getFeedUnread(-1) + getFeedUnread(-2) + getFeedUnread(-3) + getFeedUnread(0);
+		} else if ($cat == -2) {
+
+			$result = db_query("
+				SELECT COUNT(unread) AS unread FROM
+					ttrss_user_entries, ttrss_user_labels2
+				WHERE article_id = ref_id AND unread = true
+					AND ttrss_user_entries.owner_uid = '$owner_uid'");
+
+			$unread = db_fetch_result($result, 0, "unread");
+
+			return $unread;
+
+		}
+	}
+
+	// only accepts real cats (>= 0)
+	static function getCategoryChildrenUnread($cat, $owner_uid = false) {
+		if (!$owner_uid) $owner_uid = $_SESSION["uid"];
+
+		$result = db_query("SELECT id FROM ttrss_feed_categories WHERE parent_cat = '$cat'
+				AND owner_uid = $owner_uid");
+
+		$unread = 0;
+
+		while ($line = db_fetch_assoc($result)) {
+			$unread += Feeds::getCategoryUnread($line["id"], $owner_uid);
+			$unread += Feeds::getCategoryChildrenUnread($line["id"], $owner_uid);
+		}
+
+		return $unread;
+	}
+
+	static function getGlobalUnread($user_id = false) {
+
+		if (!$user_id) {
+			$user_id = $_SESSION["uid"];
+		}
+
+		$result = db_query("SELECT SUM(value) AS c_id FROM ttrss_counters_cache
+			WHERE owner_uid = '$user_id' AND feed_id > 0");
+
+		$c_id = db_fetch_result($result, 0, "c_id");
+
+		return $c_id;
+	}
+
+	static function getCategoryTitle($cat_id) {
+
+		if ($cat_id == -1) {
+			return __("Special");
+		} else if ($cat_id == -2) {
+			return __("Labels");
+		} else {
+
+			$result = db_query("SELECT title FROM ttrss_feed_categories WHERE
+				id = '$cat_id'");
+
+			if (db_num_rows($result) == 1) {
+				return db_fetch_result($result, 0, "title");
+			} else {
+				return __("Uncategorized");
+			}
+		}
+	}
+
+	static function getLabelUnread($label_id, $owner_uid = false) {
+		if (!$owner_uid) $owner_uid = $_SESSION["uid"];
+
+		$result = db_query("SELECT COUNT(ref_id) AS unread FROM ttrss_user_entries, ttrss_user_labels2
+			WHERE owner_uid = '$owner_uid' AND unread = true AND label_id = '$label_id' AND article_id = ref_id");
+
+		if (db_num_rows($result) != 0) {
+			return db_fetch_result($result, 0, "unread");
+		} else {
+			return 0;
+		}
+	}
+
+	static function queryFeedHeadlines($params) {
+
+		$feed = $params["feed"];
+		$limit = isset($params["limit"]) ? $params["limit"] : 30;
+		$view_mode = $params["view_mode"];
+		$cat_view = isset($params["cat_view"]) ? $params["cat_view"] : false;
+		$search = isset($params["search"]) ? $params["search"] : false;
+		$search_language = isset($params["search_language"]) ? $params["search_language"] : "";
+		$override_order = isset($params["override_order"]) ? $params["override_order"] : false;
+		$offset = isset($params["offset"]) ? $params["offset"] : 0;
+		$owner_uid = isset($params["owner_uid"]) ? $params["owner_uid"] : $_SESSION["uid"];
+		$since_id = isset($params["since_id"]) ? $params["since_id"] : 0;
+		$include_children = isset($params["include_children"]) ? $params["include_children"] : false;
+		$ignore_vfeed_group = isset($params["ignore_vfeed_group"]) ? $params["ignore_vfeed_group"] : false;
+		$override_strategy = isset($params["override_strategy"]) ? $params["override_strategy"] : false;
+		$override_vfeed = isset($params["override_vfeed"]) ? $params["override_vfeed"] : false;
+		$start_ts = isset($params["start_ts"]) ? $params["start_ts"] : false;
+		$check_first_id = isset($params["check_first_id"]) ? $params["check_first_id"] : false;
+		$skip_first_id_check = isset($params["skip_first_id_check"]) ? $params["skip_first_id_check"] : false;
+
+		$ext_tables_part = "";
+		$query_strategy_part = "";
+
+		$search_words = array();
+
+		if ($search) {
+			foreach (PluginHost::getInstance()->get_hooks(PluginHost::HOOK_SEARCH) as $plugin) {
+				list($search_query_part, $search_words) = $plugin->hook_search($search);
+				break;
+			}
+
+			// fall back in case of no plugins
+			if (!$search_query_part) {
+				list($search_query_part, $search_words) = search_to_sql($search, $search_language);
+			}
+			$search_query_part .= " AND ";
+		} else {
+			$search_query_part = "";
+		}
+
+		if ($since_id) {
+			$since_id_part = "ttrss_entries.id > $since_id AND ";
+		} else {
+			$since_id_part = "";
+		}
+
+		$view_query_part = "";
+
+		if ($view_mode == "adaptive") {
+			if ($search) {
+				$view_query_part = " ";
+			} else if ($feed != -1) {
+
+				$unread = getFeedUnread($feed, $cat_view);
+
+				if ($cat_view && $feed > 0 && $include_children)
+					$unread += Feeds::getCategoryChildrenUnread($feed);
+
+				if ($unread > 0) {
+					$view_query_part = " unread = true AND ";
+				}
+			}
+		}
+
+		if ($view_mode == "marked") {
+			$view_query_part = " marked = true AND ";
+		}
+
+		if ($view_mode == "has_note") {
+			$view_query_part = " (note IS NOT NULL AND note != '') AND ";
+		}
+
+		if ($view_mode == "published") {
+			$view_query_part = " published = true AND ";
+		}
+
+		if ($view_mode == "unread" && $feed != -6) {
+			$view_query_part = " unread = true AND ";
+		}
+
+		if ($limit > 0) {
+			$limit_query_part = "LIMIT " . $limit;
+		}
+
+		$allow_archived = false;
+
+		$vfeed_query_part = "";
+
+		/* tags */
+		if (!is_numeric($feed)) {
+			$query_strategy_part = "true";
+			$vfeed_query_part = "(SELECT title FROM ttrss_feeds WHERE
+					id = feed_id) as feed_title,";
+		} else if ($feed > 0) {
+
+			if ($cat_view) {
+
+				if ($feed > 0) {
+					if ($include_children) {
+						# sub-cats
+						$subcats = Feeds::getChildCategories($feed, $owner_uid);
+
+						array_push($subcats, $feed);
+						$query_strategy_part = "cat_id IN (".
+							implode(",", $subcats).")";
+
+					} else {
+						$query_strategy_part = "cat_id = '$feed'";
+					}
+
+				} else {
+					$query_strategy_part = "cat_id IS NULL";
+				}
+
+				$vfeed_query_part = "ttrss_feeds.title AS feed_title,";
+
+			} else {
+				$query_strategy_part = "feed_id = '$feed'";
+			}
+		} else if ($feed == 0 && !$cat_view) { // archive virtual feed
+			$query_strategy_part = "feed_id IS NULL";
+			$allow_archived = true;
+		} else if ($feed == 0 && $cat_view) { // uncategorized
+			$query_strategy_part = "cat_id IS NULL AND feed_id IS NOT NULL";
+			$vfeed_query_part = "ttrss_feeds.title AS feed_title,";
+		} else if ($feed == -1) { // starred virtual feed
+			$query_strategy_part = "marked = true";
+			$vfeed_query_part = "ttrss_feeds.title AS feed_title,";
+			$allow_archived = true;
+
+			if (!$override_order) {
+				$override_order = "last_marked DESC, date_entered DESC, updated DESC";
+			}
+
+		} else if ($feed == -2) { // published virtual feed OR labels category
+
+			if (!$cat_view) {
+				$query_strategy_part = "published = true";
+				$vfeed_query_part = "ttrss_feeds.title AS feed_title,";
+				$allow_archived = true;
+
+				if (!$override_order) {
+					$override_order = "last_published DESC, date_entered DESC, updated DESC";
+				}
+
+			} else {
+				$vfeed_query_part = "ttrss_feeds.title AS feed_title,";
+
+				$ext_tables_part = "ttrss_labels2,ttrss_user_labels2,";
+
+				$query_strategy_part = "ttrss_labels2.id = ttrss_user_labels2.label_id AND
+						ttrss_user_labels2.article_id = ref_id";
+
+			}
+		} else if ($feed == -6) { // recently read
+			$query_strategy_part = "unread = false AND last_read IS NOT NULL";
+
+			if (DB_TYPE == "pgsql") {
+				$query_strategy_part .= " AND last_read > NOW() - INTERVAL '1 DAY' ";
+			} else {
+				$query_strategy_part .= " AND last_read > DATE_SUB(NOW(), INTERVAL 1 DAY) ";
+			}
+
+			$vfeed_query_part = "ttrss_feeds.title AS feed_title,";
+			$allow_archived = true;
+			$ignore_vfeed_group = true;
+
+			if (!$override_order) $override_order = "last_read DESC";
+
+		} else if ($feed == -3) { // fresh virtual feed
+			$query_strategy_part = "unread = true AND score >= 0";
+
+			$intl = get_pref("FRESH_ARTICLE_MAX_AGE", $owner_uid);
+
+			if (DB_TYPE == "pgsql") {
+				$query_strategy_part .= " AND date_entered > NOW() - INTERVAL '$intl hour' ";
+			} else {
+				$query_strategy_part .= " AND date_entered > DATE_SUB(NOW(), INTERVAL $intl HOUR) ";
+			}
+
+			$vfeed_query_part = "ttrss_feeds.title AS feed_title,";
+		} else if ($feed == -4) { // all articles virtual feed
+			$allow_archived = true;
+			$query_strategy_part = "true";
+			$vfeed_query_part = "ttrss_feeds.title AS feed_title,";
+		} else if ($feed <= LABEL_BASE_INDEX) { // labels
+			$label_id = Labels::feed_to_label_id($feed);
+
+			$query_strategy_part = "label_id = '$label_id' AND
+					ttrss_labels2.id = ttrss_user_labels2.label_id AND
+					ttrss_user_labels2.article_id = ref_id";
+
+			$vfeed_query_part = "ttrss_feeds.title AS feed_title,";
+			$ext_tables_part = "ttrss_labels2,ttrss_user_labels2,";
+			$allow_archived = true;
+
+		} else {
+			$query_strategy_part = "true";
+		}
+
+		$order_by = "score DESC, date_entered DESC, updated DESC";
+
+		if ($override_order) {
+			$order_by = $override_order;
+		}
+
+		if ($override_strategy) {
+			$query_strategy_part = $override_strategy;
+		}
+
+		if ($override_vfeed) {
+			$vfeed_query_part = $override_vfeed;
+		}
+
+		$feed_title = "";
+
+		if ($search) {
+			$feed_title = T_sprintf("Search results: %s", $search);
+		} else {
+			if ($cat_view) {
+				$feed_title = Feeds::getCategoryTitle($feed);
+			} else {
+				if (is_numeric($feed) && $feed > 0) {
+					$result = db_query("SELECT title,site_url,last_error,last_updated
+							FROM ttrss_feeds WHERE id = '$feed' AND owner_uid = $owner_uid");
+
+					$feed_title = db_fetch_result($result, 0, "title");
+					$feed_site_url = db_fetch_result($result, 0, "site_url");
+					$last_error = db_fetch_result($result, 0, "last_error");
+					$last_updated = db_fetch_result($result, 0, "last_updated");
+				} else {
+					$feed_title = Feeds::getFeedTitle($feed);
+				}
+			}
+		}
+
+
+		$content_query_part = "content, ";
+
+		if ($limit_query_part) {
+			$offset_query_part = "OFFSET $offset";
+		} else {
+			$offset_query_part = "";
+		}
+
+		if (is_numeric($feed)) {
+			// proper override_order applied above
+			if ($vfeed_query_part && !$ignore_vfeed_group && get_pref('VFEED_GROUP_BY_FEED', $owner_uid)) {
+				if (!$override_order) {
+					$order_by = "ttrss_feeds.title, $order_by";
+				} else {
+					$order_by = "ttrss_feeds.title, $override_order";
+				}
+			}
+
+			if (!$allow_archived) {
+				$from_qpart = "${ext_tables_part}ttrss_entries LEFT JOIN ttrss_user_entries ON (ref_id = ttrss_entries.id),ttrss_feeds";
+				$feed_check_qpart = "ttrss_user_entries.feed_id = ttrss_feeds.id AND";
+
+			} else {
+				$from_qpart = "${ext_tables_part}ttrss_entries LEFT JOIN ttrss_user_entries ON (ref_id = ttrss_entries.id)
+						LEFT JOIN ttrss_feeds ON (feed_id = ttrss_feeds.id)";
+			}
+
+			if ($vfeed_query_part) $vfeed_query_part .= "favicon_avg_color,";
+
+			if ($start_ts) {
+				$start_ts_formatted = date("Y/m/d H:i:s", strtotime($start_ts));
+				$start_ts_query_part = "date_entered >= '$start_ts_formatted' AND";
+			} else {
+				$start_ts_query_part = "";
+			}
+
+			$first_id = 0;
+			$first_id_query_strategy_part = $query_strategy_part;
+
+			if ($feed == -3)
+				$first_id_query_strategy_part = "true";
+
+			if (DB_TYPE == "pgsql") {
+				$sanity_interval_qpart = "date_entered >= NOW() - INTERVAL '1 hour' AND";
+			} else {
+				$sanity_interval_qpart = "date_entered >= DATE_SUB(NOW(), INTERVAL 1 hour) AND";
+			}
+
+			if (!$search && !$skip_first_id_check) {
+				// if previous topmost article id changed that means our current pagination is no longer valid
+				$query = "SELECT DISTINCT
+							ttrss_feeds.title,
+							date_entered,
+							guid,
+							ttrss_entries.id,
+							ttrss_entries.title,
+							updated,
+							score,
+							marked,
+							published,
+							last_marked,
+							last_published,
+							last_read
+						FROM
+							$from_qpart
+						WHERE
+						$feed_check_qpart
+						ttrss_user_entries.owner_uid = '$owner_uid' AND
+						$search_query_part
+						$start_ts_query_part
+						$since_id_part
+						$sanity_interval_qpart
+						$first_id_query_strategy_part ORDER BY $order_by LIMIT 1";
+
+				if ($_REQUEST["debug"]) {
+					print $query;
+				}
+
+				$result = db_query($query);
+				if ($result && db_num_rows($result) > 0) {
+					$first_id = (int)db_fetch_result($result, 0, "id");
+
+					if ($offset > 0 && $first_id && $check_first_id && $first_id != $check_first_id) {
+						return array(-1, $feed_title, $feed_site_url, $last_error, $last_updated, $search_words, $first_id);
+					}
+				}
+			}
+
+			$query = "SELECT DISTINCT
+						date_entered,
+						guid,
+						ttrss_entries.id,ttrss_entries.title,
+						updated,
+						label_cache,
+						tag_cache,
+						always_display_enclosures,
+						site_url,
+						note,
+						num_comments,
+						comments,
+						int_id,
+						uuid,
+						lang,
+						hide_images,
+						unread,feed_id,marked,published,link,last_read,orig_feed_id,
+						last_marked, last_published,
+						$vfeed_query_part
+						$content_query_part
+						author,score
+					FROM
+						$from_qpart
+					WHERE
+					$feed_check_qpart
+					ttrss_user_entries.owner_uid = '$owner_uid' AND
+					$search_query_part
+					$start_ts_query_part
+					$view_query_part
+					$since_id_part
+					$query_strategy_part ORDER BY $order_by
+					$limit_query_part $offset_query_part";
+
+			if ($_REQUEST["debug"]) print $query;
+
+			$result = db_query($query);
+
+		} else {
+			// browsing by tag
+
+			$query = "SELECT DISTINCT
+							date_entered,
+							guid,
+							note,
+							ttrss_entries.id as id,
+							title,
+							updated,
+							unread,
+							feed_id,
+							orig_feed_id,
+							marked,
+							num_comments,
+							comments,
+							int_id,
+							tag_cache,
+							label_cache,
+							link,
+							lang,
+							uuid,
+							last_read,
+							(SELECT hide_images FROM ttrss_feeds WHERE id = feed_id) AS hide_images,
+							last_marked, last_published,
+							$since_id_part
+							$vfeed_query_part
+							$content_query_part
+							author, score
+						FROM ttrss_entries, ttrss_user_entries, ttrss_tags
+						WHERE
+							ref_id = ttrss_entries.id AND
+							ttrss_user_entries.owner_uid = $owner_uid AND
+							post_int_id = int_id AND
+							tag_name = '$feed' AND
+							$view_query_part
+							$search_query_part
+							$query_strategy_part ORDER BY $order_by
+							$limit_query_part $offset_query_part";
+
+			if ($_REQUEST["debug"]) print $query;
+
+			$result = db_query($query);
+		}
+
+		return array($result, $feed_title, $feed_site_url, $last_error, $last_updated, $search_words, $first_id);
+
+	}
+
+	static function getParentCategories($cat, $owner_uid) {
+		$rv = array();
+
+		$result = db_query("SELECT parent_cat FROM ttrss_feed_categories
+			WHERE id = '$cat' AND parent_cat IS NOT NULL AND owner_uid = $owner_uid");
+
+		while ($line = db_fetch_assoc($result)) {
+			array_push($rv, $line["parent_cat"]);
+			$rv = array_merge($rv, Feeds::getParentCategories($line["parent_cat"], $owner_uid));
+		}
+
+		return $rv;
+	}
+
+	static function getChildCategories($cat, $owner_uid) {
+		$rv = array();
+
+		$result = db_query("SELECT id FROM ttrss_feed_categories
+			WHERE parent_cat = '$cat' AND owner_uid = $owner_uid");
+
+		while ($line = db_fetch_assoc($result)) {
+			array_push($rv, $line["id"]);
+			$rv = array_merge($rv, Feeds::getChildCategories($line["id"], $owner_uid));
+		}
+
+		return $rv;
+	}
+
+	static function getFeedCategory($feed) {
+		$result = db_query("SELECT cat_id FROM ttrss_feeds
+				WHERE id = '$feed'");
+
+		if (db_num_rows($result) > 0) {
+			return db_fetch_result($result, 0, "cat_id");
+		} else {
+			return false;
+		}
+
+	}
+
+
 }
-?>
+

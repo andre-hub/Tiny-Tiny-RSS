@@ -1,19 +1,11 @@
 <?php
-class Plugin {
-	private $dbh;
-	private $host;
-
+abstract class Plugin {
 	const API_VERSION_COMPAT = 1;
 
-	function init($host) {
-		$this->dbh = $host->get_dbh();
-		$this->host = $host;
-	}
+	abstract function init($host);
 
-	function about() {
-		// version, name, description, author, is_system
-		return array(1.0, "plugin", "No description", "No author", false);
-	}
+	abstract function about();
+	// return array(1.0, "plugin", "No description", "No author", false);
 
 	function flags() {
 		/* associative array, possible keys:
@@ -22,6 +14,9 @@ class Plugin {
 		return array();
 	}
 
+	/**
+	 * @SuppressWarnings(PHPMD.UnusedFormalParameter)
+	 */
 	function is_public_method($method) {
 		return false;
 	}
@@ -38,4 +33,3 @@ class Plugin {
 		return Plugin::API_VERSION_COMPAT;
 	}
 }
-?>

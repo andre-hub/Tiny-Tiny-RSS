@@ -44,8 +44,6 @@ class Pref_Filters extends Handler_Protected {
 	}
 
 	function testFilterDo() {
-		require_once "include/rssfuncs.php";
-
 		$offset = (int) db_escape_string($_REQUEST["offset"]);
 		$limit = (int) db_escape_string($_REQUEST["limit"]);
 
@@ -129,8 +127,8 @@ class Pref_Filters extends Handler_Protected {
 
 			while ($line = db_fetch_assoc($result)) {
 
-				$rc = get_article_filters(array($filter), $line['title'], $line['content'], $line['link'],
-					false, $line['author'], explode(",", $line['tag_cache']));
+				$rc = RSSUtils::get_article_filters(array($filter), $line['title'], $line['content'], $line['link'],
+					$line['author'], explode(",", $line['tag_cache']));
 
 				if (count($rc) > 0) {
 
@@ -224,9 +222,9 @@ class Pref_Filters extends Handler_Protected {
 		while ($line = $this->dbh->fetch_assoc($result)) {
 
 			$where = sql_bool_to_bool($line["cat_filter"]) ?
-				getCategoryTitle($line["cat_id"]) :
+				Feeds::getCategoryTitle($line["cat_id"]) :
 				($line["feed_id"] ?
-					getFeedTitle($line["feed_id"]) : __("All feeds"));
+					Feeds::getFeedTitle($line["feed_id"]) : __("All feeds"));
 
 #			$where = $line["cat_id"] . "/" . $line["feed_id"];
 
@@ -497,12 +495,12 @@ class Pref_Filters extends Handler_Protected {
 
 		if (strpos($feed_id, "CAT:") === 0) {
 			$feed_id = (int) substr($feed_id, 4);
-			$feed = getCategoryTitle($feed_id);
+			$feed = Feeds::getCategoryTitle($feed_id);
 		} else {
 			$feed_id = (int) $feed_id;
 
 			if ($rule["feed_id"])
-				$feed = getFeedTitle((int)$rule["feed_id"]);
+				$feed = Feeds::getFeedTitle((int)$rule["feed_id"]);
 			else
 				$feed = __("All feeds");
 		}
@@ -1193,4 +1191,3 @@ class Pref_Filters extends Handler_Protected {
 		$this->dbh->query("COMMIT");
 	}
 }
-?>

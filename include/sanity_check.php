@@ -1,6 +1,5 @@
 <?php
-	/*
-	 * WARNING!
+	/* WARNING!
 	 *
 	 * If you modify this file, you are ON YOUR OWN!
 	 *
@@ -21,6 +20,9 @@
 		return $url_path;
 	}
 
+	/**
+	 * @SuppressWarnings(PHPMD.UnusedLocalVariable)
+	 */
 	function initial_sanity_check() {
 
 		$errors = array();
@@ -138,12 +140,14 @@
 				array_push($errors, "PHP safe mode setting is obsolete and not supported by tt-rss.");
 			}
 
-			if ((PUBSUBHUBBUB_HUB || PUBSUBHUBBUB_ENABLED) && !function_exists("curl_init")) {
-				array_push($errors, "PHP support for CURL is required for PubSubHubbub.");
-			}
-
 			if (!class_exists("DOMDocument")) {
 				array_push($errors, "PHP support for DOMDocument is required, but was not found.");
+			}
+
+			$self_scheme = parse_url(SELF_URL_PATH, PHP_URL_SCHEME);
+
+			if ($_SERVER['HTTPS'] && $self_scheme == 'http') {
+				array_push($errors, "You are accessing tt-rss over SSL but SELF_URL_PATH in config.php refers to a http:// URL.");
 			}
 		}
 

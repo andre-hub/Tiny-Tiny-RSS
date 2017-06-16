@@ -356,6 +356,12 @@ require(["dojo/_base/declare", "dojo/dom-construct", "dijit/Tree", "dijit/Menu"]
 				treeNode = treeNode[0];
 				if (!is_cat) this._expandNode(treeNode);
 				this.set("selectedNodes", [treeNode]);
+				this.focusNode(treeNode);
+
+				// focus headlines to route key events there
+				setTimeout(function() {
+					$("headlines-frame").focus();
+				}, 0);
 			}
 		},
 		setFeedIcon: function(feed, is_cat, src) {

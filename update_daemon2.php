@@ -12,7 +12,6 @@
 	require_once "autoload.php";
 	require_once "functions.php";
 	require_once "config.php";
-	require_once "rssfuncs.php";
 
 	// defaults
 	define_default('PURGE_INTERVAL', 3600); // seconds
@@ -45,6 +44,9 @@
 
 	$last_checkpoint = -1;
 
+	/**
+	 * @SuppressWarnings(unused)
+	 */
 	function reap_children() {
 		global $children;
 		global $ctimes;
@@ -85,6 +87,9 @@
 		}
 	}
 
+	/**
+	* @SuppressWarnings(unused)
+ 	*/
 	function sigchld_handler($signal) {
 		$running_jobs = reap_children();
 
@@ -160,6 +165,10 @@
 	} else {
 		$spawn_interval = SPAWN_INTERVAL;
 	}
+
+	// let's enforce a minimum spawn interval as to not forkbomb the host
+	$spawn_interval = max(60, $spawn_interval);
+	_debug("Spawn interval: $spawn_interval sec");
 
 	if (isset($options["log"])) {
 		_debug("Logging to " . $options["log"]);

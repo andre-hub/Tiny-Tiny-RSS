@@ -23,8 +23,6 @@ class Db_Prefs {
 	}
 
 	function cache() {
-		$profile = false;
-
 		$user_id = $_SESSION["uid"];
 		@$profile = $_SESSION["profile"];
 
@@ -129,7 +127,6 @@ class Db_Prefs {
 			@$profile = $_SESSION["profile"];
 		} else {
 			$user_id = sprintf("%d", $user_id);
-			$prefs_cache = false;
 		}
 
 		if ($profile) {
@@ -177,7 +174,7 @@ class Db_Prefs {
 			db_query("UPDATE ttrss_user_prefs SET
 				value = '$value' WHERE pref_name = '$pref_name'
 					$profile_qpart
-					AND owner_uid = " . $_SESSION["uid"]);
+					AND owner_uid = " . $user_id);
 
 			if ($user_id == $_SESSION["uid"]) {
 				$this->cache[$pref_name]["type"] = $type_name;
@@ -187,4 +184,3 @@ class Db_Prefs {
 	}
 
 }
-?>

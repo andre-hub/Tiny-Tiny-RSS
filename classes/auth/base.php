@@ -6,10 +6,16 @@ class Auth_Base {
 		$this->dbh = Db::get();
 	}
 
+	/**
+	 * @SuppressWarnings(unused)
+	 */
 	function check_password($owner_uid, $password) {
 		return false;
 	}
 
+	/**
+	 * @SuppressWarnings(unused)
+	 */
 	function authenticate($login, $password) {
 		return false;
 	}
@@ -57,5 +63,3 @@ class Auth_Base {
 
 	}
 }
-
-?>

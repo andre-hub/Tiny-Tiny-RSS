@@ -1,5 +1,4 @@
 <?php
-
 class API extends Handler {
 
 	const API_LEVEL  = 14;
@@ -102,13 +101,13 @@ class API extends Handler {
 		if ($feed_id) {
 			$this->wrap(self::STATUS_OK, array("unread" => getFeedUnread($feed_id, $is_cat)));
 		} else {
-			$this->wrap(self::STATUS_OK, array("unread" => getGlobalUnread()));
+			$this->wrap(self::STATUS_OK, array("unread" => Feeds::getGlobalUnread()));
 		}
 	}
 
 	/* Method added for ttrss-reader for Android */
 	function getCounters() {
-		$this->wrap(self::STATUS_OK, getAllCounters());
+		$this->wrap(self::STATUS_OK, Counters::getAllCounters());
 	}
 
 	function getFeeds() {
@@ -153,7 +152,7 @@ class API extends Handler {
 				$unread = getFeedUnread($line["id"], true);
 
 				if ($enable_nested)
-					$unread += getCategoryChildrenUnread($line["id"]);
+					$unread += Feeds::getCategoryChildrenUnread($line["id"]);
 
 				if ($unread || !$unread_only) {
 					array_push($cats, array("id" => $line["id"],
@@ -171,7 +170,7 @@ class API extends Handler {
 
 				if ($unread || !$unread_only) {
 					array_push($cats, array("id" => $cat_id,
-						"title" => getCategoryTitle($cat_id),
+						"title" => Feeds::getCategoryTitle($cat_id),
 						"unread" => $unread));
 				}
 			}
@@ -298,18 +297,7 @@ class API extends Handler {
 					WHERE ref_id IN ($article_ids)");
 
 				while ($line = $this->dbh->fetch_assoc($result)) {
-					ccache_update($line["feed_id"], $_SESSION["uid"]);
-				}
-			}
-
-			if ($num_updated > 0 && $field == "published") {
-				if (PUBSUBHUBBUB_HUB) {
-					$rss_link = get_self_url_prefix() .
-						"/public.php?op=rss&id=-2&key=" .
-						get_feed_access_key(-2, false);
-
-					$p = new pubsubhubbub\publisher\Publisher(PUBSUBHUBBUB_HUB);
-					$pubsub_result = $p->publish_update($rss_link);
+					CCache::update($line["feed_id"], $_SESSION["uid"]);
 				}
 			}
 
@@ -348,14 +336,14 @@ class API extends Handler {
 
 				while ($line = $this->dbh->fetch_assoc($result)) {
 
-					$attachments = get_article_enclosures($line['id']);
+					$attachments = Article::get_article_enclosures($line['id']);
 
 					$article = array(
 						"id" => $line["id"],
 						"guid" => $line["guid"],
 						"title" => $line["title"],
 						"link" => $line["link"],
-						"labels" => get_article_labels($line['id']),
+						"labels" => Article::get_article_labels($line['id']),
 						"unread" => sql_bool_to_bool($line["unread"]),
 						"marked" => sql_bool_to_bool($line["marked"]),
 						"published" => sql_bool_to_bool($line["published"]),
@@ -413,12 +401,10 @@ class API extends Handler {
 	}
 
 	function updateFeed() {
-		require_once "include/rssfuncs.php";
-
 		$feed_id = (int) $this->dbh->escape_string($_REQUEST["feed_id"]);
 
 		if (!ini_get("open_basedir")) {
-			update_rss_feed($feed_id, true);
+			RSSUtils::update_rss_feed($feed_id);
 		}
 
 		$this->wrap(self::STATUS_OK, array("status" => "OK"));
@@ -428,7 +414,7 @@ class API extends Handler {
 		$feed_id = $this->dbh->escape_string($_REQUEST["feed_id"]);
 		$is_cat = $this->dbh->escape_string($_REQUEST["is_cat"]);
 
-		catchup_feed($feed_id, $is_cat);
+		Feeds::catchup_feed($feed_id, $is_cat);
 
 		$this->wrap(self::STATUS_OK, array("status" => "OK"));
 	}
@@ -451,7 +437,7 @@ class API extends Handler {
 			WHERE owner_uid = '".$_SESSION['uid']."' ORDER BY caption");
 
 		if ($article_id)
-			$article_labels = get_article_labels($article_id);
+			$article_labels = Article::get_article_labels($article_id);
 		else
 			$article_labels = array();
 
@@ -459,14 +445,14 @@ class API extends Handler {
 
 			$checked = false;
 			foreach ($article_labels as $al) {
-				if (feed_to_label_id($al[0]) == $line['id']) {
+				if (Labels::feed_to_label_id($al[0]) == $line['id']) {
 					$checked = true;
 					break;
 				}
 			}
 
 			array_push($rv, array(
-				"id" => (int)label_to_feed_id($line['id']),
+				"id" => (int)Labels::label_to_feed_id($line['id']),
 				"caption" => $line['caption'],
 				"fg_color" => $line['fg_color'],
 				"bg_color" => $line['bg_color'],
@@ -480,10 +466,10 @@ class API extends Handler {
 
 		$article_ids = array_filter(explode(",", $this->dbh->escape_string($_REQUEST["article_ids"])), is_numeric);
 		$label_id = (int) $this->dbh->escape_string($_REQUEST['label_id']);
-		$assign = (bool) $this->dbh->escape_string($_REQUEST['assign']) == "true";
+		$assign = (bool) ($this->dbh->escape_string($_REQUEST['assign']) == "true");
 
-		$label = $this->dbh->escape_string(label_find_caption(
-			feed_to_label_id($label_id), $_SESSION["uid"]));
+		$label = $this->dbh->escape_string(Labels::find_caption(
+			Labels::feed_to_label_id($label_id), $_SESSION["uid"]));
 
 		$num_updated = 0;
 
@@ -492,9 +478,9 @@ class API extends Handler {
 			foreach ($article_ids as $id) {
 
 				if ($assign)
-					label_add_article($id, $label, $_SESSION["uid"]);
+					Labels::add_article($id, $label, $_SESSION["uid"]);
 				else
-					label_remove_article($id, $label, $_SESSION["uid"]);
+					Labels::remove_article($id, $label, $_SESSION["uid"]);
 
 				++$num_updated;
 
@@ -538,7 +524,7 @@ class API extends Handler {
 			/* Labels */
 
 			if ($cat_id == -4 || $cat_id == -2) {
-				$counters = getLabelCounters(true);
+				$counters = Counters::getLabelCounters(true);
 
 				foreach (array_values($counters) as $cv) {
 
@@ -565,7 +551,7 @@ class API extends Handler {
 					$unread = getFeedUnread($i);
 
 					if ($unread || !$unread_only) {
-						$title = getFeedTitle($i);
+						$title = Feeds::getFeedTitle($i);
 
 						$row = array(
 								"id" => $i,
@@ -589,7 +575,7 @@ class API extends Handler {
 
 				while ($line = db_fetch_assoc($result)) {
 					$unread = getFeedUnread($line["id"], true) +
-						getCategoryChildrenUnread($line["id"]);
+						Feeds::getCategoryChildrenUnread($line["id"]);
 
 					if ($unread || !$unread_only) {
 						$row = array(
@@ -658,6 +644,9 @@ class API extends Handler {
 		return $feeds;
 	}
 
+	/**
+	 * @SuppressWarnings(PHPMD.UnusedFormalParameter)
+	 */
 	static function api_get_headlines($feed_id, $limit, $offset,
 				$filter, $is_cat, $show_excerpt, $show_content, $view_mode, $order,
 				$include_attachments, $since_id,
@@ -676,23 +665,13 @@ class API extends Handler {
 					$cache_images = sql_bool_to_bool(db_fetch_result($result, 0, "cache_images"));
 
 					if (!$cache_images && time() - $last_updated > 120) {
-						include "rssfuncs.php";
-						update_rss_feed($feed_id, true, true);
+						RSSUtils::update_rss_feed($feed_id, true);
 					} else {
 						db_query("UPDATE ttrss_feeds SET last_updated = '1970-01-01', last_update_started = '1970-01-01'
 							WHERE id = '$feed_id'");
 					}
 				}
 			}
-
-			/*$qfh_ret = queryFeedHeadlines($feed_id, $limit,
-				$view_mode, $is_cat, $search, false,
-				$order, $offset, 0, false, $since_id, $include_nested);*/
-
-			//function queryFeedHeadlines($feed, $limit,
-			// $view_mode, $cat_view, $search, $search_mode,
-			// $override_order = false, $offset = 0, $owner_uid = 0, $filter = false, $since_id = 0, $include_children = false,
-			// $ignore_vfeed_group = false, $override_strategy = false, $override_vfeed = false, $start_ts = false, $check_top_id = false) {
 
 			$params = array(
 				"feed" => $feed_id,
@@ -708,7 +687,7 @@ class API extends Handler {
 				"skip_first_id_check" => $skip_first_id_check
 			);
 
-			$qfh_ret = queryFeedHeadlines($params);
+			$qfh_ret = Feeds::queryFeedHeadlines($params);
 
 			$result = $qfh_ret[0];
 			$feed_title = $qfh_ret[1];
@@ -747,10 +726,7 @@ class API extends Handler {
 						}
 					}
 
-					if (!is_array($labels)) $labels = get_article_labels($line["id"]);
-
-					//if (!$tags) $tags = get_article_tags($line["id"]);
-					//if (!$labels) $labels = get_article_labels($line["id"]);
+					if (!is_array($labels)) $labels = Article::get_article_labels($line["id"]);
 
 					$headline_row = array(
 						"id" => (int)$line["id"],
@@ -767,7 +743,7 @@ class API extends Handler {
 					);
 
 					if ($include_attachments)
-						$headline_row['attachments'] = get_article_enclosures(
+						$headline_row['attachments'] = Article::get_article_enclosures(
 							$line['id']);
 
 					if ($show_excerpt)
@@ -838,7 +814,7 @@ class API extends Handler {
 		$password = $this->dbh->escape_string($_REQUEST["password"]);
 
 		if ($feed_url) {
-			$rc = subscribe_to_feed($feed_url, $category_id, $login, $password);
+			$rc = Feeds::subscribe_to_feed($feed_url, $category_id, $login, $password);
 
 			$this->wrap(self::STATUS_OK, array("status" => $rc));
 		} else {
@@ -886,5 +862,3 @@ class API extends Handler {
 
 
 }
-
-?>

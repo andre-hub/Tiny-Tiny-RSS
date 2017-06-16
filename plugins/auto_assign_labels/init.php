@@ -21,7 +21,7 @@ class Auto_Assign_Labels extends Plugin {
 		$result = db_query("SELECT id, fg_color, bg_color, caption FROM ttrss_labels2 WHERE owner_uid = " . $owner_uid);
 
 		while ($line = db_fetch_assoc($result)) {
-			array_push($rv, array(label_to_feed_id($line["id"]),
+			array_push($rv, array(Labels::label_to_feed_id($line["id"]),
 				$line["caption"], $line["fg_color"], $line["bg_color"]));
 		}
 
@@ -40,8 +40,7 @@ class Auto_Assign_Labels extends Plugin {
 
 			if ($caption && preg_match("/\b$caption\b/i", "$tags_str " . strip_tags($article["content"]) . " " . $article["title"])) {
 
-				# defined in rssfuncs.php
-				if (!labels_contains_caption($article["labels"], $caption)) {
+				if (!RSSUtils::labels_contains_caption($article["labels"], $caption)) {
 					array_push($article["labels"], $label);
 				}
 			}
@@ -54,4 +53,3 @@ class Auto_Assign_Labels extends Plugin {
 		return 2;
 	}
 }
-?>
