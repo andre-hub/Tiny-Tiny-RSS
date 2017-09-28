@@ -79,6 +79,7 @@ class Af_RedditImgur extends Plugin {
 	private function inline_stuff($article, &$doc, $xpath, $debug = false) {
 
 		$entries = $xpath->query('(//a[@href]|//img[@src])');
+		$img_entries = $xpath->query("(//img[@src])");
 
 		$found = false;
 
@@ -144,6 +145,51 @@ class Af_RedditImgur extends Plugin {
 							}
 						}
 					}
+				}
+
+				if (!$found && preg_match("/https?:\/\/v\.redd\.it\/(.*)$/i", $entry->getAttribute("href"), $matches)) {
+
+					_debug("Handling as reddit inline video", $debug);
+
+					$img = $img_entries->item(0);
+
+					if ($img) {
+						$poster_url = $img->getAttribute("src");
+					} else {
+						$poster_url = false;
+					}
+
+					// Get original article URL from v.redd.it redirects
+					$source_article_url = $this->get_location($matches[0]);
+					_debug("Resolved ".$matches[0]." to ".$source_article_url, $debug);
+
+					$source_stream = false;
+
+					if ($source_article_url) {
+						$j = json_decode(fetch_file_contents($source_article_url.".json"), true);
+
+						if ($j) {
+							foreach ($j as $listing) {
+								foreach ($listing["data"]["children"] as $child) {
+									if ($child["data"]["url"] == $matches[0]) {
+										try {
+											$source_stream = $child["data"]["media"]["reddit_video"]["fallback_url"];
+										}
+										catch (Exception $e) {
+										}
+										break 2;
+									}
+								}
+							}
+						}
+					}
+
+					if (!$source_stream) {
+						$source_stream = "https://v.redd.it/" . $matches[1] . "/DASH_600_K";
+					}
+
+					$this->handle_as_video($doc, $entry, $source_stream, $poster_url);
+					$found = 1;
 				}
 
 				if (!$found && preg_match("/https?:\/\/(www\.)?streamable.com\//i", $entry->getAttribute("href"))) {
@@ -364,7 +410,7 @@ class Af_RedditImgur extends Plugin {
 			$node = $doc->getElementsByTagName('body')->item(0);
 
 			if ($node && $found) {
-				$article["content"] = $doc->saveXML($node);
+				$article["content"] = $doc->saveHTML($node);
 			} else if ($content_link) {
 				$article = $this->readability($article, $content_link->getAttribute("href"), $doc, $xpath);
 			}
@@ -433,8 +479,8 @@ class Af_RedditImgur extends Plugin {
 		}
 	}
 
-	private function get_content_type($url, $useragent = SELF_USER_AGENT) {
-		$content_type = false;
+	private function get_header($url, $useragent = SELF_USER_AGENT, $header) {
+		$ret = false;
 
 		if (function_exists("curl_init") && !defined("NO_CURL")) {
 			$ch = curl_init($url);
@@ -446,10 +492,18 @@ class Af_RedditImgur extends Plugin {
 			curl_setopt($ch, CURLOPT_USERAGENT, $useragent);
 
 			@curl_exec($ch);
-			$content_type = curl_getinfo($ch, CURLINFO_CONTENT_TYPE);
+			$ret = curl_getinfo($ch, $header);
 		}
 
-		return $content_type;
+		return $ret;
+	}
+
+	private function get_content_type($url, $useragent = SELF_USER_AGENT) {
+		return $this->get_header($url, $useragent, CURLINFO_CONTENT_TYPE);
+	}
+
+	private function get_location($url, $useragent = SELF_USER_AGENT) {
+		return $this->get_header($url, $useragent, CURLINFO_EFFECTIVE_URL);
 	}
 
 	/**

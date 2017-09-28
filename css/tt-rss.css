@@ -1083,8 +1083,7 @@ body#ttrssMain #feedTree.dijitTree .dijitTreeRow {
 }
 
 body#ttrssMain #feedTree.dijitTree .dijitTreeNode .dijitTreeRow {
-	padding : 2px 0px 2px;
-	height : 22px;
+	padding : 4px 0px 4px;
 	border-width : 1px;
 	color : #333;
 }
@@ -1092,6 +1091,11 @@ body#ttrssMain #feedTree.dijitTree .dijitTreeNode .dijitTreeRow {
 body#ttrssMain #feedTree.dijitTree img.tinyFeedIcon {
 	position : relative;
 	top : -2px;
+}
+
+#filterDlg_feeds select {
+	height : 150px;
+	width : 410px;
 }
 
 ul#filterDlg_Matches li div.dijitCheckBox, ul#filterDlg_Actions li div.dijitCheckBox {
@@ -1126,7 +1130,7 @@ body#ttrssMain #feedTree .counterNode {
 	position : relative;
 	line-height : 14px;
 	margin-right : 8px;
-	margin-top : 3px;
+	margin-top : 2px;
 	min-width : 23px;
 	height : 14px;
 }
