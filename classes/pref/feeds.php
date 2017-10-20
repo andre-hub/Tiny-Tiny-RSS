@@ -634,16 +634,8 @@ class Pref_Feeds extends Handler_Protected {
 				((FORCE_ARTICLE_PURGE == 0) ? "" : 'disabled="1"'));
 
 		print "</div>";
-		print "<div class=\"dlgSec\">".__("Authentication")."</div>";
-		print "<div class=\"dlgSecCont\">";
 
 		$auth_login = htmlspecialchars($this->dbh->fetch_result($result, 0, "auth_login"));
-
-		print "<input dojoType=\"dijit.form.TextBox\" id=\"feedEditDlg_login\"
-			placeHolder=\"".__("Login")."\"
-			autocomplete=\"new-password\"
-			name=\"auth_login\" value=\"$auth_login\"><hr/>";
-
 		$auth_pass = $this->dbh->fetch_result($result, 0, "auth_pass");
 
 		if ($auth_pass_encrypted && function_exists("mcrypt_decrypt")) {
@@ -652,6 +644,18 @@ class Pref_Feeds extends Handler_Protected {
 		}
 
 		$auth_pass = htmlspecialchars($auth_pass);
+		$auth_enabled = $auth_login !== '' || $auth_pass !== '';
+
+		$auth_style = $auth_enabled ? '' : 'display: none';
+		print "<div id='feedEditDlg_loginContainer' style='$auth_style'>";
+		print "<div class=\"dlgSec\">".__("Authentication")."</div>";
+		print "<div class=\"dlgSecCont\">";
+
+		print "<input dojoType=\"dijit.form.TextBox\" id=\"feedEditDlg_login\"
+			placeHolder=\"".__("Login")."\"
+			autocomplete=\"new-password\"
+			name=\"auth_login\" value=\"$auth_login\"><hr/>";
+
 
 		print "<input dojoType=\"dijit.form.TextBox\" type=\"password\" name=\"auth_pass\"
 			autocomplete=\"new-password\"
@@ -662,7 +666,14 @@ class Pref_Feeds extends Handler_Protected {
 			".__('<b>Hint:</b> you need to fill in your login information if your feed requires authentication, except for Twitter feeds.')."
 			</div>";
 
-		print "</div>";
+		print "</div></div>";
+
+		$auth_checked = $auth_enabled ? 'checked' : '';
+		print "<div style=\"clear : both\">
+				<input type=\"checkbox\" $auth_checked name=\"need_auth\" dojoType=\"dijit.form.CheckBox\" id=\"feedEditDlg_loginCheck\"
+						onclick='checkboxToggleElement(this, \"feedEditDlg_loginContainer\")'>
+					<label for=\"feedEditDlg_loginCheck\">".
+					__('This feed requires authentication.')."</div>";
 
 		print '</div><div dojoType="dijit.layout.ContentPane" title="'.__('Options').'">';
 
@@ -971,7 +982,6 @@ class Pref_Feeds extends Handler_Protected {
 
 		$feed_language = $this->dbh->escape_string(trim($_POST["feed_language"]));
 
-		$auth_pass_encrypted = 'false';
 		$auth_pass = $this->dbh->escape_string($auth_pass);
 
 		if (get_pref('ENABLE_FEED_CATS')) {
@@ -988,6 +998,10 @@ class Pref_Feeds extends Handler_Protected {
 		}
 
 		if (!$batch) {
+			if ($_POST["need_auth"] !== 'on') {
+				$auth_login = '';
+				$auth_pass = '';
+			}
 
 			$result = db_query("SELECT feed_url FROM ttrss_feeds WHERE id = " . $feed_id);
 			$orig_feed_url = db_fetch_result($result, 0, "feed_url");
@@ -1001,7 +1015,7 @@ class Pref_Feeds extends Handler_Protected {
 				purge_interval = '$purge_intl',
 				auth_login = '$auth_login',
 				auth_pass = '$auth_pass',
-				auth_pass_encrypted = $auth_pass_encrypted,
+				auth_pass_encrypted = false,
 				private = $private,
 				cache_images = $cache_images,
 				hide_images = $hide_images,
@@ -1055,8 +1069,7 @@ class Pref_Feeds extends Handler_Protected {
 						break;
 
 					case "auth_pass":
-						$qpart = "auth_pass = '$auth_pass' AND
-							auth_pass_encrypted = $auth_pass_encrypted";
+						$qpart = "auth_pass = '$auth_pass', auth_pass_encrypted = false";
 						break;
 
 					case "private":
@@ -1857,7 +1870,6 @@ class Pref_Feeds extends Handler_Protected {
 					"SELECT id FROM ttrss_feeds
 					WHERE feed_url = '$feed' AND owner_uid = ".$_SESSION["uid"]);
 
-				$auth_pass_encrypted = 'false';
 				$pass = $this->dbh->escape_string($pass);
 
 				if ($this->dbh->num_rows($result) == 0) {
@@ -1865,7 +1877,7 @@ class Pref_Feeds extends Handler_Protected {
 						"INSERT INTO ttrss_feeds
 							(owner_uid,feed_url,title,cat_id,auth_login,auth_pass,update_method,auth_pass_encrypted)
 						VALUES ('".$_SESSION["uid"]."', '$feed',
-							'[Unknown]', $cat_qpart, '$login', '$pass', 0, $auth_pass_encrypted)");
+							'[Unknown]', $cat_qpart, '$login', '$pass', 0, false)");
 				}
 
 				$this->dbh->query("COMMIT");

@@ -214,7 +214,7 @@ class API extends Handler {
 			$override_order = false;
 			switch ($_REQUEST["order_by"]) {
 				case "title":
-					$override_order = "ttrss_entries.title";
+					$override_order = "ttrss_entries.title, date_entered, updated";
 					break;
 				case "date_reverse":
 					$override_order = "score DESC, date_entered, updated";
@@ -466,7 +466,7 @@ class API extends Handler {
 
 		$article_ids = array_filter(explode(",", $this->dbh->escape_string($_REQUEST["article_ids"])), is_numeric);
 		$label_id = (int) $this->dbh->escape_string($_REQUEST['label_id']);
-		$assign = (bool) ($this->dbh->escape_string($_REQUEST['assign']) == "true");
+		$assign = sql_bool_to_bool($_REQUEST['assign']);
 
 		$label = $this->dbh->escape_string(Labels::find_caption(
 			Labels::feed_to_label_id($label_id), $_SESSION["uid"]));
