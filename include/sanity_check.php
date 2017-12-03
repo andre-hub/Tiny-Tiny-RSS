@@ -149,8 +149,35 @@
 				array_push($errors, "PHP safe mode setting is obsolete and not supported by tt-rss.");
 			}
 
+			if (!function_exists("mime_content_type")) {
+				array_push($errors, "PHP function mime_content_type() is missing, try enabling fileinfo module.");
+			}
+
 			if (!class_exists("DOMDocument")) {
 				array_push($errors, "PHP support for DOMDocument is required, but was not found.");
+			}
+
+			if (DB_TYPE == "mysql") {
+				$bad_tables = check_mysql_tables();
+
+				if (count($bad_tables) > 0) {
+					$bad_tables_fmt = [];
+
+					foreach ($bad_tables as $bt) {
+						array_push($bad_tables_fmt, sprintf("%s (%s)", $bt['table_name'], $bt['engine']));
+					}
+
+					$msg = "<p>The following tables use an unsupported MySQL engine: <b>" .
+						implode(", ", $bad_tables_fmt) . "</b>.</p>";
+
+					$msg .= "<p>The only supported engine on MySQL is InnoDB. MyISAM lacks functionality to run
+						tt-rss.
+						Please backup your data (via OPML) and re-import the schema before continuing.</p>
+						<p><b>WARNING: importing the schema would mean LOSS OF ALL YOUR DATA.</b></p>";
+
+
+					array_push($errors, $msg);
+				}
 			}
 		}
 
@@ -161,7 +188,7 @@
 				<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
 				<link rel="stylesheet" type="text/css" href="css/utility.css">
 			</head>
-		<body>
+		<body class='sanity_failed'>
 		<div class="floatingLogo"><img src="images/logo_small.png"></div>
 			<div class="content">
 

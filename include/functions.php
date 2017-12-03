@@ -1,6 +1,6 @@
 <?php
 	define('EXPECTED_CONFIG_VERSION', 26);
-	define('SCHEMA_VERSION', 132);
+	define('SCHEMA_VERSION', 133);
 
 	define('LABEL_BASE_INDEX', -1024);
 	define('PLUGIN_FEED_BASE_INDEX', -128);
@@ -57,6 +57,9 @@
 	// do not cache files smaller than that (bytes)
 	define_default('CACHE_MAX_DAYS', 7);
 	// max age in days for various automatically cached (temporary) files
+    define_default('MAX_CONDITIONAL_INTERVAL', 3600*12);
+    // max interval between forced unconditional updates for servers
+    // not complying with http if-modified-since (seconds)
 
 	/* tunables end here */
 
@@ -432,11 +435,18 @@
 			$contents = substr($ret, $headers_length);
 
 			foreach ($headers as $header) {
-				list ($key, $value) = explode(": ", $header);
+                if (strstr($header, ": ") !== FALSE) {
+                    list ($key, $value) = explode(": ", $header);
 
-				if (strtolower($key) == "last-modified") {
-					$fetch_last_modified = $value;
-				}
+                    if (strtolower($key) == "last-modified") {
+                        $fetch_last_modified = $value;
+                    }
+                }
+
+                if (substr(strtolower($header), 0, 7) == 'http/1.') {
+                    $fetch_last_error_code = (int) substr($header, 9, 3);
+                    $fetch_last_error = $header;
+                }
 			}
 
 			if (curl_errno($ch) === 23 || curl_errno($ch) === 61) {
@@ -450,11 +460,11 @@
 			$fetch_last_error_code = $http_code;
 
 			if ($http_code != 200 || $type && strpos($fetch_last_content_type, "$type") === false) {
+
 				if (curl_errno($ch) != 0) {
-					$fetch_last_error = curl_errno($ch) . " " . curl_error($ch);
-				} else {
-					$fetch_last_error = "HTTP Code: $http_code";
+					$fetch_last_error .=  "; " . curl_errno($ch) . " " . curl_error($ch);
 				}
+
 				$fetch_last_error_content = $contents;
 				curl_close($ch);
 				return false;
@@ -465,12 +475,6 @@
 				curl_close($ch);
 				return false;
 			}
-
-			/*$fetch_last_modified = curl_getinfo($ch, CURLINFO_FILETIME);
-
-			if ($fetch_last_modified != -1) {
-				echo date("Y-m-d H:i:s", $fetch_last_modified); die;
-			}*/
 
 			curl_close($ch);
 
@@ -517,21 +521,24 @@
 			$data = @file_get_contents($url, false, $context);
 
 			if (isset($http_response_header) && is_array($http_response_header)) {
-				foreach ($http_response_header as $h) {
-					list ($key, $value) = explode(": ", $h);
+				foreach ($http_response_header as $header) {
+				    if (strstr($header, ": ") !== FALSE) {
+                        list ($key, $value) = explode(": ", $header);
 
-					$key = strtolower($key);
+                        $key = strtolower($key);
 
-					if ($key == 'content-type') {
-						$fetch_last_content_type = $value;
-						// don't abort here b/c there might be more than one
-						// e.g. if we were being redirected -- last one is the right one
-					} else if ($key == 'last-modified') {
-						$fetch_last_modified = $value;
-					}
+                        if ($key == 'content-type') {
+                            $fetch_last_content_type = $value;
+                            // don't abort here b/c there might be more than one
+                            // e.g. if we were being redirected -- last one is the right one
+                        } else if ($key == 'last-modified') {
+                            $fetch_last_modified = $value;
+                        }
+                    }
 
-					if (substr(strtolower($h), 0, 7) == 'http/1.') {
-						$fetch_last_error_code = (int) substr($h, 9, 3);
+					if (substr(strtolower($header), 0, 7) == 'http/1.') {
+						$fetch_last_error_code = (int) substr($header, 9, 3);
+						$fetch_last_error = $header;
 					}
 				}
 			}
@@ -540,9 +547,7 @@
 				$error = error_get_last();
 
 				if ($error['message'] != $old_error['message']) {
-					$fetch_last_error = $error["message"];
-				} else {
-					$fetch_last_error = "HTTP Code: $fetch_last_error_code";
+					$fetch_last_error .= "; " . $error["message"];
 				}
 
 				$fetch_last_error_content = $data;
@@ -1661,7 +1666,7 @@
 			'caption', 'cite', 'center', 'code', 'col', 'colgroup',
 			'data', 'dd', 'del', 'details', 'description', 'dfn', 'div', 'dl', 'font',
 			'dt', 'em', 'footer', 'figure', 'figcaption',
-			'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'header', 'html', 'i',
+			'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'header', 'hr', 'html', 'i',
 			'img', 'ins', 'kbd', 'li', 'main', 'mark', 'nav', 'noscript',
 			'ol', 'p', 'pre', 'q', 'ruby', 'rp', 'rt', 's', 'samp', 'section',
 			'small', 'source', 'span', 'strike', 'strong', 'sub', 'summary',
@@ -2542,5 +2547,20 @@
 		} else {
 			return false;
 		}
+	}
+
+	function check_mysql_tables() {
+		$schema = db_escape_string(DB_NAME);
+
+		$result = db_query("SELECT engine, table_name FROM information_schema.tables WHERE
+			table_schema = '$schema' AND table_name LIKE 'ttrss_%' AND engine != 'InnoDB'");
+
+		$bad_tables = [];
+
+		while ($line = db_fetch_assoc($result)) {
+			array_push($bad_tables, $line);
+		}
+
+		return $bad_tables;
 	}
 
