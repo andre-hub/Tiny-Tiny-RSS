@@ -124,7 +124,6 @@ function viewfeed(params) {
 
 	if (!background) {
 		if (_search_query) {
-			force_nocache = true;
 			query = query + "&" + _search_query;
 			//_search_query = false;
 		}
@@ -164,7 +163,7 @@ function viewfeed(params) {
 		window.open("backend.php" + query + "&debug=1&csrf_token=" + getInitParam("csrf_token"));
 	}
 
-	timeout_ms = can_wait ? 250 : 0;
+	var timeout_ms = can_wait ? 250 : 0;
 	_viewfeed_timeout = setTimeout(function() {
 
 		new Ajax.Request("backend.php", {
@@ -197,6 +196,28 @@ function feedlist_init() {
 	}
 
 	hideOrShowFeeds(getInitParam("hide_read_feeds") == 1);
+
+	if (getInitParam("is_default_pw")) {
+		console.warn("user password is at default value");
+
+		var dialog = new dijit.Dialog({
+			title: __("Your password is at default value"),
+			href: "backend.php?op=dlg&method=defaultpasswordwarning",
+			id: 'infoBox',
+			style: "width: 600px",
+			onCancel: function() {
+				return true;
+			},
+			onExecute: function() {
+				return true;
+			},
+			onClose: function() {
+				return true;
+			}
+		});
+
+		dialog.show();
+	}
 
 	// bw_limit disables timeout() so we request initial counters separately
     if (getInitParam("bw_limit") == "1") {
@@ -304,7 +325,7 @@ function parse_counters(elems) {
 			if (id > 0) {
 				if (has_img) {
 					setFeedIcon(id, false,
-						getInitParam("icons_url") + "/" + id + ".ico");
+						getInitParam("icons_url") + "/" + id + ".ico?" + has_img);
 				} else {
 					setFeedIcon(id, false, 'images/blank_icon.gif');
 				}

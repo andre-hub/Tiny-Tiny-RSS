@@ -38,14 +38,13 @@
 	</script>
 
 	<?php echo stylesheet_tag("lib/dijit/themes/claro/claro.css"); ?>
-	<?php echo stylesheet_tag("css/layout.css"); ?>
 
 	<?php if ($_SESSION["uid"]) {
 		$theme = get_pref( "USER_CSS_THEME", $_SESSION["uid"], false);
 		if ($theme && theme_valid("$theme")) {
 			echo stylesheet_tag(get_theme_path($theme));
 		} else {
-			echo stylesheet_tag("themes/default.php");
+			echo stylesheet_tag("css/default.css");
 		}
 	}
 	?>
@@ -78,10 +77,16 @@
 	} ?>
 
 	<script type="text/javascript">
+		'use strict';
 		require({cache:{}});
 	<?php
 		require_once 'lib/jshrink/Minifier.php';
 
+		print get_minified_js(["functions.js", "prefs.js"]);
+	?>
+	</script>
+	<script type="text/javascript">
+	<?php
 		foreach (PluginHost::getInstance()->get_plugins() as $n => $p) {
 			if (method_exists($p, "get_prefs_js")) {
 				echo "try {";
@@ -92,8 +97,6 @@
 				}";
 			}
 		}
-
-		print get_minified_js(array("functions", "deprecated", "prefs"));
 
 		init_js_translations();
 	?>
@@ -109,7 +112,7 @@
 
 </head>
 
-<body id="ttrssPrefs" class="claro">
+<body class="claro ttrss_main ttrss_prefs">
 
 <div id="notify" class="notify"></div>
 <div id="cmdline" style="display : none"></div>

@@ -15,14 +15,11 @@ class Handler_Public extends Handler {
 		if (!$limit) $limit = 60;
 
 		$date_sort_field = "date_entered DESC, updated DESC";
-		$date_check_field = "date_entered";
 
 		if ($feed == -2 && !$is_cat) {
 			$date_sort_field = "last_published DESC";
-			$date_check_field = "last_published";
 		} else if ($feed == -1 && !$is_cat) {
 			$date_sort_field = "last_marked DESC";
-			$date_check_field = "last_marked";
 		}
 
 		switch ($order) {
@@ -36,39 +33,6 @@ class Handler_Public extends Handler {
 			$date_sort_field = "updated DESC";
 			break;
 		}
-
-		$params = array(
-			"owner_uid" => $owner_uid,
-			"feed" => $feed,
-			"limit" => 1,
-			"view_mode" => $view_mode,
-			"cat_view" => $is_cat,
-			"search" => $search,
-			"override_order" => $date_sort_field,
-			"include_children" => true,
-			"ignore_vfeed_group" => true,
-			"offset" => $offset,
-			"start_ts" => $start_ts
-		);
-
-		$qfh_ret = Feeds::queryFeedHeadlines($params);
-
-		$result = $qfh_ret[0];
-
-		if ($this->dbh->num_rows($result) != 0) {
-
-			$ts = strtotime($this->dbh->fetch_result($result, 0, $date_check_field));
-
-			if (isset($_SERVER['HTTP_IF_MODIFIED_SINCE']) &&
-					strtotime($_SERVER['HTTP_IF_MODIFIED_SINCE']) >= $ts) {
-		      header('HTTP/1.0 304 Not Modified');
-		      return;
-			}
-
-			$last_modified = gmdate("D, d M Y H:i:s", $ts) . " GMT";
-			header("Last-Modified: $last_modified", true);
-		}
-
 		$params = array(
 			"owner_uid" => $owner_uid,
 			"feed" => $feed,
@@ -106,7 +70,7 @@ class Handler_Public extends Handler {
 			$tpl->setVariable('FEED_URL', htmlspecialchars($feed_self_url), true);
 
 			$tpl->setVariable('SELF_URL', htmlspecialchars(get_self_url_prefix()), true);
-			while ($line = $this->dbh->fetch_assoc($result)) {
+			while ($line = $result->fetch()) {
 
 				$line["content_preview"] = sanitize(truncate_string(strip_tags($line["content"]), 100, '...'));
 
@@ -175,7 +139,7 @@ class Handler_Public extends Handler {
 			$tpl->addBlock('feed');
 			$tpl->generateOutputToString($tmp);
 
-			if (@!$_REQUEST["noxml"]) {
+			if (@!clean($_REQUEST["noxml"])) {
 				header("Content-Type: text/xml; charset=utf-8");
 			} else {
 				header("Content-Type: text/plain; charset=utf-8");
@@ -194,7 +158,7 @@ class Handler_Public extends Handler {
 
 			$feed['articles'] = array();
 
-			while ($line = $this->dbh->fetch_assoc($result)) {
+			while ($line = $result->fetch()) {
 
 				$line["content_preview"] = sanitize(truncate_string(strip_tags($line["content_preview"]), 100, '...'));
 
@@ -255,13 +219,14 @@ class Handler_Public extends Handler {
 	}
 
 	function getUnread() {
-		$login = $this->dbh->escape_string($_REQUEST["login"]);
-		$fresh = $_REQUEST["fresh"] == "1";
+		$login = clean($_REQUEST["login"]);
+		$fresh = clean($_REQUEST["fresh"]) == "1";
 
-		$result = $this->dbh->query("SELECT id FROM ttrss_users WHERE login = '$login'");
+		$sth = $this->pdo->prepare("SELECT id FROM ttrss_users WHERE login = ?");
+		$sth->execute([$login]);
 
-		if ($this->dbh->num_rows($result) == 1) {
-			$uid = $this->dbh->fetch_result($result, 0, "id");
+		if ($row = $sth->fetch()) {
+			$uid = $row["id"];
 
 			print Feeds::getGlobalUnread($uid);
 
@@ -273,20 +238,20 @@ class Handler_Public extends Handler {
 		} else {
 			print "-1;User not found";
 		}
-
 	}
 
 	function getProfiles() {
-		$login = $this->dbh->escape_string($_REQUEST["login"]);
+		$login = clean($_REQUEST["login"]);
 
-		$result = $this->dbh->query("SELECT ttrss_settings_profiles.* FROM ttrss_settings_profiles,ttrss_users
-			WHERE ttrss_users.id = ttrss_settings_profiles.owner_uid AND login = '$login' ORDER BY title");
+		$sth = $this->pdo->prepare("SELECT ttrss_settings_profiles.* FROM ttrss_settings_profiles,ttrss_users
+			WHERE ttrss_users.id = ttrss_settings_profiles.owner_uid AND login = ? ORDER BY title");
+		$sth->execute([$login]);
 
 		print "<select dojoType='dijit.form.Select' style='width : 220px; margin : 0px' name='profile'>";
 
 		print "<option value='0'>" . __("Default profile") . "</option>";
 
-		while ($line = $this->dbh->fetch_assoc($result)) {
+		while ($line = $sth->fetch()) {
 			$id = $line["id"];
 			$title = $line["title"];
 
@@ -302,16 +267,17 @@ class Handler_Public extends Handler {
 	}
 
 	function share() {
-		$uuid = $this->dbh->escape_string($_REQUEST["key"]);
+		$uuid = clean($_REQUEST["key"]);
 
-		$result = $this->dbh->query("SELECT ref_id, owner_uid FROM ttrss_user_entries WHERE
-			uuid = '$uuid'");
+		$sth = $this->pdo->prepare("SELECT ref_id, owner_uid FROM ttrss_user_entries WHERE
+			uuid = ?");
+		$sth->execute([$uuid]);
 
-		if ($this->dbh->num_rows($result) != 0) {
+		if ($row = $sth->fetch()) {
 			header("Content-Type: text/html");
 
-			$id = $this->dbh->fetch_result($result, 0, "ref_id");
-			$owner_uid = $this->dbh->fetch_result($result, 0, "owner_uid");
+			$id = $row["ref_id"];
+			$owner_uid = $row["owner_uid"];
 
 			$article = Article::format_article($id, false, true, $owner_uid);
 
@@ -324,19 +290,19 @@ class Handler_Public extends Handler {
 	}
 
 	function rss() {
-		$feed = $this->dbh->escape_string($_REQUEST["id"]);
-		$key = $this->dbh->escape_string($_REQUEST["key"]);
-		$is_cat = sql_bool_to_bool($_REQUEST["is_cat"]);
-		$limit = (int)$this->dbh->escape_string($_REQUEST["limit"]);
-		$offset = (int)$this->dbh->escape_string($_REQUEST["offset"]);
+		$feed = clean($_REQUEST["id"]);
+		$key = clean($_REQUEST["key"]);
+		$is_cat = clean($_REQUEST["is_cat"]);
+		$limit = (int)clean($_REQUEST["limit"]);
+		$offset = (int)clean($_REQUEST["offset"]);
 
-		$search = $this->dbh->escape_string($_REQUEST["q"]);
-		$view_mode = $this->dbh->escape_string($_REQUEST["view-mode"]);
-		$order = $this->dbh->escape_string($_REQUEST["order"]);
-		$start_ts = $this->dbh->escape_string($_REQUEST["ts"]);
+		$search = clean($_REQUEST["q"]);
+		$view_mode = clean($_REQUEST["view-mode"]);
+		$order = clean($_REQUEST["order"]);
+		$start_ts = clean($_REQUEST["ts"]);
 
-		$format = $this->dbh->escape_string($_REQUEST['format']);
-		$orig_guid = sql_bool_to_bool($_REQUEST["orig_guid"]);
+		$format = clean($_REQUEST['format']);
+		$orig_guid = clean($_REQUEST["orig_guid"]);
 
 		if (!$format) $format = 'atom';
 
@@ -347,11 +313,12 @@ class Handler_Public extends Handler {
 		$owner_id = false;
 
 		if ($key) {
-			$result = $this->dbh->query("SELECT owner_uid FROM
-				ttrss_access_keys WHERE access_key = '$key' AND feed_id = '$feed'");
+			$sth = $this->pdo->prepare("SELECT owner_uid FROM
+				ttrss_access_keys WHERE access_key = ? AND feed_id = ?");
+			$sth->execute([$key, $feed]);
 
-			if ($this->dbh->num_rows($result) == 1)
-				$owner_id = $this->dbh->fetch_result($result, 0, "owner_uid");
+			if ($row = $sth->fetch())
+				$owner_id = $row["owner_uid"];
 		}
 
 		if ($owner_id) {
@@ -371,7 +338,7 @@ class Handler_Public extends Handler {
 	}
 
 	function globalUpdateFeeds() {
-		RPC::updaterandomfeed_real($this->dbh);
+		RPC::updaterandomfeed_real();
 
 		PluginHost::getInstance()->run_hooks(PluginHost::HOOK_UPDATE_TASK, "hook_update_task", false);
 	}
@@ -386,23 +353,22 @@ class Handler_Public extends Handler {
 		<link rel=\"shortcut icon\" type=\"image/png\" href=\"images/favicon.png\">
 		<link rel=\"icon\" type=\"image/png\" sizes=\"72x72\" href=\"images/favicon-72px.png\">";
 
-		echo stylesheet_tag("css/utility.css");
 		echo stylesheet_tag("css/default.css");
 		echo javascript_tag("lib/prototype.js");
 		echo javascript_tag("lib/scriptaculous/scriptaculous.js?load=effects,controls");
 		print "<meta http-equiv=\"Content-Type\" content=\"text/html; charset=utf-8\"/>
-			</head><body id='sharepopup'>";
+			</head><body id='sharepopup' class='ttrss_utility'>";
 
-		$action = $_REQUEST["action"];
+		$action = clean($_REQUEST["action"]);
 
 		if ($_SESSION["uid"]) {
 
 			if ($action == 'share') {
 
-				$title = $this->dbh->escape_string(strip_tags($_REQUEST["title"]));
-				$url = $this->dbh->escape_string(strip_tags($_REQUEST["url"]));
-				$content = $this->dbh->escape_string(strip_tags($_REQUEST["content"]));
-				$labels = $this->dbh->escape_string(strip_tags($_REQUEST["labels"]));
+				$title = strip_tags(clean($_REQUEST["title"]));
+				$url = strip_tags(clean($_REQUEST["url"]));
+				$content = strip_tags(clean($_REQUEST["content"]));
+				$labels = strip_tags(clean($_REQUEST["labels"]));
 
 				Article::create_published_article($title, $url, $content, $labels,
 					$_SESSION["uid"]);
@@ -412,8 +378,8 @@ class Handler_Public extends Handler {
 				print "</script>";
 
 			} else {
-				$title = htmlspecialchars($_REQUEST["title"]);
-				$url = htmlspecialchars($_REQUEST["url"]);
+				$title = htmlspecialchars(clean($_REQUEST["title"]));
+				$url = htmlspecialchars(clean($_REQUEST["url"]));
 
 				?>
 
@@ -500,9 +466,9 @@ class Handler_Public extends Handler {
 	function login() {
 		if (!SINGLE_USER_MODE) {
 
-			$login = $this->dbh->escape_string($_POST["login"]);
-			$password = $_POST["password"];
-			$remember_me = $_POST["remember_me"];
+			$login = clean($_POST["login"]);
+			$password = clean($_POST["password"]);
+			$remember_me = clean($_POST["remember_me"]);
 
 			if ($remember_me) {
 				session_set_cookie_params(SESSION_COOKIE_LIFETIME);
@@ -520,16 +486,17 @@ class Handler_Public extends Handler {
 				}
 
 				$_SESSION["ref_schema_version"] = get_schema_version(true);
-				$_SESSION["bw_limit"] = !!$_POST["bw_limit"];
+				$_SESSION["bw_limit"] = !!clean($_POST["bw_limit"]);
 
-				if ($_POST["profile"]) {
+				if (clean($_POST["profile"])) {
 
-					$profile = $this->dbh->escape_string($_POST["profile"]);
+					$profile = clean($_POST["profile"]);
 
-					$result = $this->dbh->query("SELECT id FROM ttrss_settings_profiles
-						WHERE id = '$profile' AND owner_uid = " . $_SESSION["uid"]);
+					$sth = $this->pdo->prepare("SELECT id FROM ttrss_settings_profiles
+						WHERE id = ? AND owner_uid = ?");
+					$sth->execute([$profile, $_SESSION['uid']]);
 
-					if ($this->dbh->num_rows($result) != 0) {
+					if ($sth->fetch()) {
 						$_SESSION["profile"] = $profile;
 					}
 				}
@@ -538,8 +505,8 @@ class Handler_Public extends Handler {
 				user_error("Failed login attempt for $login from {$_SERVER['REMOTE_ADDR']}", E_USER_WARNING);
 			}
 
-			if ($_REQUEST['return']) {
-				header("Location: " . $_REQUEST['return']);
+			if (clean($_REQUEST['return'])) {
+				header("Location: " . clean($_REQUEST['return']));
 			} else {
 				header("Location: " . get_self_url_prefix());
 			}
@@ -549,7 +516,7 @@ class Handler_Public extends Handler {
 	/* function subtest() {
 		header("Content-type: text/plain; charset=utf-8");
 
-		$url = $_REQUEST["url"];
+		$url = clean($_REQUEST["url"]);
 
 		print "$url\n\n";
 
@@ -565,19 +532,20 @@ class Handler_Public extends Handler {
 
 		if ($_SESSION["uid"]) {
 
-			$feed_url = $this->dbh->escape_string(trim($_REQUEST["feed_url"]));
+			$feed_url = trim(clean($_REQUEST["feed_url"]));
 
 			header('Content-Type: text/html; charset=utf-8');
 			print "<html>
 				<head>
-					<title>Tiny Tiny RSS</title>
-					<link rel=\"stylesheet\" type=\"text/css\" href=\"css/utility.css\">
-					<meta http-equiv=\"Content-Type\" content=\"text/html; charset=utf-8\"/>
-					<link rel=\"shortcut icon\" type=\"image/png\" href=\"images/favicon.png\">
-					<link rel=\"icon\" type=\"image/png\" sizes=\"72x72\" href=\"images/favicon-72px.png\">
+					<title>Tiny Tiny RSS</title>";
+			print stylesheet_tag("css/default.css");
+
+            print "<meta http-equiv=\"Content-Type\" content=\"text/html; charset=utf-8\"/>
+                <link rel=\"shortcut icon\" type=\"image/png\" href=\"images/favicon.png\">
+                <link rel=\"icon\" type=\"image/png\" sizes=\"72x72\" href=\"images/favicon-72px.png\">
 
 				</head>
-				<body>
+				<body class='claro ttrss_utility'>
 				<img class=\"floatingLogo\" src=\"images/logo_small.png\"
 			  		alt=\"Tiny Tiny RSS\"/>
 					<h1>".__("Subscribe to feed...")."</h1><div class='content'>";
@@ -630,10 +598,12 @@ class Handler_Public extends Handler {
 			$tt_uri = get_self_url_prefix();
 
 			if ($rc['code'] <= 2){
-				$result = $this->dbh->query("SELECT id FROM ttrss_feeds WHERE
-					feed_url = '$feed_url' AND owner_uid = " . $_SESSION["uid"]);
+			    $sth = $this->pdo->prepare("SELECT id FROM ttrss_feeds WHERE
+					feed_url = ? AND owner_uid = ?");
+			    $sth->execute([$feed_url, $_SESSION['uid']]);
+			    $row = $sth->fetch();
 
-				$feed_id = $this->dbh->fetch_result($result, 0, "id");
+				$feed_id = $row["id"];
 			} else {
 				$feed_id = 0;
 			}
@@ -668,43 +638,46 @@ class Handler_Public extends Handler {
 	function forgotpass() {
 		startup_gettext();
 
-		@$hash = $_REQUEST["hash"];
+		@$hash = clean($_REQUEST["hash"]);
 
 		header('Content-Type: text/html; charset=utf-8');
 		print "<html><head><title>Tiny Tiny RSS</title>
 		<link rel=\"shortcut icon\" type=\"image/png\" href=\"images/favicon.png\">
 		<link rel=\"icon\" type=\"image/png\" sizes=\"72x72\" href=\"images/favicon-72px.png\">";
 
-		echo stylesheet_tag("css/utility.css");
+		echo stylesheet_tag("lib/dijit/themes/claro/claro.css");
+		echo stylesheet_tag("css/default.css");
 		echo javascript_tag("lib/prototype.js");
 
 		print "<meta http-equiv=\"Content-Type\" content=\"text/html; charset=utf-8\"/>
-			</head><body id='forgotpass'>";
+			</head><body class='claro ttrss_utility'>";
 
 		print '<div class="floatingLogo"><img src="images/logo_small.png"></div>';
 		print "<h1>".__("Password recovery")."</h1>";
 		print "<div class='content'>";
 
-		@$method = $_POST['method'];
+		@$method = clean($_POST['method']);
 
 		if ($hash) {
-			$login = $this->dbh->escape_string($_REQUEST["login"]);
+			$login = clean($_REQUEST["login"]);
 
 			if ($login) {
-				$result = $this->dbh->query("SELECT id, resetpass_token FROM ttrss_users
-					WHERE login = '$login'");
+				$sth = $this->pdo->prepare("SELECT id, resetpass_token FROM ttrss_users
+					WHERE login = ?");
+				$sth->execute([$login]);
 
-				if ($this->dbh->num_rows($result) != 0) {
-					$id = $this->dbh->fetch_result($result, 0, "id");
-					$resetpass_token_full = $this->dbh->fetch_result($result, 0, "resetpass_token");
+				if ($row = $sth->fetch()) {
+					$id = $row["id"];
+					$resetpass_token_full = $row["resetpass_token"];
 					list($timestamp, $resetpass_token) = explode(":", $resetpass_token_full);
 
 					if ($timestamp && $resetpass_token &&
 						$timestamp >= time() - 15*60*60 &&
 						$resetpass_token == $hash) {
 
-							$result = $this->dbh->query("UPDATE ttrss_users SET resetpass_token = NULL
-								WHERE id = $id");
+							$sth = $this->pdo->prepare("UPDATE ttrss_users SET resetpass_token = NULL
+								WHERE id = ?");
+							$sth->execute([$id]);
 
 							Pref_Users::resetUserPassword($id, true);
 
@@ -733,17 +706,17 @@ class Handler_Public extends Handler {
 
 			print "<fieldset>";
 			print "<label>".__("Login:")."</label>";
-			print "<input type='text' name='login' value='' required>";
+			print "<input class='input input-text' type='text' name='login' value='' required>";
 			print "</fieldset>";
 
 			print "<fieldset>";
 			print "<label>".__("Email:")."</label>";
-			print "<input type='email' name='email' value='' required>";
+			print "<input class='input input-text' type='email' name='email' value='' required>";
 			print "</fieldset>";
 
 			print "<fieldset>";
 			print "<label>".__("How much is two plus two:")."</label>";
-			print "<input type='text' name='test' value='' required>";
+			print "<input class='input input-text' type='text' name='test' value='' required>";
 			print "</fieldset>";
 
 			print "<p/>";
@@ -752,9 +725,9 @@ class Handler_Public extends Handler {
 			print "</form>";
 		} else if ($method == 'do') {
 
-			$login = $this->dbh->escape_string($_POST["login"]);
-			$email = $this->dbh->escape_string($_POST["email"]);
-			$test = $this->dbh->escape_string($_POST["test"]);
+			$login = clean($_POST["login"]);
+			$email = clean($_POST["email"]);
+			$test = clean($_POST["test"]);
 
 			if (($test != 4 && $test != 'four') || !$email || !$login) {
 				print_error(__('Some of the required form parameters are missing or incorrect.'));
@@ -768,11 +741,12 @@ class Handler_Public extends Handler {
 
 				print_notice("Password reset instructions are being sent to your email address.");
 
-				$result = $this->dbh->query("SELECT id FROM ttrss_users
-					WHERE login = '$login' AND email = '$email'");
+				$sth = $this->pdo->prepare("SELECT id FROM ttrss_users
+					WHERE login = ? AND email = ?");
+				$sth->execute([$login, $email]);
 
-				if ($this->dbh->num_rows($result) != 0) {
-					$id = $this->dbh->fetch_result($result, 0, "id");
+				if ($row = $sth->fetch()) {
+					$id = $row["id"];
 
 					if ($id) {
 						$resetpass_token = sha1(get_random_bytes(128));
@@ -803,11 +777,13 @@ class Handler_Public extends Handler {
 
 						if (!$rc) print_error($mail->ErrorInfo);
 
-						$resetpass_token_full = $this->dbh->escape_string(time() . ":" . $resetpass_token);
+						$resetpass_token_full = time() . ":" . $resetpass_token;
 
-						$result = $this->dbh->query("UPDATE ttrss_users
-							SET resetpass_token = '$resetpass_token_full'
-							WHERE login = '$login' AND email = '$email'");
+						$sth = $this->pdo->prepare("UPDATE ttrss_users
+							SET resetpass_token = ?
+							WHERE login = ? AND email = ?");
+
+						$sth->execute([$resetpass_token_full, $login, $email]);
 
 						//Pref_Users::resetUserPassword($id, false);
 
@@ -854,7 +830,7 @@ class Handler_Public extends Handler {
 			<head>
 			<title>Database Updater</title>
 			<meta http-equiv="Content-Type" content="text/html; charset=utf-8"/>
-			<link rel="stylesheet" type="text/css" href="css/utility.css"/>
+			<link rel="stylesheet" type="text/css" href="css/default.css"/>
 			<link rel=\"shortcut icon\" type=\"image/png\" href=\"images/favicon.png\">
 			<link rel=\"icon\" type=\"image/png\" sizes=\"72x72\" href=\"images/favicon-72px.png\">
 			</head>
@@ -862,7 +838,7 @@ class Handler_Public extends Handler {
 				span.ok { color : #009000; font-weight : bold; }
 				span.err { color : #ff0000; font-weight : bold; }
 			</style>
-		<body>
+		<body class="claro ttrss_utility">
 			<script type='text/javascript'>
 			function confirmOP() {
 				return confirm("Update the database?");
@@ -876,8 +852,8 @@ class Handler_Public extends Handler {
 			<div class="content">
 
 			<?php
-				@$op = $_REQUEST["subop"];
-				$updater = new DbUpdater(Db::get(), DB_TYPE, SCHEMA_VERSION);
+				@$op = clean($_REQUEST["subop"]);
+				$updater = new DbUpdater(Db::pdo(), DB_TYPE, SCHEMA_VERSION);
 
 				if ($op == "performupdate") {
 					if ($updater->isUpdateRequired()) {
@@ -992,8 +968,8 @@ class Handler_Public extends Handler {
 	public function pluginhandler() {
 		$host = new PluginHost();
 
-		$plugin = basename($_REQUEST["plugin"]);
-		$method = $_REQUEST["pmethod"];
+		$plugin = basename(clean($_REQUEST["plugin"]));
+		$method = clean($_REQUEST["pmethod"]);
 
 		$host->load($plugin, PluginHost::KIND_USER, 0);
 		$host->load_data();

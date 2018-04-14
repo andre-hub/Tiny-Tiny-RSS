@@ -96,17 +96,7 @@ function exception_error(e, e_compat, filename, lineno, colno) {
 }
 
 function param_escape(arg) {
-	if (typeof encodeURIComponent != 'undefined')
-		return encodeURIComponent(arg);
-	else
-		return escape(arg);
-}
-
-function param_unescape(arg) {
-	if (typeof decodeURIComponent != 'undefined')
-		return decodeURIComponent(arg);
-	else
-		return unescape(arg);
+	return encodeURIComponent(arg);
 }
 
 function notify_real(msg, no_hide, n_type) {
@@ -255,47 +245,8 @@ function gotoMain() {
 	document.location.href = "index.php";
 }
 
-/** * @(#)isNumeric.js * * Copyright (c) 2000 by Sundar Dorai-Raj
-  * * @author Sundar Dorai-Raj
-  * * Email: sdoraira@vt.edu
-  * * This program is free software; you can redistribute it and/or
-  * * modify it under the terms of the GNU General Public License
-  * * as published by the Free Software Foundation; either version 2
-  * * of the License, or (at your option) any later version,
-  * * provided that any use properly credits the author.
-  * * This program is distributed in the hope that it will be useful,
-  * * but WITHOUT ANY WARRANTY; without even the implied warranty of
-  * * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-  * * GNU General Public License for more details at http://www.gnu.org * * */
-
-  var numbers=".0123456789";
-  function isNumeric(x) {
-    // is x a String or a character?
-    if(x.length>1) {
-      // remove negative sign
-      x=Math.abs(x)+"";
-      for(var j=0;j<x.length;j++) {
-        // call isNumeric recursively for each character
-        number=isNumeric(x.substring(j,j+1));
-        if(!number) return number;
-      }
-      return number;
-    }
-    else {
-      // if x is number return true
-      if(numbers.indexOf(x)>=0) return true;
-      return false;
-    }
-  }
-
-
 function toggleSelectRowById(sender, id) {
 	var row = $(id);
-	return toggleSelectRow(sender, row);
-}
-
-function toggleSelectListRow(sender) {
-	var row = sender.parentNode;
 	return toggleSelectRow(sender, row);
 }
 
@@ -345,21 +296,12 @@ function checkboxToggleElement(elem, id) {
 	}
 }
 
-function dropboxSelect(e, v) {
-	for (var i = 0; i < e.length; i++) {
-		if (e[i].value == v) {
-			e.selectedIndex = i;
-			break;
-		}
-	}
-}
-
 function getURLParam(param){
 	return String(window.location.href).parseQuery()[param];
 }
 
-function closeInfoBox(cleanup) {
-	dialog = dijit.byId("infoBox");
+function closeInfoBox() {
+	var dialog = dijit.byId("infoBox");
 
 	if (dialog)	dialog.hide();
 
@@ -530,13 +472,6 @@ function strip_tags(s) {
 	return s.replace(/<\/?[^>]+(>|$)/g, "");
 }
 
-function truncate_string(s, length) {
-	if (!length) length = 30;
-	var tmp = s.substring(0, length);
-	if (s.length > length) tmp += "&hellip;";
-	return tmp;
-}
-
 function hotkey_prefix_timeout() {
 
 	var date = new Date();
@@ -629,8 +564,6 @@ function addLabel(select, callback) {
 
 		notify_progress("Loading, please wait...", true);
 
-		if (inPreferences() && !select) active_tab = "labelConfig";
-
 		new Ajax.Request("backend.php", {
 			parameters: query,
 			onComplete: function(transport) {
@@ -711,7 +644,7 @@ function quickAddFeed() {
 								dialog.show_error(__("Specified URL doesn't seem to contain any feeds."));
 								break;
 							case 4:
-								feeds = rc['feeds'];
+								var feeds = rc['feeds'];
 
 								Element.show("fadd_multiple_notify");
 
@@ -738,7 +671,6 @@ function quickAddFeed() {
 							case 6:
 								dialog.show_error(__("XML validation failed: %s").
 										replace("%s", rc['message']));
-								break;
 								break;
 							case 0:
 								dialog.show_error(__("You are already subscribed to this feed."));
@@ -1005,7 +937,7 @@ function quickAddFilter() {
 	if (dijit.byId("filterEditDlg"))
 		dijit.byId("filterEditDlg").destroyRecursive();
 
-	dialog = new dijit.Dialog({
+	var dialog = new dijit.Dialog({
 		id: "filterEditDlg",
 		title: __("Create Filter"),
 		style: "width: 600px",
@@ -1047,10 +979,10 @@ function quickAddFilter() {
 		addAction: function() { addFilterAction(); },
 		addRule: function() { addFilterRule(); },
 		deleteAction: function() {
-			$$("#filterDlg_Actions li.[class*=Selected]").each(function(e) { e.parentNode.removeChild(e) });
+			$$("#filterDlg_Actions li[class*=Selected]").each(function(e) { e.parentNode.removeChild(e) });
 		},
 		deleteRule: function() {
-			$$("#filterDlg_Matches li.[class*=Selected]").each(function(e) { e.parentNode.removeChild(e) });
+			$$("#filterDlg_Matches li[class*=Selected]").each(function(e) { e.parentNode.removeChild(e) });
 		},
 		execute: function() {
 			if (this.validate()) {
@@ -1098,7 +1030,7 @@ function quickAddFilter() {
 
 					var title = false;
 
-					if (reply && reply) title = reply.title;
+					if (reply && reply.title) title = reply.title;
 
 					if (title || getActiveFeedId() || activeFeedIsCat()) {
 
@@ -1183,7 +1115,7 @@ function backend_sanity_check_callback(transport) {
 	if (params) {
 		console.log('reading init-params...');
 
-		for (k in params) {
+		for (var k in params) {
 			console.log("IP: " + k + " => " + JSON.stringify(params[k]));
 			if (k == "label_base_index") _label_base_index = parseInt(params[k]);
 		}
@@ -1198,31 +1130,6 @@ function backend_sanity_check_callback(transport) {
 
 	init_second_stage();
 
-}
-
-function quickAddCat(elem) {
-	var cat = prompt(__("Please enter category title:"));
-
-	if (cat) {
-
-		var query = "?op=rpc&method=quickAddCat&cat=" + param_escape(cat);
-
-		notify_progress("Loading, please wait...", true);
-
-		new Ajax.Request("backend.php", {
-			parameters: query,
-			onComplete: function (transport) {
-				var response = transport.responseXML;
-				var select = response.getElementsByTagName("select")[0];
-				var options = select.getElementsByTagName("option");
-
-				dropbox_replace_options(elem, options);
-
-				notify('');
-
-		} });
-
-	}
 }
 
 function genUrlChangeKey(feed, is_cat) {
@@ -1261,34 +1168,6 @@ function genUrlChangeKey(feed, is_cat) {
 			} });
 	}
 	return false;
-}
-
-function dropbox_replace_options(elem, options) {
-	while (elem.hasChildNodes())
-		elem.removeChild(elem.firstChild);
-
-	var sel_idx = -1;
-
-	for (var i = 0; i < options.length; i++) {
-		var text = options[i].firstChild.nodeValue;
-		var value = options[i].getAttribute("value");
-
-		if (value == undefined) value = text;
-
-		var issel = options[i].getAttribute("selected") == "1";
-
-		var option = new Option(text, value, issel);
-
-		if (options[i].getAttribute("disabled"))
-			option.setAttribute("disabled", true);
-
-		elem.insert(option);
-
-		if (issel) sel_idx = i;
-	}
-
-	// Chrome doesn't seem to just select stuff when you pass new Option(x, y, true)
-	if (sel_idx >= 0) elem.selectedIndex = sel_idx;
 }
 
 // mode = all, none, invert
@@ -1361,7 +1240,7 @@ function getSelectedTableRowIds(id) {
 	return rows;
 }
 
-function editFeed(feed, event) {
+function editFeed(feed) {
 	if (feed <= 0)
 		return alert(__("You can't edit this kind of feed."));
 
@@ -1376,7 +1255,7 @@ function editFeed(feed, event) {
 	if (dijit.byId("feedEditDlg"))
 		dijit.byId("feedEditDlg").destroyRecursive();
 
-	dialog = new dijit.Dialog({
+	var dialog = new dijit.Dialog({
 		id: "feedEditDlg",
 		title: __("Edit Feed"),
 		style: "width: 600px",
@@ -1551,7 +1430,7 @@ function showFeedsWithErrors() {
 	if (dijit.byId("errorFeedsDlg"))
 		dijit.byId("errorFeedsDlg").destroyRecursive();
 
-	dialog = new dijit.Dialog({
+	var dialog = new dijit.Dialog({
 		id: "errorFeedsDlg",
 		title: __("Feeds with update errors"),
 		style: "width: 600px",
@@ -1605,7 +1484,7 @@ function helpDialog(topic) {
 	if (dijit.byId("helpDlg"))
 		dijit.byId("helpDlg").destroyRecursive();
 
-	dialog = new dijit.Dialog({
+	var dialog = new dijit.Dialog({
 		id: "helpDlg",
 		title: __("Help"),
 		style: "width: 600px",

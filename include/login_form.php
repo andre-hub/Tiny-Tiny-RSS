@@ -23,98 +23,9 @@
 			init();
 		});
 	</script>
-	<style type="text/css">
-	body#ttrssLogin {
-		padding : 2em;
-		font-size : 14px;
-	}
-
-	fieldset {
-		margin-left : auto;
-		margin-right : auto;
-		display : block;
-		width : 400px;
-		border-width : 0px;
-	}
-
-	/*input.input {
-		font-family : sans-serif;
-		font-size : medium;
-		border-spacing : 2px;
-		border : 1px solid #b5bcc7;
-		padding : 2px;
-	}*/
-
-	label {
-		width : 120px;
-		margin-right : 20px;
-		display : inline-block;
-		text-align : right;
-		color : gray;
-	}
-
-	div.header {
-		border-width : 0px 0px 1px 0px;
-		border-style : solid;
-		border-color : #0088cc;
-		margin-bottom : 1em;
-		padding-bottom : 5px;
-	}
-
-	div.footer {
-		margin-top : 1em;
-		padding-top : 5px;
-		border-width : 1px 0px 0px 0px;
-		border-style : solid;
-		border-color : #0088cc;
-		text-align : center;
-		color : gray;
-		font-size : 12px;
-	}
-
-	a.forgotpass {
-		text-align : right;
-		font-size : 11px;
-		display : inline-block;
-	}
-
-	a {
-		color : #0088cc;
-	}
-
-	a {
-		color: #0088cc;
-		text-decoration: none;
-	}
-
-	a:hover,
-	a:focus {
-		color: #005580;
-		text-decoration: underline;
-	}
-
-	div.footer a {
-		color : gray;
-	}
-
-	div.footer a:hover {
-		color : #0088cc;
-	}
-
-	div.row {
-		padding : 0px 0px 5px 0px;
-	}
-
-	div.row-error {
-		color : red;
-		text-align : center;
-		padding : 0px 0px 5px 0px;
-	}
-
-	</style>
 </head>
 
-<body id="ttrssLogin" class="claro">
+<body class="claro ttrss_main ttrss_login">
 
 <script type="text/javascript">
 function init() {
@@ -143,7 +54,7 @@ function fetchProfiles() {
 				onComplete: function(transport) {
 					if (transport.responseText.match("select")) {
 						$('profile_box').innerHTML = transport.responseText;
-						dojo.parser.parse('profile_box');
+						//dojo.parser.parse('profile_box');
 					}
 			} });
 		}

@@ -160,7 +160,7 @@ function search() {
 	if (dijit.byId("searchDlg"))
 		dijit.byId("searchDlg").destroyRecursive();
 
-	dialog = new dijit.Dialog({
+	var dialog = new dijit.Dialog({
 		id: "searchDlg",
 		title: __("Search"),
 		style: "width: 600px",
@@ -365,7 +365,6 @@ function init_hotkey_actions() {
 	hotkey_actions["open_in_new_window"] = function() {
 		if (getActiveArticleId()) {
 			openArticleInNewWindow(getActiveArticleId());
-			return;
 		}
 	};
 	hotkey_actions["catchup_below"] = function() {
@@ -375,13 +374,9 @@ function init_hotkey_actions() {
 		catchupRelativeToArticle(0);
 	};
 	hotkey_actions["article_scroll_down"] = function() {
-		var ctr = $("content_insert") ? $("content_insert") : $("headlines-frame");
-
 		scrollArticle(40);
 	};
 	hotkey_actions["article_scroll_up"] = function() {
-		var ctr = $("content_insert") ? $("content_insert") : $("headlines-frame");
-
 		scrollArticle(-40);
 	};
 	hotkey_actions["close_article"] = function() {
@@ -615,7 +610,7 @@ function init_second_stage() {
 	dijit.getEnclosingWidget(toolbar.order_by).attr('value',
 		getInitParam("default_view_order_by"));
 
-	feeds_sort_by_unread = getInitParam("feeds_sort_by_unread") == 1;
+	var feeds_sort_by_unread = getInitParam("feeds_sort_by_unread") == 1;
 
 	var hash_feed_id = hash_get('f');
 	var hash_feed_is_cat = hash_get('c') == "1";
@@ -633,8 +628,8 @@ function init_second_stage() {
 	var hotkeys = getInitParam("hotkeys");
 	var tmp = [];
 
-	for (sequence in hotkeys[1]) {
-		filtered = sequence.replace(/\|.*$/, "");
+	for (var sequence in hotkeys[1]) {
+		var filtered = sequence.replace(/\|.*$/, "");
 		tmp[filtered] = hotkeys[1][sequence];
 	}
 
@@ -757,7 +752,7 @@ function parse_runtime_info(data) {
 
 	//console.log("parsing runtime info...");
 
-	for (k in data) {
+	for (var k in data) {
 		var v = data[k];
 
 //		console.log("RI: " + k + " => " + v);
@@ -904,7 +899,7 @@ function hotkey_handler(e) {
 	var hotkey_action = false;
 	var hotkeys = getInitParam("hotkeys");
 
-	for (sequence in hotkeys[1]) {
+	for (var sequence in hotkeys[1]) {
 		if (sequence == hotkey) {
 			hotkey_action = hotkeys[1][sequence];
 			break;
@@ -1022,7 +1017,7 @@ function handle_rpc_json(transport, scheduled_call) {
 function switchPanelMode(wide) {
 	if (isCdmMode()) return;
 
-	article_id = getActiveArticleId();
+	var article_id = getActiveArticleId();
 
 	if (wide) {
 		dijit.byId("headlines-wrap-inner").attr("design", 'sidebar');
@@ -1081,11 +1076,11 @@ function update_random_feed() {
 }
 
 function hash_get(key) {
-	kv = window.location.hash.substring(1).toQueryParams();
+	var kv = window.location.hash.substring(1).toQueryParams();
 	return kv[key];
 }
 function hash_set(key, value) {
-	kv = window.location.hash.substring(1).toQueryParams();
+	var kv = window.location.hash.substring(1).toQueryParams();
 	kv[key] = value;
 	window.location.hash = $H(kv).toQueryString();
 }

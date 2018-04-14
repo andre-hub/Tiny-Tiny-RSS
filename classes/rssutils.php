@@ -16,33 +16,45 @@ class RSSUtils {
 		return sha1(implode(",", $pluginhost->get_plugin_names()) . $tmp);
 	}
 
+	// Strips utf8mb4 characters (i.e. emoji) for mysql
+	static function strip_utf8mb4($str) {
+		return preg_replace('/[\x{10000}-\x{10FFFF}]/u', "\xEF\xBF\xBD", $str);
+	}
+
 	static function update_feedbrowser_cache() {
 
-		$result = db_query("SELECT feed_url, site_url, title, COUNT(id) AS subscribers
+		$pdo = Db::pdo();
+
+		$sth = $pdo->query("SELECT feed_url, site_url, title, COUNT(id) AS subscribers
 			FROM ttrss_feeds WHERE feed_url NOT IN (SELECT feed_url FROM ttrss_feeds
 				WHERE private IS true OR auth_login != '' OR auth_pass != '' OR feed_url LIKE '%:%@%/%')
 				GROUP BY feed_url, site_url, title ORDER BY subscribers DESC LIMIT 1000");
 
-		db_query("BEGIN");
+		$pdo->beginTransaction();
 
-		db_query("DELETE FROM ttrss_feedbrowser_cache");
+		$pdo->query("DELETE FROM ttrss_feedbrowser_cache");
 
 		$count = 0;
 
-		while ($line = db_fetch_assoc($result)) {
-			$subscribers = db_escape_string($line["subscribers"]);
-			$feed_url = db_escape_string($line["feed_url"]);
-			$title = db_escape_string($line["title"]);
-			$site_url = db_escape_string($line["site_url"]);
+		while ($line = $sth->fetch()) {
 
-			$tmp_result = db_query("SELECT subscribers FROM
-				ttrss_feedbrowser_cache WHERE feed_url = '$feed_url'");
+			$subscribers = $line["subscribers"];
+			$feed_url = $line["feed_url"];
+			$title = $line["title"];
+			$site_url = $line["site_url"];
 
-			if (db_num_rows($tmp_result) == 0) {
+			$tmph = $pdo->prepare("SELECT subscribers FROM
+				ttrss_feedbrowser_cache WHERE feed_url = ?");
+			$tmph->execute([$feed_url]);
 
-				db_query("INSERT INTO ttrss_feedbrowser_cache
-					(feed_url, site_url, title, subscribers) VALUES ('$feed_url',
-						'$site_url', '$title', '$subscribers')");
+			if (!$tmph->fetch()) {
+
+				$tmph = $pdo->prepare("INSERT INTO ttrss_feedbrowser_cache
+					(feed_url, site_url, title, subscribers) 
+					VALUES 
+					(?, ?, ?, ?)");
+
+				$tmph->execute([$feed_url, $site_url, $title, $subscribers]);
 
 				++$count;
 
@@ -50,7 +62,7 @@ class RSSUtils {
 
 		}
 
-		db_query("COMMIT");
+		$pdo->commit();
 
 		return $count;
 
@@ -62,6 +74,8 @@ class RSSUtils {
 		if ($schema_version != SCHEMA_VERSION) {
 			die("Schema version is wrong, please upgrade the database.\n");
 		}
+
+		$pdo = Db::pdo();
 
 		if (!SINGLE_USER_MODE && DAEMON_UPDATE_LOGIN_LIMIT > 0) {
 			if (DB_TYPE == "pgsql") {
@@ -124,22 +138,23 @@ class RSSUtils {
 				$updstart_thresh_qpart
 				$query_order $query_limit";
 
-		$result = db_query($query);
-
-		if ($debug) _debug(sprintf("Scheduled %d feeds to update...", db_num_rows($result)));
+		$res = $pdo->query($query);
 
 		$feeds_to_update = array();
-		while ($line = db_fetch_assoc($result)) {
+		while ($line = $res->fetch()) {
 			array_push($feeds_to_update, $line['feed_url']);
 		}
+
+		if ($debug) _debug(sprintf("Scheduled %d feeds to update...", count($feeds_to_update)));
 
 		// Update last_update_started before actually starting the batch
 		// in order to minimize collision risk for parallel daemon tasks
 		if (count($feeds_to_update) > 0) {
-			$feeds_quoted = array_map(function ($s) { return "'" . db_escape_string($s) . "'"; }, $feeds_to_update);
+			$feeds_qmarks = arr_qmarks($feeds_to_update);
 
-			db_query(sprintf("UPDATE ttrss_feeds SET last_update_started = NOW()
-				WHERE feed_url IN (%s)", implode(',', $feeds_quoted)));
+			$tmph = $pdo->prepare("UPDATE ttrss_feeds SET last_update_started = NOW()
+				WHERE feed_url IN ($feeds_qmarks)");
+			$tmph->execute($feeds_to_update);
 		}
 
 		$nf = 0;
@@ -147,38 +162,37 @@ class RSSUtils {
 
 		$batch_owners = array();
 
-		foreach ($feeds_to_update as $feed) {
-			if($debug) _debug("Base feed: $feed");
-
-			//update_rss_feed($line["id"], true);
-
-			// since we have the data cached, we can deal with other feeds with the same url
-			$tmp_result = db_query("SELECT DISTINCT ttrss_feeds.id,last_updated,ttrss_feeds.owner_uid
+		// since we have the data cached, we can deal with other feeds with the same url
+		$usth = $pdo->prepare("SELECT DISTINCT ttrss_feeds.id,last_updated,ttrss_feeds.owner_uid
 			FROM ttrss_feeds, ttrss_users, ttrss_user_prefs WHERE
 				ttrss_user_prefs.owner_uid = ttrss_feeds.owner_uid AND
 				ttrss_users.id = ttrss_user_prefs.owner_uid AND
 				ttrss_user_prefs.pref_name = 'DEFAULT_UPDATE_INTERVAL' AND
 				ttrss_user_prefs.profile IS NULL AND
-				feed_url = '".db_escape_string($feed)."'
+				feed_url = ?
 				$update_limit_qpart
 				$login_thresh_qpart
 			ORDER BY ttrss_feeds.id $query_limit");
 
-			if (db_num_rows($tmp_result) > 0) {
-				while ($tline = db_fetch_assoc($tmp_result)) {
-					if ($debug) _debug(" => " . $tline["last_updated"] . ", " . $tline["id"] . " " . $tline["owner_uid"]);
+		foreach ($feeds_to_update as $feed) {
+			if($debug) _debug("Base feed: $feed");
 
-					if (array_search($tline["owner_uid"], $batch_owners) === FALSE)
-						array_push($batch_owners, $tline["owner_uid"]);
+			$usth->execute([$feed]);
+			//update_rss_feed($line["id"], true);
 
-					$fstarted = microtime(true);
-					RSSUtils::update_rss_feed($tline["id"], true, false);
-					_debug_suppress(false);
+			if ($tline = $usth->fetch()) {
+				if ($debug) _debug(" => " . $tline["last_updated"] . ", " . $tline["id"] . " " . $tline["owner_uid"]);
 
-					_debug(sprintf("    %.4f (sec)", microtime(true) - $fstarted));
+				if (array_search($tline["owner_uid"], $batch_owners) === FALSE)
+					array_push($batch_owners, $tline["owner_uid"]);
 
-					++$nf;
-				}
+				$fstarted = microtime(true);
+				RSSUtils::update_rss_feed($tline["id"], true, false);
+				_debug_suppress(false);
+
+				_debug(sprintf("    %.4f (sec)", microtime(true) - $fstarted));
+
+				++$nf;
 			}
 		}
 
@@ -197,85 +211,95 @@ class RSSUtils {
 		Digest::send_headlines_digests($debug);
 
 		return $nf;
-
 	}
 
 	// this is used when subscribing
 	static function set_basic_feed_info($feed) {
 
-		$feed = db_escape_string($feed);
+		$pdo = Db::pdo();
 
-		$result = db_query("SELECT owner_uid,feed_url,auth_pass,auth_login,auth_pass_encrypted
-					FROM ttrss_feeds WHERE id = '$feed'");
+		$sth = $pdo->prepare("SELECT owner_uid,feed_url,auth_pass,auth_login,auth_pass_encrypted
+				FROM ttrss_feeds WHERE id = ?");
+		$sth->execute([$feed]);
 
-		$owner_uid = db_fetch_result($result, 0, "owner_uid");
+		if ($row = $sth->fetch()) {
 
-		$auth_pass_encrypted = sql_bool_to_bool(db_fetch_result($result,
-			0, "auth_pass_encrypted"));
+			$owner_uid = $row["owner_uid"];
 
-		$auth_login = db_fetch_result($result, 0, "auth_login");
-		$auth_pass = db_fetch_result($result, 0, "auth_pass");
+			$auth_pass_encrypted = $row["auth_pass_encrypted"];
 
-		if ($auth_pass_encrypted && function_exists("mcrypt_decrypt")) {
-			require_once "crypt.php";
-			$auth_pass = decrypt_string($auth_pass);
-		}
+			$auth_login = $row["auth_login"];
+			$auth_pass = $row["auth_pass"];
 
-		$fetch_url = db_fetch_result($result, 0, "feed_url");
-
-		$pluginhost = new PluginHost();
-		$user_plugins = get_pref("_ENABLED_PLUGINS", $owner_uid);
-
-		$pluginhost->load(PLUGINS, PluginHost::KIND_ALL);
-		$pluginhost->load($user_plugins, PluginHost::KIND_USER, $owner_uid);
-		$pluginhost->load_data();
-
-		$basic_info = array();
-		foreach ($pluginhost->get_hooks(PluginHost::HOOK_FEED_BASIC_INFO) as $plugin) {
-			$basic_info = $plugin->hook_feed_basic_info($basic_info, $fetch_url, $owner_uid, $feed, $auth_login, $auth_pass);
-		}
-
-		if (!$basic_info) {
-			$feed_data = fetch_file_contents($fetch_url, false,
-				$auth_login, $auth_pass, false,
-				FEED_FETCH_TIMEOUT,
-				0);
-
-			global $fetch_curl_used;
-
-			if (!$fetch_curl_used) {
-				$tmp = @gzdecode($feed_data);
-
-				if ($tmp) $feed_data = $tmp;
+			if ($auth_pass_encrypted && function_exists("mcrypt_decrypt")) {
+				require_once "crypt.php";
+				$auth_pass = decrypt_string($auth_pass);
 			}
 
-			$feed_data = trim($feed_data);
+			$fetch_url = $row["feed_url"];
 
-			$rss = new FeedParser($feed_data);
-			$rss->init();
+			$pluginhost = new PluginHost();
+			$user_plugins = get_pref("_ENABLED_PLUGINS", $owner_uid);
 
-			if (!$rss->error()) {
-				$basic_info = array(
-					'title' => db_escape_string(mb_substr($rss->get_title(), 0, 199)),
-					'site_url' => db_escape_string(mb_substr(rewrite_relative_url($fetch_url, $rss->get_link()), 0, 245))
-				);
-			}
-		}
+			$pluginhost->load(PLUGINS, PluginHost::KIND_ALL);
+			$pluginhost->load($user_plugins, PluginHost::KIND_USER, $owner_uid);
+			$pluginhost->load_data();
 
-		if ($basic_info && is_array($basic_info)) {
-			$result = db_query("SELECT title, site_url FROM ttrss_feeds WHERE id = '$feed'");
-
-			$registered_title = db_fetch_result($result, 0, "title");
-			$orig_site_url = db_fetch_result($result, 0, "site_url");
-
-			if ($basic_info['title'] && (!$registered_title || $registered_title == "[Unknown]")) {
-				db_query("UPDATE ttrss_feeds SET
-					title = '${basic_info['title']}' WHERE id = '$feed'");
+			$basic_info = array();
+			foreach ($pluginhost->get_hooks(PluginHost::HOOK_FEED_BASIC_INFO) as $plugin) {
+				$basic_info = $plugin->hook_feed_basic_info($basic_info, $fetch_url, $owner_uid, $feed, $auth_login, $auth_pass);
 			}
 
-			if ($basic_info['site_url'] && $orig_site_url != $basic_info['site_url']) {
-				db_query("UPDATE ttrss_feeds SET
-							site_url = '${basic_info['site_url']}' WHERE id = '$feed'");
+			if (!$basic_info) {
+				$feed_data = fetch_file_contents($fetch_url, false,
+					$auth_login, $auth_pass, false,
+					FEED_FETCH_TIMEOUT,
+					0);
+
+				global $fetch_curl_used;
+
+				if (!$fetch_curl_used) {
+					$tmp = @gzdecode($feed_data);
+
+					if ($tmp) $feed_data = $tmp;
+				}
+
+				$feed_data = trim($feed_data);
+
+				$rss = new FeedParser($feed_data);
+				$rss->init();
+
+				if (!$rss->error()) {
+					$basic_info = array(
+						'title' => mb_substr($rss->get_title(), 0, 199),
+						'site_url' => mb_substr(rewrite_relative_url($fetch_url, $rss->get_link()), 0, 245)
+					);
+				}
+			}
+
+			if ($basic_info && is_array($basic_info)) {
+				$sth = $pdo->prepare("SELECT title, site_url FROM ttrss_feeds WHERE id = ?");
+				$sth->execute([$feed]);
+
+				if ($row = $sth->fetch()) {
+
+					$registered_title = $row["title"];
+					$orig_site_url = $row["site_url"];
+
+					if ($basic_info['title'] && (!$registered_title || $registered_title == "[Unknown]")) {
+
+						$sth = $pdo->prepare("UPDATE ttrss_feeds SET
+							title = ? WHERE id = ?");
+						$sth->execute([$basic_info['title'], $feed]);
+					}
+
+					if ($basic_info['site_url'] && $orig_site_url != $basic_info['site_url']) {
+						$sth = $pdo->prepare("UPDATE ttrss_feeds SET
+							site_url = ? WHERE id = ?");
+						$sth->execute([$basic_info['site_url'], $feed]);
+					}
+
+				}
 			}
 		}
 	}
@@ -285,21 +309,23 @@ class RSSUtils {
 	 */
 	static function update_rss_feed($feed, $no_cache = false) {
 
-		$debug_enabled = defined('DAEMON_EXTENDED_DEBUG') || $_REQUEST['xdebug'];
+		$debug_enabled = defined('DAEMON_EXTENDED_DEBUG') || clean($_REQUEST['xdebug']);
 
 		_debug_suppress(!$debug_enabled);
 		_debug("start", $debug_enabled);
 
-		$result = db_query("SELECT title FROM ttrss_feeds
-			WHERE id = '$feed'");
+		$pdo = Db::pdo();
 
-		if (db_num_rows($result) == 0) {
+		$sth = $pdo->prepare("SELECT title FROM ttrss_feeds WHERE id = ?");
+		$sth->execute([$feed]);
+
+		if (!$row = $sth->fetch()) {
 			_debug("feed $feed NOT FOUND/SKIPPED", $debug_enabled);
 			user_error("Attempt to update unknown/invalid feed $feed", E_USER_WARNING);
 			return false;
 		}
 
-		$title = db_fetch_result($result, 0, "title");
+		$title = $row["title"];
 
 		// feed was batch-subscribed or something, we need to get basic info
 		// this is not optimal currently as it fetches stuff separately TODO: optimize
@@ -308,43 +334,47 @@ class RSSUtils {
 			RSSUtils::set_basic_feed_info($feed);
 		}
 
-		$result = db_query("SELECT id,update_interval,auth_login,
+		$sth = $pdo->prepare("SELECT id,update_interval,auth_login,
 			feed_url,auth_pass,cache_images,
 			mark_unread_on_update, owner_uid,
 			auth_pass_encrypted, feed_language, 
 			last_modified, 
 			".SUBSTRING_FOR_DATE."(last_unconditional, 1, 19) AS last_unconditional			
-			FROM ttrss_feeds WHERE id = '$feed'");
+			FROM ttrss_feeds WHERE id = ?");
+		$sth->execute([$feed]);
+		
+		if ($row = $sth->fetch()) {
 
-		$owner_uid = db_fetch_result($result, 0, "owner_uid");
-		$mark_unread_on_update = sql_bool_to_bool(db_fetch_result($result,
-			0, "mark_unread_on_update"));
-		$auth_pass_encrypted = sql_bool_to_bool(db_fetch_result($result,
-			0, "auth_pass_encrypted"));
+			$owner_uid = $row["owner_uid"];
+			$mark_unread_on_update = $row["mark_unread_on_update"];
+			$auth_pass_encrypted = $row["auth_pass_encrypted"];
 
-		db_query("UPDATE ttrss_feeds SET last_update_started = NOW()
-			WHERE id = '$feed'");
+			$sth = $pdo->prepare("UPDATE ttrss_feeds SET last_update_started = NOW()
+				WHERE id = ?");
+			$sth->execute([$feed]);
 
-		$auth_login = db_fetch_result($result, 0, "auth_login");
-		$auth_pass = db_fetch_result($result, 0, "auth_pass");
+			$auth_login = $row["auth_login"];
+			$auth_pass = $row["auth_pass"];
 
-		if ($auth_pass_encrypted && function_exists("mcrypt_decrypt")) {
-			require_once "crypt.php";
-			$auth_pass = decrypt_string($auth_pass);
+			if ($auth_pass_encrypted && function_exists("mcrypt_decrypt")) {
+				require_once "crypt.php";
+				$auth_pass = decrypt_string($auth_pass);
+			}
+
+			$stored_last_modified = $row["last_modified"];
+			$last_unconditional = $row["last_unconditional"];
+			$cache_images = $row["cache_images"];
+			$fetch_url = $row["feed_url"];
+			$feed_language = mb_strtolower($row["feed_language"]);
+			if (!$feed_language) $feed_language = 'english';
+
+		} else {
+			return false;
 		}
-
-		$stored_last_modified = db_fetch_result($result, 0, "last_modified");
-        $last_unconditional = db_fetch_result($result, 0, "last_unconditional");
-		$cache_images = sql_bool_to_bool(db_fetch_result($result, 0, "cache_images"));
-		$fetch_url = db_fetch_result($result, 0, "feed_url");
-		$feed_language = db_escape_string(mb_strtolower(db_fetch_result($result, 0, "feed_language")));
-		if (!$feed_language) $feed_language = 'english';
-
-		$feed = db_escape_string($feed);
 
 		$date_feed_processed = date('Y-m-d H:i');
 
-		$cache_filename = CACHE_DIR . "/simplepie/" . sha1($fetch_url) . ".xml";
+		$cache_filename = CACHE_DIR . "/feeds/" . sha1($fetch_url) . ".xml";
 
 		$pluginhost = new PluginHost();
 		$pluginhost->set_debug($debug_enabled);
@@ -392,15 +422,15 @@ class RSSUtils {
 				_debug("not using CURL due to open_basedir restrictions");
 			}
 
-            if (time() - strtotime($last_unconditional) > MAX_CONDITIONAL_INTERVAL) {
-                _debug("maximum allowed interval for conditional requests exceeded, forcing refetch");
+			if (time() - strtotime($last_unconditional) > MAX_CONDITIONAL_INTERVAL) {
+				_debug("maximum allowed interval for conditional requests exceeded, forcing refetch");
 
-                $force_refetch = true;
-            } else {
-                _debug("stored last modified for conditional request: $stored_last_modified", $debug_enabled);
-            }
+				$force_refetch = true;
+			} else {
+				_debug("stored last modified for conditional request: $stored_last_modified", $debug_enabled);
+			}
 
-            _debug("fetching [$fetch_url] (force_refetch: $force_refetch)...", $debug_enabled);
+			_debug("fetching [$fetch_url] (force_refetch: $force_refetch)...", $debug_enabled);
 
 			$feed_data = fetch_file_contents([
 				"url" => $fetch_url,
@@ -424,14 +454,12 @@ class RSSUtils {
 			_debug("source last modified: " . $fetch_last_modified, $debug_enabled);
 
 			if ($feed_data && $fetch_last_modified != $stored_last_modified) {
-				$last_modified_escaped = db_escape_string(substr($fetch_last_modified, 0, 245));
-
-				db_query("UPDATE ttrss_feeds SET last_modified = '$last_modified_escaped' WHERE id = '$feed'");
-
+				$sth = $pdo->prepare("UPDATE ttrss_feeds SET last_modified = ? WHERE id = ?");
+				$sth->execute([substr($fetch_last_modified, 0, 245), $feed]);
 			}
 
 			// cache vanilla feed data for re-use
-			if ($feed_data && !$auth_pass && !$auth_login && is_writable(CACHE_DIR . "/simplepie")) {
+			if ($feed_data && !$auth_pass && !$auth_login && is_writable(CACHE_DIR . "/feeds")) {
 				$new_rss_hash = sha1($feed_data);
 
 				if ($new_rss_hash != $rss_hash) {
@@ -447,18 +475,17 @@ class RSSUtils {
 
 			_debug("unable to fetch: $fetch_last_error [$fetch_last_error_code]", $debug_enabled);
 
-			$error_escaped = '';
-
 			// If-Modified-Since
 			if ($fetch_last_error_code != 304) {
-				$error_escaped = db_escape_string($fetch_last_error);
+				$error_message = $fetch_last_error;
 			} else {
 				_debug("source claims data not modified, nothing to do.", $debug_enabled);
+				$error_message = "";
 			}
 
-			db_query(
-				"UPDATE ttrss_feeds SET last_error = '$error_escaped',
-					last_updated = NOW() WHERE id = '$feed'");
+			$sth = $pdo->prepare("UPDATE ttrss_feeds SET last_error = ?,
+					last_updated = NOW() WHERE id = ?");
+			$sth->execute([$error_message, $feed]);
 
 			return;
 		}
@@ -470,8 +497,6 @@ class RSSUtils {
 		$rss = new FeedParser($feed_data);
 		$rss->init();
 
-		$feed = db_escape_string($feed);
-
 		if (!$rss->error()) {
 
 			// We use local pluginhost here because we need to load different per-user feed plugins
@@ -480,26 +505,27 @@ class RSSUtils {
 			_debug("language: $feed_language", $debug_enabled);
 			_debug("processing feed data...", $debug_enabled);
 
-//			db_query("BEGIN");
-
 			if (DB_TYPE == "pgsql") {
 				$favicon_interval_qpart = "favicon_last_checked < NOW() - INTERVAL '12 hour'";
 			} else {
 				$favicon_interval_qpart = "favicon_last_checked < DATE_SUB(NOW(), INTERVAL 12 HOUR)";
 			}
 
-			$result = db_query("SELECT owner_uid,favicon_avg_color,
+			$sth = $pdo->prepare("SELECT owner_uid,favicon_avg_color,
 				(favicon_last_checked IS NULL OR $favicon_interval_qpart) AS
 						favicon_needs_check
-				FROM ttrss_feeds WHERE id = '$feed'");
+				FROM ttrss_feeds WHERE id = ?");
+			$sth->execute([$feed]);
 
-			$favicon_needs_check = sql_bool_to_bool(db_fetch_result($result, 0,
-				"favicon_needs_check"));
-			$favicon_avg_color = db_fetch_result($result, 0, "favicon_avg_color");
+			if ($row = $sth->fetch()) {
+				$favicon_needs_check = $row["favicon_needs_check"];
+				$favicon_avg_color = $row["favicon_avg_color"];
+				$owner_uid = $row["owner_uid"];
+			} else {
+				return false;
+			}
 
-			$owner_uid = db_fetch_result($result, 0, "owner_uid");
-
-			$site_url = db_escape_string(mb_substr(rewrite_relative_url($fetch_url, $rss->get_link()), 0, 245));
+			$site_url = mb_substr(rewrite_relative_url($fetch_url, $rss->get_link()), 0, 245);
 
 			_debug("site_url: $site_url", $debug_enabled);
 			_debug("feed_title: " . $rss->get_title(), $debug_enabled);
@@ -520,23 +546,25 @@ class RSSUtils {
 				if ($favicon_modified_new > $favicon_modified)
 					$favicon_avg_color = '';
 
+				$favicon_colorstring = "";
 				if (file_exists($favicon_file) && function_exists("imagecreatefromstring") && $favicon_avg_color == '') {
 					require_once "colors.php";
 
-					db_query("UPDATE ttrss_feeds SET favicon_avg_color = 'fail' WHERE
-							id = '$feed'");
+					$sth = $pdo->prepare("UPDATE ttrss_feeds SET favicon_avg_color = 'fail' WHERE
+							id = ?");
+					$sth->execute([$feed]);
 
-					$favicon_color = db_escape_string(
-						calculate_avg_color($favicon_file));
+					$favicon_color = calculate_avg_color($favicon_file);
 
-					$favicon_colorstring = ",favicon_avg_color = '".$favicon_color."'";
+					$favicon_colorstring = ",favicon_avg_color = " . $pdo->quote($favicon_color);
+
 				} else if ($favicon_avg_color == 'fail') {
 					_debug("floicon failed on this file, not trying to recalculate avg color", $debug_enabled);
 				}
 
-				db_query("UPDATE ttrss_feeds SET favicon_last_checked = NOW()
-					$favicon_colorstring
-					WHERE id = '$feed'");
+				$sth = $pdo->prepare("UPDATE ttrss_feeds SET favicon_last_checked = NOW()
+					$favicon_colorstring WHERE id = ?");
+				$sth->execute([$feed]);
 			}
 
 			_debug("loading filters & labels...", $debug_enabled);
@@ -544,8 +572,8 @@ class RSSUtils {
 			$filters = load_filters($feed, $owner_uid);
 
 			if ($debug_enabled) {
-			    print_r($filters);
-            }
+				print_r($filters);
+			}
 
 			_debug("" . count($filters) . " filters loaded.", $debug_enabled);
 
@@ -554,10 +582,11 @@ class RSSUtils {
 			if (!is_array($items)) {
 				_debug("no articles found.", $debug_enabled);
 
-				db_query("UPDATE ttrss_feeds
-					SET last_updated = NOW(), last_unconditional = NOW(), last_error = '' WHERE id = '$feed'");
+				$sth = $pdo->prepare("UPDATE ttrss_feeds
+					SET last_updated = NOW(), last_unconditional = NOW(), last_error = '' WHERE id = ?");
+				$sth->execute([$feed]);
 
-				return; // no articles
+				return true; // no articles
 			}
 
 			_debug("processing articles...", $debug_enabled);
@@ -565,29 +594,34 @@ class RSSUtils {
 			$tstart = time();
 
 			foreach ($items as $item) {
-				if ($_REQUEST['xdebug'] == 3) {
+				$pdo->beginTransaction();
+
+				if (clean($_REQUEST['xdebug']) == 3) {
 					print_r($item);
 				}
 
 				if (ini_get("max_execution_time") > 0 && time() - $tstart >= ini_get("max_execution_time") * 0.7) {
 					_debug("looks like there's too many articles to process at once, breaking out", $debug_enabled);
+					$pdo->commit();
 					break;
 				}
 
-				$entry_guid = $item->get_id();
-				if (!$entry_guid) $entry_guid = $item->get_link();
+				$entry_guid = strip_tags($item->get_id());
+				if (!$entry_guid) $entry_guid = strip_tags($item->get_link());
 				if (!$entry_guid) $entry_guid = RSSUtils::make_guid_from_title($item->get_title());
-				if (!$entry_guid) continue;
+
+				if (!$entry_guid) {
+					$pdo->commit();
+					continue;
+				}
 
 				$entry_guid = "$owner_uid,$entry_guid";
 
-				$entry_guid_hashed = db_escape_string('SHA1:' . sha1($entry_guid));
+				$entry_guid_hashed = 'SHA1:' . sha1($entry_guid);
 
 				_debug("guid $entry_guid / $entry_guid_hashed", $debug_enabled);
 
-				$entry_timestamp = "";
-
-				$entry_timestamp = $item->get_date();
+				$entry_timestamp = strip_tags($item->get_date());
 
 				_debug("orig date: " . $item->get_date(), $debug_enabled);
 
@@ -599,9 +633,7 @@ class RSSUtils {
 
 				_debug("date $entry_timestamp [$entry_timestamp_fmt]", $debug_enabled);
 
-//				$entry_title = html_entity_decode($item->get_title(), ENT_COMPAT, 'UTF-8');
-//				$entry_title = decode_numeric_entities($entry_title);
-				$entry_title = $item->get_title();
+				$entry_title = strip_tags($item->get_title());
 
 				$entry_link = rewrite_relative_url($site_url, $item->get_link());
 
@@ -613,17 +645,17 @@ class RSSUtils {
 				$entry_content = $item->get_content();
 				if (!$entry_content) $entry_content = $item->get_description();
 
-				if ($_REQUEST["xdebug"] == 2) {
+				if (clean($_REQUEST["xdebug"]) == 2) {
 					print "content: ";
 					print htmlspecialchars($entry_content);
 					print "\n";
 				}
 
-				$entry_comments = db_escape_string(mb_substr($item->get_comments_url(), 0, 245));
+				$entry_comments = mb_substr(strip_tags($item->get_comments_url()), 0, 245);
 				$num_comments = (int) $item->get_comments_count();
 
-				$entry_author = $item->get_author(); // escaped later
-				$entry_guid = db_escape_string(mb_substr($entry_guid, 0, 245));
+				$entry_author = strip_tags($item->get_author());
+				$entry_guid = mb_substr($entry_guid, 0, 245);
 
 				_debug("author $entry_author", $debug_enabled);
 				_debug("num_comments: $num_comments", $debug_enabled);
@@ -643,25 +675,29 @@ class RSSUtils {
 
 				$entry_tags = array_unique($additional_tags);
 
-				for ($i = 0; $i < count($entry_tags); $i++)
+				for ($i = 0; $i < count($entry_tags); $i++) {
 					$entry_tags[$i] = mb_strtolower($entry_tags[$i], 'utf-8');
+
+					// we don't support numeric tags, let's prefix them
+					if (is_numeric($entry_tags[$i])) $entry_tags[$i] = 't:' . $entry_tags[$i];
+				}
 
 				_debug("tags found: " . join(",", $entry_tags), $debug_enabled);
 
 				_debug("done collecting data.", $debug_enabled);
 
-				$result = db_query("SELECT id, content_hash, lang FROM ttrss_entries
-					WHERE guid = '".db_escape_string($entry_guid)."' OR guid = '$entry_guid_hashed'");
+				$sth = $pdo->prepare("SELECT id, content_hash, lang FROM ttrss_entries
+					WHERE guid = ? OR guid = ?");
+				$sth->execute([$entry_guid, $entry_guid_hashed]);
 
-				if (db_num_rows($result) != 0) {
-					$base_entry_id = db_fetch_result($result, 0, "id");
-					$entry_stored_hash = db_fetch_result($result, 0, "content_hash");
+				if ($row = $sth->fetch()) {
+					$base_entry_id = $row["id"];
+					$entry_stored_hash = $row["content_hash"];
 					$article_labels = Article::get_article_labels($base_entry_id, $owner_uid);
-					$entry_language = db_fetch_result($result, 0, "lang");
+					$entry_language = $row["lang"];
 
 					$existing_tags = Article::get_article_tags($base_entry_id, $owner_uid);
 					$entry_tags = array_unique(array_merge($entry_tags, $existing_tags));
-
 				} else {
 					$base_entry_id = false;
 					$entry_stored_hash = "";
@@ -701,11 +737,11 @@ class RSSUtils {
 					// dupes when the entry gets purged and reinserted again e.g.
 					// in the case of SLOW SLOW OMG SLOW updating feeds
 
-					$base_entry_id = db_fetch_result($result, 0, "id");
+					$sth = $pdo->prepare("UPDATE ttrss_entries SET date_updated = NOW()
+						WHERE id = ?");
+					$sth->execute([$base_entry_id]);
 
-					db_query("UPDATE ttrss_entries SET date_updated = NOW()
-						WHERE id = '$base_entry_id'");
-
+					$pdo->commit();
 					continue;
 				}
 
@@ -722,23 +758,20 @@ class RSSUtils {
 					$entry_plugin_data .= mb_strtolower(get_class($plugin)) . ",";
 				}
 
-				if ($_REQUEST["xdebug"] == 2) {
+				if (clean($_REQUEST["xdebug"]) == 2) {
 					print "processed content: ";
 					print htmlspecialchars($article["content"]);
 					print "\n";
 				}
-
-				$entry_plugin_data = db_escape_string($entry_plugin_data);
 
 				_debug("plugin data: $entry_plugin_data", $debug_enabled);
 
 				// Workaround: 4-byte unicode requires utf8mb4 in MySQL. See https://tt-rss.org/forum/viewtopic.php?f=1&t=3377&p=20077#p20077
 				if (DB_TYPE == "mysql") {
 					foreach ($article as $k => $v) {
-
 						// i guess we'll have to take the risk of 4byte unicode labels & tags here
 						if (is_string($article[$k])) {
-							$article[$k] = preg_replace('/[\x{10000}-\x{10FFFF}]/u', "\xEF\xBF\xBD", $v);
+							$article[$k] = RSSUtils::strip_utf8mb4($v);
 						}
 					}
 				}
@@ -794,15 +827,14 @@ class RSSUtils {
 				}
 
 				$entry_tags = $article["tags"];
-				$entry_guid = db_escape_string($entry_guid);
-				$entry_title = db_escape_string($article["title"]);
-				$entry_author = db_escape_string(mb_substr($article["author"], 0, 245));
-				$entry_link = db_escape_string($article["link"]);
+				$entry_title = strip_tags($article["title"]);
+				$entry_author = mb_substr(strip_tags($article["author"]), 0, 245);
+				$entry_link = strip_tags($article["link"]);
 				$entry_content = $article["content"]; // escaped below
 				$entry_force_catchup = $article["force_catchup"];
 				$article_labels = $article["labels"];
 				$entry_score_modifier = (int) $article["score_modifier"];
-				$entry_language = db_escape_string($article["language"]);
+				$entry_language = $article["language"];
 
 				if ($debug_enabled) {
 					_debug("article labels:", $debug_enabled);
@@ -817,22 +849,19 @@ class RSSUtils {
 				if ($cache_images && is_writable(CACHE_DIR . '/images'))
 					RSSUtils::cache_media($entry_content, $site_url, $debug_enabled);
 
-				$entry_content = db_escape_string($entry_content, false);
+				$csth = $pdo->prepare("SELECT id FROM ttrss_entries
+					WHERE guid = ? OR guid = ?");
+				$csth->execute([$entry_guid, $entry_guid_hashed]);
 
-				//db_query("BEGIN");
-
-				$result = db_query("SELECT id FROM	ttrss_entries
-					WHERE (guid = '$entry_guid' OR guid = '$entry_guid_hashed')");
-
-				if (db_num_rows($result) == 0) {
+				if (!$row = $csth->fetch()) {
 
 					_debug("base guid [$entry_guid or $entry_guid_hashed] not found, creating...", $debug_enabled);
 
 					// base post entry does not exist, create it
 
-					db_query(
+					$usth = $pdo->prepare(
 						"INSERT INTO ttrss_entries
-							(title,
+							(title, 
 							guid,
 							link,
 							updated,
@@ -847,48 +876,40 @@ class RSSUtils {
 							lang,
 							author)
 						VALUES
-							('$entry_title',
-							'$entry_guid_hashed',
-							'$entry_link',
-							'$entry_timestamp_fmt',
-							'$entry_content',
-							'$entry_current_hash',
+							(?, ?, ?, ?, ?, ?,
 							false,
 							NOW(),
-							'$date_feed_processed',
-							'$entry_comments',
-							'$num_comments',
-							'$entry_plugin_data',
-							'$entry_language',
-							'$entry_author')");
+							?, ?, ?, ?,	?, ?)");
+
+						$usth->execute([$entry_title,
+							$entry_guid_hashed,
+							$entry_link,
+							$entry_timestamp_fmt,
+							"$entry_content",
+							$entry_current_hash,
+							$date_feed_processed,
+							$entry_comments,
+							(int)$num_comments,
+							$entry_plugin_data,
+							"$entry_language",
+							"$entry_author"]);
 
 				}
 
-				// now it should exist, if not - bad luck then
-
-				$result = db_query("SELECT id FROM ttrss_entries
-					WHERE guid = '$entry_guid' OR guid = '$entry_guid_hashed'");
+				$csth->execute([$entry_guid, $entry_guid_hashed]);
 
 				$entry_ref_id = 0;
 				$entry_int_id = 0;
 
-				if (db_num_rows($result) == 1) {
+				if ($row = $csth->fetch()) {
 
 					_debug("base guid found, checking for user record", $debug_enabled);
 
-					$ref_id = db_fetch_result($result, 0, "id");
+					$ref_id = $row['id'];
 					$entry_ref_id = $ref_id;
 
-					/* $stored_guid = db_fetch_result($result, 0, "guid");
-					if ($stored_guid != $entry_guid_hashed) {
-						if ($debug_enabled) _debug("upgrading compat guid to hashed one", $debug_enabled);
-
-						db_query("UPDATE ttrss_entries SET guid = '$entry_guid_hashed' WHERE
-							id = '$ref_id'");
-					} */
-
 					if (RSSUtils::find_article_filter($article_filters, "filter")) {
-						//db_query("COMMIT"); // close transaction in progress
+						$pdo->commit();
 						continue;
 					}
 
@@ -898,102 +919,112 @@ class RSSUtils {
 
 					// check for user post link to main table
 
-					$query = "SELECT ref_id, int_id FROM ttrss_user_entries WHERE
-							ref_id = '$ref_id' AND owner_uid = '$owner_uid'";
-
-//					if ($_REQUEST["xdebug"]) print "$query\n";
-
-					$result = db_query($query);
+					$sth = $pdo->prepare("SELECT ref_id, int_id FROM ttrss_user_entries WHERE
+							ref_id = ? AND owner_uid = ?");
+					$sth->execute([$ref_id, $owner_uid]);
 
 					// okay it doesn't exist - create user entry
-					if (db_num_rows($result) == 0) {
+					if ($row = $sth->fetch()) {
+						$entry_ref_id = $row["ref_id"];
+						$entry_int_id = $row["int_id"];
 
+						_debug("user record FOUND: RID: $entry_ref_id, IID: $entry_int_id", $debug_enabled);
+					} else {
+						
 						_debug("user record not found, creating...", $debug_enabled);
 
 						if ($score >= -500 && !RSSUtils::find_article_filter($article_filters, 'catchup') && !$entry_force_catchup) {
-							$unread = 'true';
-							$last_read_qpart = 'NULL';
+							$unread = 1;
+							$last_read_qpart = null;
 						} else {
-							$unread = 'false';
-							$last_read_qpart = 'NOW()';
+							$unread = 0;
+							$last_read_qpart = date("Y-m-d H:i"); // we can't use NOW() here because it gets quoted
 						}
 
 						if (RSSUtils::find_article_filter($article_filters, 'mark') || $score > 1000) {
-							$marked = 'true';
+							$marked = 1;
 						} else {
-							$marked = 'false';
+							$marked = 0;
 						}
 
 						if (RSSUtils::find_article_filter($article_filters, 'publish')) {
-							$published = 'true';
+							$published = 1;
 						} else {
-							$published = 'false';
+							$published = 0;
 						}
 
-						$last_marked = ($marked == 'true') ? 'NOW()' : 'NULL';
-						$last_published = ($published == 'true') ? 'NOW()' : 'NULL';
+						$last_marked = ($marked == 1) ? 'NOW()' : 'NULL';
+						$last_published = ($published == 1) ? 'NOW()' : 'NULL';
 
-						$result = db_query(
+						$sth = $pdo->prepare(
 							"INSERT INTO ttrss_user_entries
 								(ref_id, owner_uid, feed_id, unread, last_read, marked,
 								published, score, tag_cache, label_cache, uuid,
 								last_marked, last_published)
-							VALUES ('$ref_id', '$owner_uid', '$feed', $unread,
-								$last_read_qpart, $marked, $published, '$score', '', '',
-								'', $last_marked, $last_published)");
+							VALUES (?, ?, ?, ?, ?, ?, ?, ?, '', '', '', ".$last_marked.", ".$last_published.")");
 
-						$result = db_query(
-							"SELECT int_id FROM ttrss_user_entries WHERE
-								ref_id = '$ref_id' AND owner_uid = '$owner_uid' AND
-								feed_id = '$feed' LIMIT 1");
+						$sth->execute([$ref_id, $owner_uid, $feed, $unread, $last_read_qpart, $marked,
+							$published, $score]);
 
-						if (db_num_rows($result) == 1) {
-							$entry_int_id = db_fetch_result($result, 0, "int_id");
-						}
-					} else {
-						_debug("user record FOUND", $debug_enabled);
+						$sth = $pdo->prepare("SELECT int_id FROM ttrss_user_entries WHERE
+								ref_id = ? AND owner_uid = ? AND
+								feed_id = ? LIMIT 1");
 
-						$entry_ref_id = db_fetch_result($result, 0, "ref_id");
-						$entry_int_id = db_fetch_result($result, 0, "int_id");
+						$sth->execute([$ref_id, $owner_uid, $feed]);
+
+						if ($row = $sth->fetch())
+							$entry_int_id = $row['int_id'];
 					}
 
-					_debug("RID: $entry_ref_id, IID: $entry_int_id", $debug_enabled);
+					_debug("resulting RID: $entry_ref_id, IID: $entry_int_id", $debug_enabled);
+
+					if (DB_TYPE == "pgsql")
+						$tsvector_qpart = "tsvector_combined = to_tsvector(:ts_lang, :ts_content),";
+					else
+						$tsvector_qpart = "";
+
+					$sth = $pdo->prepare("UPDATE ttrss_entries
+						SET title = :title,
+							$tsvector_qpart
+							content = :content,
+							content_hash = :content_hash,
+							updated = :updated,
+							num_comments = :num_comments,
+							plugin_data = :plugin_data,
+							author = :author,
+							lang = :lang														
+						WHERE id = :id");
+
+					$params = [":title" => $entry_title,
+						":content" => "$entry_content",
+						":content_hash" => $entry_current_hash,
+						":updated" => $entry_timestamp_fmt,
+						":num_comments" => (int)$num_comments,
+						":plugin_data" => $entry_plugin_data,
+						":author" => "$entry_author",
+						":lang" => $entry_language,
+						":id" => $ref_id];
 
 					if (DB_TYPE == "pgsql") {
-						$tsvector_combined = db_escape_string(mb_substr($entry_title . ' ' . strip_tags(str_replace('<', ' <', $entry_content)),
-							0, 1000000));
-
-						$tsvector_qpart = "tsvector_combined = to_tsvector('$feed_language', '$tsvector_combined'),";
-
-					} else {
-						$tsvector_qpart = "";
+						$params[":ts_lang"] = $feed_language;
+						$params[":ts_content"] = mb_substr(strip_tags($entry_title . " " . $entry_content), 0, 1000000);
 					}
 
-					db_query("UPDATE ttrss_entries
-						SET title = '$entry_title',
-							content = '$entry_content',
-							content_hash = '$entry_current_hash',
-							updated = '$entry_timestamp_fmt',
-							$tsvector_qpart
-							num_comments = '$num_comments',
-							plugin_data = '$entry_plugin_data',
-							author = '$entry_author',
-							lang = '$entry_language'
-						WHERE id = '$ref_id'");
+					$sth->execute($params);
 
 					// update aux data
-					db_query("UPDATE ttrss_user_entries
-							SET score = '$score' WHERE ref_id = '$ref_id'");
+					$sth = $pdo->prepare("UPDATE ttrss_user_entries
+							SET score = ? WHERE ref_id = ?");
+					$sth->execute([$score, $ref_id]);
 
 					if ($mark_unread_on_update) {
 						_debug("article updated, marking unread as requested.", $debug_enabled);
 
-						db_query("UPDATE ttrss_user_entries
-							SET last_read = null, unread = true WHERE ref_id = '$ref_id'");
+						$sth = $pdo->prepare("UPDATE ttrss_user_entries
+							SET last_read = null, unread = true WHERE ref_id = ?");
+						$sth->execute([$ref_id]);
 					}
 				}
-
-				//db_query("COMMIT");
 
 				_debug("assigning labels [other]...", $debug_enabled);
 
@@ -1019,6 +1050,16 @@ class RSSUtils {
 						$e_item = array(
 							rewrite_relative_url($site_url, $e->link),
 							$e->type, $e->length, $e->title, $e->width, $e->height);
+
+						// Yet another episode of "mysql utf8_general_ci is gimped"
+						if (DB_TYPE == "mysql") {
+							for ($i = 0; $i < count($e_item); $i++) {
+								if (is_string($e_item[$i])) {
+									$e_item[$i] = RSSUtils::strip_utf8mb4($e_item[$i]);
+								}
+							}
+						}
+
 						array_push($enclosures, $e_item);
 					}
 				}
@@ -1031,30 +1072,27 @@ class RSSUtils {
 					print_r($enclosures);
 				}
 
-				//db_query("BEGIN");
+				$esth = $pdo->prepare("SELECT id FROM ttrss_enclosures
+						WHERE content_url = ? AND post_id = ?");
 
-//				debugging
-//				db_query("DELETE FROM ttrss_enclosures WHERE post_id = '$entry_ref_id'");
+				$usth = $pdo->prepare("INSERT INTO ttrss_enclosures
+							(content_url, content_type, title, duration, post_id, width, height) VALUES
+							(?, ?, ?, ?, ?, ?, ?)");
 
 				foreach ($enclosures as $enc) {
-					$enc_url = db_escape_string($enc[0]);
-					$enc_type = db_escape_string($enc[1]);
-					$enc_dur = db_escape_string($enc[2]);
-					$enc_title = db_escape_string($enc[3]);
+					$enc_url = $enc[0];
+					$enc_type = $enc[1];
+					$enc_dur = (int)$enc[2];
+					$enc_title = $enc[3];
 					$enc_width = intval($enc[4]);
 					$enc_height = intval($enc[5]);
 
-					$result = db_query("SELECT id FROM ttrss_enclosures
-						WHERE content_url = '$enc_url' AND post_id = '$entry_ref_id'");
+					$esth->execute([$enc_url, $entry_ref_id]);
 
-					if (db_num_rows($result) == 0) {
-						db_query("INSERT INTO ttrss_enclosures
-							(content_url, content_type, title, duration, post_id, width, height) VALUES
-							('$enc_url', '$enc_type', '$enc_title', '$enc_dur', '$entry_ref_id', $enc_width, $enc_height)");
+					if (!$esth->fetch()) {
+						$usth->execute([$enc_url, $enc_type, (string)$enc_title, $enc_dur, $entry_ref_id, $enc_width, $enc_height]);
 					}
 				}
-
-				//db_query("COMMIT");
 
 				// check for manual tags (we have to do it here since they're loaded from filters)
 
@@ -1098,24 +1136,24 @@ class RSSUtils {
 
 				if (count($filtered_tags) > 0) {
 
-					//db_query("BEGIN");
+					$tsth = $pdo->prepare("SELECT id FROM ttrss_tags
+							WHERE tag_name = ? AND post_int_id = ? AND
+							owner_uid = ? LIMIT 1");
+
+					$usth = $pdo->prepare("INSERT INTO ttrss_tags
+									(owner_uid,tag_name,post_int_id)
+									VALUES (?, ?, ?)");
 
 					foreach ($filtered_tags as $tag) {
 
 						$tag = sanitize_tag($tag);
-						$tag = db_escape_string($tag);
 
 						if (!tag_is_valid($tag)) continue;
 
-						$result = db_query("SELECT id FROM ttrss_tags
-							WHERE tag_name = '$tag' AND post_int_id = '$entry_int_id' AND
-							owner_uid = '$owner_uid' LIMIT 1");
+						$tsth->execute([$tag, $entry_int_id, $owner_uid]);
 
-						if ($result && db_num_rows($result) == 0) {
-
-							db_query("INSERT INTO ttrss_tags
-									(owner_uid,tag_name,post_int_id)
-									VALUES ('$owner_uid','$tag', '$entry_int_id')");
+						if (!$tsth->fetch()) {
+							$usth->execute([$owner_uid, $tag, $entry_int_id]);
 						}
 
 						array_push($tags_to_cache, $tag);
@@ -1125,30 +1163,30 @@ class RSSUtils {
 
 					$tags_to_cache = array_unique($tags_to_cache);
 
-					$tags_str = db_escape_string(join(",", $tags_to_cache));
+					$tags_str = join(",", $tags_to_cache);
 
-					db_query("UPDATE ttrss_user_entries
-						SET tag_cache = '$tags_str' WHERE ref_id = '$entry_ref_id'
-						AND owner_uid = $owner_uid");
-
-					//db_query("COMMIT");
+					$tsth = $pdo->prepare("UPDATE ttrss_user_entries
+						SET tag_cache = ? WHERE ref_id = ?
+						AND owner_uid = ?");
+					$tsth->execute([$tags_str, $entry_ref_id, $owner_uid]);
 				}
 
 				_debug("article processed", $debug_enabled);
+
+				$pdo->commit();
 			}
 
 			_debug("purging feed...", $debug_enabled);
 
 			purge_feed($feed, 0, $debug_enabled);
 
-			db_query("UPDATE ttrss_feeds
-				SET last_updated = NOW(), last_unconditional = NOW(), last_error = '' WHERE id = '$feed'");
-
-//			db_query("COMMIT");
+			$sth = $pdo->prepare("UPDATE ttrss_feeds
+				SET last_updated = NOW(), last_unconditional = NOW(), last_error = '' WHERE id = ?");
+			$sth->execute([$feed]);
 
 		} else {
 
-			$error_msg = db_escape_string(mb_substr($rss->error(), 0, 245));
+			$error_msg = mb_substr($rss->error(), 0, 245);
 
 			_debug("fetch error: $error_msg", $debug_enabled);
 
@@ -1158,12 +1196,12 @@ class RSSUtils {
 				}
 			}
 
-			db_query(
-				"UPDATE ttrss_feeds SET last_error = '$error_msg',
-				last_updated = NOW(), last_unconditional = NOW()   WHERE id = '$feed'");
+			$sth = $pdo->prepare("UPDATE ttrss_feeds SET last_error = ?,
+				last_updated = NOW(), last_unconditional = NOW() WHERE id = ?");
+			$sth->execute([$error_msg, $feed]);
 
 			unset($rss);
-			return;
+			return false;
 		}
 
 		_debug("done", $debug_enabled);
@@ -1232,14 +1270,15 @@ class RSSUtils {
 	static function expire_error_log($debug) {
 		if ($debug) _debug("Removing old error log entries...");
 
+		$pdo = Db::pdo();
+
 		if (DB_TYPE == "pgsql") {
-			db_query("DELETE FROM ttrss_error_log
+			$pdo->query("DELETE FROM ttrss_error_log
 				WHERE created_at < NOW() - INTERVAL '7 days'");
 		} else {
-			db_query("DELETE FROM ttrss_error_log
+			$pdo->query("DELETE FROM ttrss_error_log
 				WHERE created_at < DATE_SUB(NOW(), INTERVAL 7 DAY)");
 		}
-
 	}
 
 	static function expire_lock_files($debug) {
@@ -1264,7 +1303,7 @@ class RSSUtils {
 	}
 
 	static function expire_cached_files($debug) {
-		foreach (array("simplepie", "images", "export", "upload") as $dir) {
+		foreach (array("simplepie", "feeds", "images", "export", "upload") as $dir) {
 			$cache_dir = CACHE_DIR . "/$dir";
 
 //			if ($debug) _debug("Expiring $cache_dir");
@@ -1446,19 +1485,23 @@ class RSSUtils {
 	}
 
 	static function cleanup_counters_cache($debug) {
-		$result = db_query("DELETE FROM ttrss_counters_cache
+		$pdo = Db::pdo();
+
+		$res = $pdo->query("DELETE FROM ttrss_counters_cache
 			WHERE feed_id > 0 AND
 			(SELECT COUNT(id) FROM ttrss_feeds WHERE
 				id = feed_id AND
 				ttrss_counters_cache.owner_uid = ttrss_feeds.owner_uid) = 0");
-		$frows = db_affected_rows($result);
 
-		$result = db_query("DELETE FROM ttrss_cat_counters_cache
+		$frows = $res->rowCount();
+
+		$res = $pdo->query("DELETE FROM ttrss_cat_counters_cache
 			WHERE feed_id > 0 AND
 			(SELECT COUNT(id) FROM ttrss_feed_categories WHERE
 				id = feed_id AND
 				ttrss_cat_counters_cache.owner_uid = ttrss_feed_categories.owner_uid) = 0");
-		$crows = db_affected_rows($result);
+
+		$crows = $res->rowCount();
 
 		if ($debug) _debug("Removed $frows (feeds) $crows (cats) orphaned counter cache entries.");
 	}

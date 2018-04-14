@@ -17,6 +17,8 @@
 	if (!defined('PHP_EXECUTABLE'))
 		define('PHP_EXECUTABLE', '/usr/bin/php');
 
+	$pdo = Db::pdo();
+
 	init_plugins();
 
 	$longopts = array("feeds",
@@ -58,7 +60,6 @@
 		<head>
 		<title>Tiny Tiny RSS data update script.</title>
 		<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
-		<link rel="stylesheet" type="text/css" href="css/utility.css">
 		</head>
 
 		<body>
@@ -159,8 +160,8 @@
 	if (isset($options["force-update"])) {
 		_debug("marking all feeds as needing update...");
 
-		db_query( "UPDATE ttrss_feeds SET last_update_started = '1970-01-01',
-				last_updated = '1970-01-01'");
+		$pdo->query( "UPDATE ttrss_feeds SET 
+          last_update_started = '1970-01-01', last_updated = '1970-01-01'");
 	}
 
 	if (isset($options["feeds"])) {
@@ -218,16 +219,16 @@
 		_debug("clearing existing indexes...");
 
 		if (DB_TYPE == "pgsql") {
-			$result = db_query( "SELECT relname FROM
+			$sth = $pdo->query( "SELECT relname FROM
 				pg_catalog.pg_class WHERE relname LIKE 'ttrss_%'
 					AND relname NOT LIKE '%_pkey'
 				AND relkind = 'i'");
 		} else {
-			$result = db_query( "SELECT index_name,table_name FROM
+			$sth = $pdo->query( "SELECT index_name,table_name FROM
 				information_schema.statistics WHERE index_name LIKE 'ttrss_%'");
 		}
 
-		while ($line = db_fetch_assoc($result)) {
+		while ($line = $sth->fetch()) {
 			if (DB_TYPE == "pgsql") {
 				$statement = "DROP INDEX " . $line["relname"];
 				_debug($statement);
@@ -236,7 +237,7 @@
 					$line['table_name']." DROP INDEX ".$line['index_name'];
 				_debug($statement);
 			}
-			db_query( $statement, false);
+			$pdo->query($statement);
 		}
 
 		_debug("reading indexes from schema for: " . DB_TYPE);
@@ -253,7 +254,7 @@
 					$statement = "CREATE INDEX $index ON $table";
 
 					_debug($statement);
-					db_query( $statement);
+					$pdo->query($statement);
 				}
 			}
 			fclose($fp);
@@ -272,11 +273,11 @@
 
 		_debug("converting filters...");
 
-		db_query( "DELETE FROM ttrss_filters2");
+		$pdo->query("DELETE FROM ttrss_filters2");
 
-		$result = db_query( "SELECT * FROM ttrss_filters ORDER BY id");
+		$res = $pdo->query("SELECT * FROM ttrss_filters ORDER BY id");
 
-		while ($line = db_fetch_assoc($result)) {
+		while ($line = $res->fetch()) {
 			$owner_uid = $line["owner_uid"];
 
 			// date filters are removed
@@ -317,7 +318,7 @@
 	if (isset($options["update-schema"])) {
 		_debug("checking for updates (" . DB_TYPE . ")...");
 
-		$updater = new DbUpdater(Db::get(), DB_TYPE, SCHEMA_VERSION);
+		$updater = new DbUpdater(Db::pdo(), DB_TYPE, SCHEMA_VERSION);
 
 		if ($updater->isUpdateRequired()) {
 			_debug("schema update required, version " . $updater->getSchemaVersion() . " to " . SCHEMA_VERSION);
@@ -346,28 +347,35 @@
 	if (isset($options["gen-search-idx"])) {
 		echo "Generating search index (stemming set to English)...\n";
 
-		$result = db_query("SELECT COUNT(id) AS count FROM ttrss_entries WHERE tsvector_combined IS NULL");
-		$count = db_fetch_result($result, 0, "count");
+		$res = $pdo->query("SELECT COUNT(id) AS count FROM ttrss_entries WHERE tsvector_combined IS NULL");
+		$row = $res->fetch();
+		$count = $row['count'];
 
 		print "Articles to process: $count.\n";
 
 		$limit = 500;
 		$processed = 0;
 
+		$sth = $pdo->prepare("SELECT id, title, content FROM ttrss_entries WHERE 
+          tsvector_combined IS NULL ORDER BY id LIMIT ?");
+		$sth->execute([$limit]);
+
+		$usth = $pdo->prepare("UPDATE ttrss_entries 
+          SET tsvector_combined = to_tsvector('english', ?) WHERE id = ?");
+
 		while (true) {
-			$result = db_query("SELECT id, title, content FROM ttrss_entries WHERE tsvector_combined IS NULL ORDER BY id LIMIT $limit");
 
-			while ($line = db_fetch_assoc($result)) {
-			   $tsvector_combined = db_escape_string(mb_substr($line['title'] . ' ' . strip_tags(str_replace('<', ' <', $line['content'])),
-					0, 1000000));
+			while ($line = $sth->fetch()) {
+				$tsvector_combined = mb_substr(strip_tags($line["title"] . " " . $line["content"]), 0, 1000000);
 
-				db_query("UPDATE ttrss_entries SET tsvector_combined = to_tsvector('english', '$tsvector_combined') WHERE id = " . $line["id"]);
+				$usth->execute([$tsvector_combined, $line['id']]);
+
+				$processed++;
 			}
 
-			$processed += db_num_rows($result);
 			print "Processed $processed articles...\n";
 
-			if (db_num_rows($result) != $limit) {
+			if ($processed < $limit) {
 				echo "All done.\n";
 				break;
 			}
@@ -410,31 +418,34 @@
 	}
 
 	if (isset($options["decrypt-feeds"])) {
-		$result = db_query("SELECT id, auth_pass FROM ttrss_feeds WHERE auth_pass_encrypted = true");
 
 		if (!function_exists("mcrypt_decrypt")) {
 			_debug("mcrypt functions not available.");
 			return;
 		}
 
+		$res = $pdo->query("SELECT id, auth_pass FROM ttrss_feeds WHERE auth_pass_encrypted = true");
+
 		require_once "crypt.php";
 
 		$total = 0;
 
-		db_query("BEGIN");
+		$pdo->beginTransaction();
 
-		while ($line = db_fetch_assoc($result)) {
+		$usth = $pdo->prepare("UPDATE ttrss_feeds SET auth_pass_encrypted = false, auth_pass = ?
+				WHERE id = ?");
+
+		while ($line = $res->fetch()) {
 			_debug("processing feed id " . $line["id"]);
 
-			$auth_pass = db_escape_string(decrypt_string($line["auth_pass"]));
+			$auth_pass = decrypt_string($line["auth_pass"]);
 
-			db_query("UPDATE ttrss_feeds SET auth_pass_encrypted = false, auth_pass = '$auth_pass'
-				WHERE id = " . $line["id"]);
+			$usth->execute([$auth_pass, $line['id']]);
 
 			++$total;
 		}
 
-		db_query("COMMIT");
+		$pdo->commit();
 
 		_debug("$total feeds processed.");
 	}

@@ -11,6 +11,7 @@
 	$fetch_last_error_code = false;
 	$fetch_last_content_type = false;
 	$fetch_last_error_content = false; // curl only for the time being
+	$fetch_effective_url = false;
 	$fetch_curl_used = false;
 	$suppress_debugging = false;
 
@@ -57,9 +58,9 @@
 	// do not cache files smaller than that (bytes)
 	define_default('CACHE_MAX_DAYS', 7);
 	// max age in days for various automatically cached (temporary) files
-    define_default('MAX_CONDITIONAL_INTERVAL', 3600*12);
-    // max interval between forced unconditional updates for servers
-    // not complying with http if-modified-since (seconds)
+	define_default('MAX_CONDITIONAL_INTERVAL', 3600*12);
+	// max interval between forced unconditional updates for servers
+	// not complying with http if-modified-since (seconds)
 
 	/* tunables end here */
 
@@ -226,15 +227,15 @@
 
 		if (!$purge_interval) $purge_interval = feed_purge_interval($feed_id);
 
-		$rows = -1;
+		$pdo = Db::pdo();
 
-		$result = db_query(
-			"SELECT owner_uid FROM ttrss_feeds WHERE id = '$feed_id'");
+		$sth = $pdo->prepare("SELECT owner_uid FROM ttrss_feeds WHERE id = ?");
+		$sth->execute([$feed_id]);
 
 		$owner_uid = false;
 
-		if (db_num_rows($result) == 1) {
-			$owner_uid = db_fetch_result($result, 0, "owner_uid");
+		if ($row = $sth->fetch()) {
+			$owner_uid = $row["owner_uid"];
 		}
 
 		if ($purge_interval == -1 || !$purge_interval) {
@@ -254,34 +255,36 @@
 			$purge_interval = FORCE_ARTICLE_PURGE;
 		}
 
-		if (!$purge_unread) $query_limit = " unread = false AND ";
+		if (!$purge_unread)
+			$query_limit = " unread = false AND ";
+		else
+			$query_limit = "";
+
+		$purge_interval = (int) $purge_interval;
 
 		if (DB_TYPE == "pgsql") {
-			$result = db_query("DELETE FROM ttrss_user_entries
+			$sth = $pdo->prepare("DELETE FROM ttrss_user_entries
 				USING ttrss_entries
 				WHERE ttrss_entries.id = ref_id AND
 				marked = false AND
-				feed_id = '$feed_id' AND
+				feed_id = ? AND
 				$query_limit
 				ttrss_entries.date_updated < NOW() - INTERVAL '$purge_interval days'");
+			$sth->execute([$feed_id]);
 
 		} else {
-
-/*			$result = db_query("DELETE FROM ttrss_user_entries WHERE
-				marked = false AND feed_id = '$feed_id' AND
-				(SELECT date_updated FROM ttrss_entries WHERE
-					id = ref_id) < DATE_SUB(NOW(), INTERVAL $purge_interval DAY)"); */
-
-			$result = db_query("DELETE FROM ttrss_user_entries
+			$sth  = $pdo->prepare("DELETE FROM ttrss_user_entries
 				USING ttrss_user_entries, ttrss_entries
 				WHERE ttrss_entries.id = ref_id AND
 				marked = false AND
-				feed_id = '$feed_id' AND
+				feed_id = ? AND
 				$query_limit
 				ttrss_entries.date_updated < DATE_SUB(NOW(), INTERVAL $purge_interval DAY)");
+			$sth->execute([$feed_id]);
+
 		}
 
-		$rows = db_affected_rows($result);
+		$rows = $sth->rowCount();
 
 		CCache::update($feed_id, $owner_uid);
 
@@ -294,12 +297,15 @@
 
 	function feed_purge_interval($feed_id) {
 
-		$result = db_query("SELECT purge_interval, owner_uid FROM ttrss_feeds
-			WHERE id = '$feed_id'");
+		$pdo = DB::pdo();
 
-		if (db_num_rows($result) == 1) {
-			$purge_interval = db_fetch_result($result, 0, "purge_interval");
-			$owner_uid = db_fetch_result($result, 0, "owner_uid");
+		$sth = $pdo->prepare("SELECT purge_interval, owner_uid FROM ttrss_feeds
+			WHERE id = ?");
+		$sth->execute([$feed_id]);
+
+		if ($row = $sth->fetch()) {
+			$purge_interval = $row["purge_interval"];
+			$owner_uid = $row["owner_uid"];
 
 			if ($purge_interval == 0) $purge_interval = get_pref(
 				'PURGE_OLD_DAYS', $owner_uid);
@@ -311,34 +317,16 @@
 		}
 	}
 
-	/*function get_feed_update_interval($feed_id) {
-		$result = db_query("SELECT owner_uid, update_interval FROM
-			ttrss_feeds WHERE id = '$feed_id'");
-
-		if (db_num_rows($result) == 1) {
-			$update_interval = db_fetch_result($result, 0, "update_interval");
-			$owner_uid = db_fetch_result($result, 0, "owner_uid");
-
-			if ($update_interval != 0) {
-				return $update_interval;
-			} else {
-				return get_pref('DEFAULT_UPDATE_INTERVAL', $owner_uid, false);
-			}
-
-		} else {
-			return -1;
-		}
-	}*/
-
 	// TODO: multiple-argument way is deprecated, first parameter is a hash now
 	function fetch_file_contents($options /* previously: 0: $url , 1: $type = false, 2: $login = false, 3: $pass = false,
- 				4: $post_query = false, 5: $timeout = false, 6: $timestamp = 0, 7: $useragent = false*/) {
+				4: $post_query = false, 5: $timeout = false, 6: $timestamp = 0, 7: $useragent = false*/) {
 
 		global $fetch_last_error;
 		global $fetch_last_error_code;
 		global $fetch_last_error_content;
 		global $fetch_last_content_type;
 		global $fetch_last_modified;
+		global $fetch_effective_url;
 		global $fetch_curl_used;
 
 		$fetch_last_error = false;
@@ -347,6 +335,7 @@
 		$fetch_last_content_type = "";
 		$fetch_curl_used = false;
 		$fetch_last_modified = "";
+		$fetch_effective_url = "";
 
 		if (!is_array($options)) {
 
@@ -416,8 +405,8 @@
 				curl_setopt($ch, CURLOPT_COOKIEJAR, "/dev/null");
 			}
 
-			if (defined('_CURL_HTTP_PROXY')) {
-				curl_setopt($ch, CURLOPT_PROXY, _CURL_HTTP_PROXY);
+			if (defined('_HTTP_PROXY')) {
+				curl_setopt($ch, CURLOPT_PROXY, _HTTP_PROXY);
 			}
 
 			if ($post_query) {
@@ -435,18 +424,18 @@
 			$contents = substr($ret, $headers_length);
 
 			foreach ($headers as $header) {
-                if (strstr($header, ": ") !== FALSE) {
-                    list ($key, $value) = explode(": ", $header);
+				if (strstr($header, ": ") !== FALSE) {
+					list ($key, $value) = explode(": ", $header);
 
-                    if (strtolower($key) == "last-modified") {
-                        $fetch_last_modified = $value;
-                    }
-                }
+					if (strtolower($key) == "last-modified") {
+						$fetch_last_modified = $value;
+					}
+				}
 
-                if (substr(strtolower($header), 0, 7) == 'http/1.') {
-                    $fetch_last_error_code = (int) substr($header, 9, 3);
-                    $fetch_last_error = $header;
-                }
+				if (substr(strtolower($header), 0, 7) == 'http/1.') {
+					$fetch_last_error_code = (int) substr($header, 9, 3);
+					$fetch_last_error = $header;
+				}
 			}
 
 			if (curl_errno($ch) === 23 || curl_errno($ch) === 61) {
@@ -456,6 +445,8 @@
 
 			$http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
 			$fetch_last_content_type = curl_getinfo($ch, CURLINFO_CONTENT_TYPE);
+
+			$fetch_effective_url = curl_getinfo($ch, CURLINFO_EFFECTIVE_URL);
 
 			$fetch_last_error_code = $http_code;
 
@@ -497,44 +488,51 @@
 
 			// TODO: should this support POST requests or not? idk
 
+			 $context_options = array(
+				  'http' => array(
+						'header' => array(
+							'Connection: close'
+						),
+						'method' => 'GET',
+						'ignore_errors' => true,
+						'timeout' => $timeout ? $timeout : FILE_FETCH_TIMEOUT,
+						'protocol_version'=> 1.1)
+				  );
+
 			if (!$post_query && $last_modified) {
-				 $context = stream_context_create(array(
-					  'http' => array(
-							'method' => 'GET',
-						    'ignore_errors' => true,
-						    'timeout' => $timeout ? $timeout : FILE_FETCH_TIMEOUT,
-							'protocol_version'=> 1.1,
-							'header' => "If-Modified-Since: $last_modified\r\n")
-					  ));
-			} else {
-				 $context = stream_context_create(array(
-					  'http' => array(
-							'method' => 'GET',
-						    'ignore_errors' => true,
-						    'timeout' => $timeout ? $timeout : FILE_FETCH_TIMEOUT,
-							'protocol_version'=> 1.1
-					  )));
+				array_push($context_options['http']['header'], "If-Modified-Since: $last_modified");
 			}
 
+			if (defined('_HTTP_PROXY')) {
+				$context_options['http']['request_fulluri'] = true;
+				$context_options['http']['proxy'] = _HTTP_PROXY;
+			}
+
+			$context = stream_context_create($context_options);
+
 			$old_error = error_get_last();
+
+			$fetch_effective_url = $url;
 
 			$data = @file_get_contents($url, false, $context);
 
 			if (isset($http_response_header) && is_array($http_response_header)) {
 				foreach ($http_response_header as $header) {
-				    if (strstr($header, ": ") !== FALSE) {
-                        list ($key, $value) = explode(": ", $header);
+					if (strstr($header, ": ") !== FALSE) {
+						list ($key, $value) = explode(": ", $header);
 
-                        $key = strtolower($key);
+						$key = strtolower($key);
 
-                        if ($key == 'content-type') {
-                            $fetch_last_content_type = $value;
-                            // don't abort here b/c there might be more than one
-                            // e.g. if we were being redirected -- last one is the right one
-                        } else if ($key == 'last-modified') {
-                            $fetch_last_modified = $value;
-                        }
-                    }
+						if ($key == 'content-type') {
+							$fetch_last_content_type = $value;
+							// don't abort here b/c there might be more than one
+							// e.g. if we were being redirected -- last one is the right one
+						} else if ($key == 'last-modified') {
+							$fetch_last_modified = $value;
+						} else if ($key == 'location') {
+							$fetch_effective_url = $value;
+						}
+					}
 
 					if (substr(strtolower($header), 0, 7) == 'http/1.') {
 						$fetch_last_error_code = (int) substr($header, 9, 3);
@@ -603,52 +601,53 @@
 
 	function initialize_user_prefs($uid, $profile = false) {
 
-		$uid = db_escape_string($uid);
-
-		if (!$profile) {
-			$profile = "NULL";
-			$profile_qpart = "AND profile IS NULL";
-		} else {
-			$profile_qpart = "AND profile = '$profile'";
-		}
-
 		if (get_schema_version() < 63) $profile_qpart = "";
 
-		db_query("BEGIN");
+		$pdo = DB::pdo();
+		$in_nested_tr = false;
 
-		$result = db_query("SELECT pref_name,def_value FROM ttrss_prefs");
+		try {
+			$pdo->beginTransaction();
+		} catch (Exception $e) {
+			$in_nested_tr = true;
+		}
 
-		$u_result = db_query("SELECT pref_name
-			FROM ttrss_user_prefs WHERE owner_uid = '$uid' $profile_qpart");
+		$sth = $pdo->query("SELECT pref_name,def_value FROM ttrss_prefs");
+
+		$profile = $profile ? $profile : null;
+
+		$u_sth = $pdo->prepare("SELECT pref_name
+			FROM ttrss_user_prefs WHERE owner_uid = :uid AND 
+				(profile = :profile OR (:profile IS NULL AND profile IS NULL))");
+		$u_sth->execute([':uid' => $uid, ':profile' => $profile]);
 
 		$active_prefs = array();
 
-		while ($line = db_fetch_assoc($u_result)) {
+		while ($line = $u_sth->fetch()) {
 			array_push($active_prefs, $line["pref_name"]);
 		}
 
-		while ($line = db_fetch_assoc($result)) {
+		while ($line = $sth->fetch()) {
 			if (array_search($line["pref_name"], $active_prefs) === FALSE) {
 //				print "adding " . $line["pref_name"] . "<br>";
 
-				$line["def_value"] = db_escape_string($line["def_value"]);
-				$line["pref_name"] = db_escape_string($line["pref_name"]);
-
 				if (get_schema_version() < 63) {
-					db_query("INSERT INTO ttrss_user_prefs
+					$i_sth = $pdo->prepare("INSERT INTO ttrss_user_prefs
 						(owner_uid,pref_name,value) VALUES
-						('$uid', '".$line["pref_name"]."','".$line["def_value"]."')");
+						(?, ?, ?)");
+					$i_sth->execute([$uid, $line["pref_name"], $line["def_value"]]);
 
 				} else {
-					db_query("INSERT INTO ttrss_user_prefs
+					$i_sth = $pdo->prepare("INSERT INTO ttrss_user_prefs
 						(owner_uid,pref_name,value, profile) VALUES
-						('$uid', '".$line["pref_name"]."','".$line["def_value"]."', $profile)");
+						(?, ?, ?, ?)");
+					$i_sth->execute([$uid, $line["pref_name"], $line["def_value"], $profile]);
 				}
 
 			}
 		}
 
-		db_query("COMMIT");
+		if (!$in_nested_tr) $pdo->commit();
 
 	}
 
@@ -689,19 +688,22 @@
 				$_SESSION["uid"] = $user_id;
 				$_SESSION["version"] = VERSION_STATIC;
 
-				$result = db_query("SELECT login,access_level,pwd_hash FROM ttrss_users
-					WHERE id = '$user_id'");
+				$pdo = DB::pdo();
+				$sth = $pdo->prepare("SELECT login,access_level,pwd_hash FROM ttrss_users
+					WHERE id = ?");
+				$sth->execute([$user_id]);
+				$row = $sth->fetch();
 
-				$_SESSION["name"] = db_fetch_result($result, 0, "login");
-				$_SESSION["access_level"] = db_fetch_result($result, 0, "access_level");
+				$_SESSION["name"] = $row["login"];
+				$_SESSION["access_level"] = $row["access_level"];
 				$_SESSION["csrf_token"] = uniqid_short();
 
-				db_query("UPDATE ttrss_users SET last_login = NOW() WHERE id = " .
-					$_SESSION["uid"]);
+				$usth = $pdo->prepare("UPDATE ttrss_users SET last_login = NOW() WHERE id = ?");
+				$usth->execute([$user_id]);
 
 				$_SESSION["ip_address"] = $_SERVER["REMOTE_ADDR"];
 				$_SESSION["user_agent"] = sha1($_SERVER['HTTP_USER_AGENT']);
-				$_SESSION["pwd_hash"] = db_fetch_result($result, 0, "pwd_hash");
+				$_SESSION["pwd_hash"] = $row["pwd_hash"];
 
 				$_SESSION["last_version_check"] = time();
 
@@ -735,12 +737,23 @@
 		}
 	}
 
+	// this is used for user http parameters unless HTML code is actually needed
+	function clean($param) {
+		if (is_array($param)) {
+			return array_map("strip_tags", $param);
+		} else if (is_string($param)) {
+			return strip_tags($param);
+		} else {
+			return $param;
+		}
+	}
+
 	function make_password($length = 8) {
 
 		$password = "";
 		$possible = "0123456789abcdfghjkmnpqrstvwxyzABCDFGHJKMNPQRSTVWXYZ";
 
-   	$i = 0;
+	$i = 0;
 
 		while ($i < $length) {
 			$char = substr($possible, mt_rand(0, strlen($possible)-1), 1);
@@ -760,9 +773,12 @@
 
 	function initialize_user($uid) {
 
-		db_query("insert into ttrss_feeds (owner_uid,title,feed_url)
-			values ('$uid', 'Tiny Tiny RSS: Forum',
+		$pdo = DB::pdo();
+
+		$sth = $pdo->prepare("insert into ttrss_feeds (owner_uid,title,feed_url)
+			values (?, 'Tiny Tiny RSS: Forum',
 				'http://tt-rss.org/forum/rss.php')");
+		$sth->execute([$uid]);
 	}
 
 	function logout_user() {
@@ -792,6 +808,8 @@
 	}
 
 	function login_sequence() {
+		$pdo = Db::pdo();
+
 		if (SINGLE_USER_MODE) {
 			@session_start();
 			authenticate_user("admin", null);
@@ -803,7 +821,7 @@
 			if (!$_SESSION["uid"]) {
 
 				if (AUTH_AUTO_LOGIN && authenticate_user(null, null)) {
-				    $_SESSION["ref_schema_version"] = get_schema_version(true);
+					$_SESSION["ref_schema_version"] = get_schema_version(true);
 				} else {
 					 authenticate_user(null, null, true);
 				}
@@ -818,8 +836,9 @@
 
 			} else {
 				/* bump login timestamp */
-				db_query("UPDATE ttrss_users SET last_login = NOW() WHERE id = " .
-					$_SESSION["uid"]);
+				$sth = $pdo->prepare("UPDATE ttrss_users SET last_login = NOW() WHERE id = ?");
+				$sth->execute([$_SESSION['uid']]);
+
 				$_SESSION["last_login_update"] = time();
 			}
 
@@ -829,16 +848,19 @@
 
 				/* cleanup ccache */
 
-				db_query("DELETE FROM ttrss_counters_cache WHERE owner_uid = ".
-					$_SESSION["uid"] . " AND
+				$sth = $pdo->prepare("DELETE FROM ttrss_counters_cache WHERE owner_uid = ? 
+					AND
 						(SELECT COUNT(id) FROM ttrss_feeds WHERE
 							ttrss_feeds.id = feed_id) = 0");
 
-				db_query("DELETE FROM ttrss_cat_counters_cache WHERE owner_uid = ".
-					$_SESSION["uid"] . " AND
+				$sth->execute([$_SESSION['uid']]);
+
+				$sth = $pdo->prepare("DELETE FROM ttrss_cat_counters_cache WHERE owner_uid = ? 
+					AND
 						(SELECT COUNT(id) FROM ttrss_feed_categories WHERE
 							ttrss_feed_categories.id = feed_id) = 0");
 
+				$sth->execute([$_SESSION['uid']]);
 			}
 
 		}
@@ -942,19 +964,11 @@
 	}
 
 	function sql_bool_to_bool($s) {
-		if ($s == "t" || $s == "1" || strtolower($s) == "true") {
-			return true;
-		} else {
-			return false;
-		}
+		return $s && ($s !== "f" && $s !== "false"); //no-op for PDO, backwards compat for legacy layer
 	}
 
 	function bool_to_sql_bool($s) {
-		if ($s) {
-			return "true";
-		} else {
-			return "false";
-		}
+		return $s ? 1 : 0;
 	}
 
 	// Session caching removed due to causing wrong redirects to upgrade
@@ -963,9 +977,11 @@
 	function get_schema_version($nocache = false) {
 		global $schema_version;
 
+		$pdo = DB::pdo();
+
 		if (!$schema_version && !$nocache) {
-			$result = db_query("SELECT schema_version FROM ttrss_version");
-			$version = db_fetch_result($result, 0, "schema_version");
+			$row = $pdo->query("SELECT schema_version FROM ttrss_version")->fetch();
+			$version = $row["schema_version"];
 			$schema_version = $version;
 			return $version;
 		} else {
@@ -982,17 +998,6 @@
 
 		if ($schema_version != SCHEMA_VERSION) {
 			$error_code = 5;
-		}
-
-		if (DB_TYPE == "mysql") {
-			$result = db_query("SELECT true", false);
-			if (db_num_rows($result) != 1) {
-				$error_code = 10;
-			}
-		}
-
-		if (db_escape_string("testTEST") != "testTEST") {
-			$error_code = 12;
 		}
 
 		return array("code" => $error_code, "message" => $ERRORS[$error_code]);
@@ -1070,36 +1075,9 @@
 		return Feeds::getFeedArticles($feed, $is_cat, true, $_SESSION["uid"]);
 	}
 
-
-	/*function get_pgsql_version() {
-		$result = db_query("SELECT version() AS version");
-		$version = explode(" ", db_fetch_result($result, 0, "version"));
-		return $version[1];
-	}*/
-
 	function checkbox_to_sql_bool($val) {
-		return ($val == "on") ? "true" : "false";
+		return ($val == "on") ? 1 : 0;
 	}
-
-	/*function getFeedCatTitle($id) {
-		if ($id == -1) {
-			return __("Special");
-		} else if ($id < LABEL_BASE_INDEX) {
-			return __("Labels");
-		} else if ($id > 0) {
-			$result = db_query("SELECT ttrss_feed_categories.title
-				FROM ttrss_feeds, ttrss_feed_categories WHERE ttrss_feeds.id = '$id' AND
-					cat_id = ttrss_feed_categories.id");
-			if (db_num_rows($result) == 1) {
-				return db_fetch_result($result, 0, "title");
-			} else {
-				return __("Uncategorized");
-			}
-		} else {
-			return "getFeedCatTitle($id) failed";
-		}
-
-	}*/
 
 	function uniqid_short() {
 		return uniqid(base_convert(rand(), 10, 36));
@@ -1122,6 +1100,7 @@
 		$params["default_view_limit"] = (int) get_pref("_DEFAULT_VIEW_LIMIT");
 		$params["default_view_order_by"] = get_pref("_DEFAULT_VIEW_ORDER_BY");
 		$params["bw_limit"] = (int) $_SESSION["bw_limit"];
+		$params["is_default_pw"] = Pref_Prefs::isdefaultpassword();
 		$params["label_base_index"] = (int) LABEL_BASE_INDEX;
 
 		$theme = get_pref( "USER_CSS_THEME", false, false);
@@ -1134,11 +1113,15 @@
 
 		$params["sanity_checksum"] = sha1(file_get_contents("include/sanity_check.php"));
 
-		$result = db_query("SELECT MAX(id) AS mid, COUNT(*) AS nf FROM
-				ttrss_feeds WHERE owner_uid = " . $_SESSION["uid"]);
+		$pdo = Db::pdo();
 
-		$max_feed_id = db_fetch_result($result, 0, "mid");
-		$num_feeds = db_fetch_result($result, 0, "nf");
+		$sth = $pdo->prepare("SELECT MAX(id) AS mid, COUNT(*) AS nf FROM
+				ttrss_feeds WHERE owner_uid = ?");
+		$sth->execute([$_SESSION['uid']]);
+		$row = $sth->fetch();
+
+		$max_feed_id = $row["mid"];
+		$num_feeds = $row["nf"];
 
 		$params["max_feed_id"] = (int) $max_feed_id;
 		$params["num_feeds"] = (int) $num_feeds;
@@ -1339,11 +1322,15 @@
 	function make_runtime_info($disable_update_check = false) {
 		$data = array();
 
-		$result = db_query("SELECT MAX(id) AS mid, COUNT(*) AS nf FROM
-				ttrss_feeds WHERE owner_uid = " . $_SESSION["uid"]);
+		$pdo = Db::pdo();
 
-		$max_feed_id = db_fetch_result($result, 0, "mid");
-		$num_feeds = db_fetch_result($result, 0, "nf");
+		$sth = $pdo->prepare("SELECT MAX(id) AS mid, COUNT(*) AS nf FROM
+				ttrss_feeds WHERE owner_uid = ?");
+		$sth->execute([$_SESSION['uid']]);
+		$row = $sth->fetch();
+
+		$max_feed_id = $row['mid'];
+		$num_feeds = $row['nf'];
 
 		$data["max_feed_id"] = (int) $max_feed_id;
 		$data["num_feeds"] = (int) $num_feeds;
@@ -1401,10 +1388,12 @@
 		$search_words = array();
 		$search_query_leftover = array();
 
+		$pdo = Db::pdo();
+		
 		if ($search_language)
-			$search_language = db_escape_string(mb_strtolower($search_language));
+			$search_language = $pdo->quote(mb_strtolower($search_language));
 		else
-			$search_language = "english";
+			$search_language = $pdo->quote("english");
 
 		foreach ($keywords as $k) {
 			if (strpos($k, "-") === 0) {
@@ -1419,21 +1408,21 @@
 			switch ($commandpair[0]) {
 				case "title":
 					if ($commandpair[1]) {
-						array_push($query_keywords, "($not (LOWER(ttrss_entries.title) LIKE '%".
-							db_escape_string(mb_strtolower($commandpair[1]))."%'))");
+						array_push($query_keywords, "($not (LOWER(ttrss_entries.title) LIKE ".
+							$pdo->quote('%' . mb_strtolower($commandpair[1]) . '%') ."))");
 					} else {
 						array_push($query_keywords, "(UPPER(ttrss_entries.title) $not LIKE UPPER('%$k%')
-								OR UPPER(ttrss_entries.content) $not LIKE UPPER('%$k%'))");
+								OR UPPER(ttrss_entries.content) $not LIKE UPPER(".$pdo->quote("%$k%")."))");
 						array_push($search_words, $k);
 					}
 					break;
 				case "author":
 					if ($commandpair[1]) {
-						array_push($query_keywords, "($not (LOWER(author) LIKE '%".
-							db_escape_string(mb_strtolower($commandpair[1]))."%'))");
+						array_push($query_keywords, "($not (LOWER(author) LIKE ".
+							$pdo->quote('%' . mb_strtolower($commandpair[1]) . '%')."))");
 					} else {
 						array_push($query_keywords, "(UPPER(ttrss_entries.title) $not LIKE UPPER('%$k%')
-								OR UPPER(ttrss_entries.content) $not LIKE UPPER('%$k%'))");
+								OR UPPER(ttrss_entries.content) $not LIKE UPPER(".$pdo->quote("%$k%")."))");
 						array_push($search_words, $k);
 					}
 					break;
@@ -1444,11 +1433,11 @@
 						else if ($commandpair[1] == "false")
 							array_push($query_keywords, "($not (note IS NULL OR note = ''))");
 						else
-							array_push($query_keywords, "($not (LOWER(note) LIKE '%".
-								db_escape_string(mb_strtolower($commandpair[1]))."%'))");
+							array_push($query_keywords, "($not (LOWER(note) LIKE ".
+								$pdo->quote('%' . mb_strtolower($commandpair[1]) . '%')."))");
 					} else {
-						array_push($query_keywords, "(UPPER(ttrss_entries.title) $not LIKE UPPER('%$k%')
-								OR UPPER(ttrss_entries.content) $not LIKE UPPER('%$k%'))");
+						array_push($query_keywords, "(UPPER(ttrss_entries.title) $not LIKE UPPER(".$pdo->quote("%$k%").")
+								OR UPPER(ttrss_entries.content) $not LIKE UPPER(".$pdo->quote("%$k%")."))");
 						if (!$not) array_push($search_words, $k);
 					}
 					break;
@@ -1460,8 +1449,8 @@
 						else
 							array_push($query_keywords, "($not (marked = false))");
 					} else {
-						array_push($query_keywords, "(UPPER(ttrss_entries.title) $not LIKE UPPER('%$k%')
-								OR UPPER(ttrss_entries.content) $not LIKE UPPER('%$k%'))");
+						array_push($query_keywords, "(UPPER(ttrss_entries.title) $not LIKE UPPER(".$pdo->quote("%$k%").")
+								OR UPPER(ttrss_entries.content) $not LIKE UPPER(".$pdo->quote("%$k%")."))");
 						if (!$not) array_push($search_words, $k);
 					}
 					break;
@@ -1474,7 +1463,7 @@
 
 					} else {
 						array_push($query_keywords, "(UPPER(ttrss_entries.title) $not LIKE UPPER('%$k%')
-								OR UPPER(ttrss_entries.content) $not LIKE UPPER('%$k%'))");
+								OR UPPER(ttrss_entries.content) $not LIKE UPPER(".$pdo->quote("%$k%")."))");
 						if (!$not) array_push($search_words, $k);
 					}
 					break;
@@ -1486,8 +1475,8 @@
 							array_push($query_keywords, "($not (unread = false))");
 
 					} else {
-						array_push($query_keywords, "(UPPER(ttrss_entries.title) $not LIKE UPPER('%$k%')
-								OR UPPER(ttrss_entries.content) $not LIKE UPPER('%$k%'))");
+						array_push($query_keywords, "(UPPER(ttrss_entries.title) $not LIKE UPPER(".$pdo->quote("%$k%").")
+								OR UPPER(ttrss_entries.content) $not LIKE UPPER(".$pdo->quote("%$k%")."))");
 						if (!$not) array_push($search_words, $k);
 					}
 					break;
@@ -1507,8 +1496,8 @@
 							$k = mb_strtolower($k);
 							array_push($search_query_leftover, $not ? "!$k" : $k);
 						} else {
-							array_push($query_keywords, "(UPPER(ttrss_entries.title) $not LIKE UPPER('%$k%')
-								OR UPPER(ttrss_entries.content) $not LIKE UPPER('%$k%'))");
+							array_push($query_keywords, "(UPPER(ttrss_entries.title) $not LIKE UPPER(".$pdo->quote("%$k%").")
+								OR UPPER(ttrss_entries.content) $not LIKE UPPER(".$pdo->quote("%$k%")."))");
 						}
 
 						if (!$not) array_push($search_words, $k);
@@ -1517,11 +1506,11 @@
 		}
 
 		if (count($search_query_leftover) > 0) {
-			$search_query_leftover = db_escape_string(implode(" & ", $search_query_leftover));
+			$search_query_leftover = $pdo->quote(implode(" & ", $search_query_leftover));
 
 			if (DB_TYPE == "pgsql") {
 				array_push($query_keywords,
-					"(tsvector_combined @@ to_tsquery('$search_language', '$search_query_leftover'))");
+					"(tsvector_combined @@ to_tsquery($search_language, $search_query_leftover))");
 			}
 
 		}
@@ -1608,6 +1597,10 @@
 			}
 
 			if ($entry->nodeName == 'img') {
+				$entry->setAttribute('referrerpolicy', 'no-referrer');
+
+				$entry->removeAttribute('width');
+				$entry->removeAttribute('height');
 
 				if ($entry->hasAttribute('src')) {
 					$is_https_url = parse_url($entry->getAttribute('src'), PHP_URL_SCHEME) === 'https';
@@ -1661,7 +1654,7 @@
 			}
 		}
 
-		$allowed_elements = array('a', 'address', 'acronym', 'audio', 'article', 'aside',
+		$allowed_elements = array('a', 'abbr', 'address', 'acronym', 'audio', 'article', 'aside',
 			'b', 'bdi', 'bdo', 'big', 'blockquote', 'body', 'br',
 			'caption', 'cite', 'center', 'code', 'col', 'colgroup',
 			'data', 'dd', 'del', 'details', 'description', 'dfn', 'div', 'dl', 'font',
@@ -1775,11 +1768,8 @@
 	}
 
 	function tag_is_valid($tag) {
-		if ($tag == '') return false;
-		if (is_numeric($tag)) return false;
-		if (mb_strlen($tag) > 250) return false;
-
-		if (!$tag) return false;
+		if (!$tag || is_numeric($tag) || mb_strlen($tag) > 250)
+			return false;
 
 		return true;
 	}
@@ -1846,6 +1836,7 @@
 	function load_filters($feed_id, $owner_uid) {
 		$filters = array();
 
+		$feed_id = (int) $feed_id;
 		$cat_id = (int)Feeds::getFeedCategory($feed_id);
 
 		if ($cat_id == 0)
@@ -1853,8 +1844,11 @@
 		else
 			$null_cat_qpart = "";
 
-		$result = db_query("SELECT * FROM ttrss_filters2 WHERE
-				owner_uid = $owner_uid AND enabled = true ORDER BY order_id, title");
+		$pdo = Db::pdo();
+
+		$sth = $pdo->prepare("SELECT * FROM ttrss_filters2 WHERE
+				owner_uid = ? AND enabled = true ORDER BY order_id, title");
+		$sth->execute([$owner_uid]);
 
 		$check_cats = array_merge(
 			Feeds::getParentCategories($cat_id, $owner_uid),
@@ -1863,74 +1857,76 @@
 		$check_cats_str = join(",", $check_cats);
 		$check_cats_fullids = array_map(function($a) { return "CAT:$a"; }, $check_cats);
 
-		while ($line = db_fetch_assoc($result)) {
+		while ($line = $sth->fetch()) {
 			$filter_id = $line["id"];
 
-            $match_any_rule = sql_bool_to_bool($line["match_any_rule"]);
+			$match_any_rule = sql_bool_to_bool($line["match_any_rule"]);
 
-			$result2 = db_query("SELECT
+			$sth2 = $pdo->prepare("SELECT
 					r.reg_exp, r.inverse, r.feed_id, r.cat_id, r.cat_filter, r.match_on, t.name AS type_name
 					FROM ttrss_filters2_rules AS r,
 					ttrss_filter_types AS t
 					WHERE
-					    (match_on IS NOT NULL OR
+						(match_on IS NOT NULL OR
 						  (($null_cat_qpart (cat_id IS NULL AND cat_filter = false) OR cat_id IN ($check_cats_str)) AND
-						  (feed_id IS NULL OR feed_id = '$feed_id'))) AND
-						filter_type = t.id AND filter_id = '$filter_id'");
+						  (feed_id IS NULL OR feed_id = ?))) AND
+						filter_type = t.id AND filter_id = ?");
+			$sth2->execute([$feed_id, $filter_id]);
 
 			$rules = array();
 			$actions = array();
 
-			while ($rule_line = db_fetch_assoc($result2)) {
+			while ($rule_line = $sth2->fetch()) {
 	#				print_r($rule_line);
 
-                if ($rule_line["match_on"]) {
-                    $match_on = json_decode($rule_line["match_on"], true);
+				if ($rule_line["match_on"]) {
+					$match_on = json_decode($rule_line["match_on"], true);
 
-                    if (in_array("0", $match_on) || in_array($feed_id, $match_on) || count(array_intersect($check_cats_fullids, $match_on)) > 0) {
+					if (in_array("0", $match_on) || in_array($feed_id, $match_on) || count(array_intersect($check_cats_fullids, $match_on)) > 0) {
 
-                        $rule = array();
-                        $rule["reg_exp"] = $rule_line["reg_exp"];
-                        $rule["type"] = $rule_line["type_name"];
-                        $rule["inverse"] = sql_bool_to_bool($rule_line["inverse"]);
+						$rule = array();
+						$rule["reg_exp"] = $rule_line["reg_exp"];
+						$rule["type"] = $rule_line["type_name"];
+						$rule["inverse"] = sql_bool_to_bool($rule_line["inverse"]);
 
-                        array_push($rules, $rule);
-                    } else if (!$match_any_rule) {
-                        // this filter contains a rule that doesn't match to this feed/category combination
-                        // thus filter has to be rejected
+						array_push($rules, $rule);
+					} else if (!$match_any_rule) {
+						// this filter contains a rule that doesn't match to this feed/category combination
+						// thus filter has to be rejected
 
-                        $rules = [];
-                        break;
-                    }
+						$rules = [];
+						break;
+					}
 
-                } else {
+				} else {
 
-                    $rule = array();
-                    $rule["reg_exp"] = $rule_line["reg_exp"];
-                    $rule["type"] = $rule_line["type_name"];
-                    $rule["inverse"] = sql_bool_to_bool($rule_line["inverse"]);
+					$rule = array();
+					$rule["reg_exp"] = $rule_line["reg_exp"];
+					$rule["type"] = $rule_line["type_name"];
+					$rule["inverse"] = sql_bool_to_bool($rule_line["inverse"]);
 
-                    array_push($rules, $rule);
-                }
+					array_push($rules, $rule);
+				}
 			}
 
 			if (count($rules) > 0) {
-                $result2 = db_query("SELECT a.action_param,t.name AS type_name
-                        FROM ttrss_filters2_actions AS a,
-                        ttrss_filter_actions AS t
-                        WHERE
-                            action_id = t.id AND filter_id = '$filter_id'");
+				$sth2 = $pdo->prepare("SELECT a.action_param,t.name AS type_name
+						FROM ttrss_filters2_actions AS a,
+						ttrss_filter_actions AS t
+						WHERE
+							action_id = t.id AND filter_id = ?");
+				$sth2->execute([$filter_id]);
 
-                while ($action_line = db_fetch_assoc($result2)) {
-                    #				print_r($action_line);
+				while ($action_line = $sth2->fetch()) {
+					#				print_r($action_line);
 
-                    $action = array();
-                    $action["type"] = $action_line["type_name"];
-                    $action["param"] = $action_line["action_param"];
+					$action = array();
+					$action["type"] = $action_line["type_name"];
+					$action["param"] = $action_line["action_param"];
 
-                    array_push($actions, $action);
-                }
-            }
+					array_push($actions, $action);
+				}
+			}
 
 			$filter = array();
 			$filter["match_any_rule"] = sql_bool_to_bool($line["match_any_rule"]);
@@ -1960,10 +1956,6 @@
 		}
 	}
 
-	function feed_has_icon($id) {
-		return is_file(ICONS_DIR . "/$id.ico") && filesize(ICONS_DIR . "/$id.ico") > 0;
-	}
-
 	function init_plugins() {
 		PluginHost::getInstance()->load(PLUGINS, PluginHost::KIND_ALL);
 
@@ -1974,32 +1966,35 @@
 
 		if (!$feed_cat) return false;
 
-		db_query("BEGIN");
+		$feed_cat = mb_substr($feed_cat, 0, 250);
+		if (!$parent_cat_id) $parent_cat_id = null;
 
-		if ($parent_cat_id) {
-			$parent_qpart = "parent_cat = '$parent_cat_id'";
-			$parent_insert = "'$parent_cat_id'";
-		} else {
-			$parent_qpart = "parent_cat IS NULL";
-			$parent_insert = "NULL";
+		$pdo = Db::pdo();
+		$tr_in_progress = false;
+
+		try {
+			$pdo->beginTransaction();
+		} catch (Exception $e) {
+			$tr_in_progress = true;
 		}
 
-		$feed_cat = mb_substr($feed_cat, 0, 250);
+		$sth = $pdo->prepare("SELECT id FROM ttrss_feed_categories
+				WHERE (parent_cat = :parent OR (:parent IS NULL AND parent_cat IS NULL)) 
+				AND title = :title AND owner_uid = :uid");
+		$sth->execute([':parent' => $parent_cat_id, ':title' => $feed_cat, ':uid' => $_SESSION['uid']]);
 
-		$result = db_query(
-			"SELECT id FROM ttrss_feed_categories
-				WHERE $parent_qpart AND title = '$feed_cat' AND owner_uid = ".$_SESSION["uid"]);
+		if (!$sth->fetch()) {
 
-		if (db_num_rows($result) == 0) {
+			$sth = $pdo->prepare("INSERT INTO ttrss_feed_categories (owner_uid,title,parent_cat)
+					VALUES (?, ?, ?)");
+			$sth->execute([$_SESSION['uid'], $feed_cat, $parent_cat_id]);
 
-			$result = db_query(
-				"INSERT INTO ttrss_feed_categories (owner_uid,title,parent_cat)
-					VALUES ('".$_SESSION["uid"]."', '$feed_cat', $parent_insert)");
-
-			db_query("COMMIT");
+			if (!$tr_in_progress) $pdo->commit();
 
 			return true;
 		}
+
+		$pdo->commit();
 
 		return false;
 	}
@@ -2070,24 +2065,28 @@
 
 		if (!$owner_uid) $owner_uid = $_SESSION["uid"];
 
-		$sql_is_cat = bool_to_sql_bool($is_cat);
+		$is_cat = bool_to_sql_bool($is_cat);
 
-		$result = db_query("SELECT access_key FROM ttrss_access_keys
-				WHERE feed_id = '$feed_id'	AND is_cat = $sql_is_cat
-				AND owner_uid = " . $owner_uid);
+		$pdo = Db::pdo();
 
-		if (db_num_rows($result) == 1) {
-			return db_fetch_result($result, 0, "access_key");
+		$sth = $pdo->prepare("SELECT access_key FROM ttrss_access_keys
+				WHERE feed_id = ? AND is_cat = ?
+				AND owner_uid = ?");
+		$sth->execute([$feed_id, (int)$is_cat, $owner_uid]);
+
+		if ($row = $sth->fetch()) {
+			return $row["access_key"];
 		} else {
-			$key = db_escape_string(uniqid_short());
+			$key = uniqid_short();
 
-			$result = db_query("INSERT INTO ttrss_access_keys
+			$sth = $pdo->prepare("INSERT INTO ttrss_access_keys
 					(access_key, feed_id, is_cat, owner_uid)
-					VALUES ('$key', '$feed_id', $sql_is_cat, '$owner_uid')");
+					VALUES (?, ?, ?, ?)");
+
+			$sth->execute([$key, $feed_id, (int)$is_cat, $owner_uid]);
 
 			return $key;
 		}
-		return false;
 	}
 
 	function get_feeds_from_html($url, $content)
@@ -2180,6 +2179,8 @@
 
 	function cleanup_tags($days = 14, $limit = 1000) {
 
+		$days = (int) $days;
+
 		if (DB_TYPE == "pgsql") {
 			$interval_query = "date_updated < NOW() - INTERVAL '$days days'";
 		} else if (DB_TYPE == "mysql") {
@@ -2188,27 +2189,28 @@
 
 		$tags_deleted = 0;
 
+		$pdo = Db::pdo();
+
 		while ($limit > 0) {
 			$limit_part = 500;
 
-			$query = "SELECT ttrss_tags.id AS id
+			$sth = $pdo->prepare("SELECT ttrss_tags.id AS id
 					FROM ttrss_tags, ttrss_user_entries, ttrss_entries
 					WHERE post_int_id = int_id AND $interval_query AND
-					ref_id = ttrss_entries.id AND tag_cache != '' LIMIT $limit_part";
-
-			$result = db_query($query);
+					ref_id = ttrss_entries.id AND tag_cache != '' LIMIT ?");
+			$sth->execute([$limit]);
 
 			$ids = array();
 
-			while ($line = db_fetch_assoc($result)) {
+			while ($line = $sth->fetch()) {
 				array_push($ids, $line['id']);
 			}
 
 			if (count($ids) > 0) {
 				$ids = join(",", $ids);
 
-				$tmp_result = db_query("DELETE FROM ttrss_tags WHERE id IN ($ids)");
-				$tags_deleted += db_affected_rows($tmp_result);
+				$usth = $pdo->query("DELETE FROM ttrss_tags WHERE id IN ($ids)");
+				$tags_deleted = $usth->rowCount();
 			} else {
 				break;
 			}
@@ -2233,6 +2235,8 @@
 	function filter_to_sql($filter, $owner_uid) {
 		$query = array();
 
+		$pdo = Db::pdo();
+
 		if (DB_TYPE == "pgsql")
 			$reg_qpart = "~";
 		else
@@ -2245,7 +2249,7 @@
 
 			if ($regexp_valid) {
 
-				$rule['reg_exp'] = db_escape_string($rule['reg_exp']);
+				$rule['reg_exp'] = $pdo->quote($rule['reg_exp']);
 
 				switch ($rule["type"]) {
 					case "title":
@@ -2278,7 +2282,7 @@
 				if (isset($rule['inverse'])) $qpart = "NOT ($qpart)";
 
 				if (isset($rule["feed_id"]) && $rule["feed_id"] > 0) {
-					$qpart .= " AND feed_id = " . db_escape_string($rule["feed_id"]);
+					$qpart .= " AND feed_id = " . $pdo->quote($rule["feed_id"]);
 				}
 
 				if (isset($rule["cat_id"])) {
@@ -2286,6 +2290,7 @@
 					if ($rule["cat_id"] > 0) {
 						$children = Feeds::getChildCategories($rule["cat_id"], $owner_uid);
 						array_push($children, $rule["cat_id"]);
+						$children = array_map("intval", $children);
 
 						$children = join(",", $children);
 
@@ -2358,9 +2363,9 @@
 
 		foreach ($files as $js) {
 			if (!isset($_GET['debug'])) {
-				$cached_file = CACHE_DIR . "/js/".basename($js).".js";
+				$cached_file = CACHE_DIR . "/js/".basename($js);
 
-				if (file_exists($cached_file) && is_readable($cached_file) && filemtime($cached_file) >= filemtime("js/$js.js")) {
+				if (file_exists($cached_file) && is_readable($cached_file) && filemtime($cached_file) >= filemtime("js/$js")) {
 
 					list($header, $contents) = explode("\n", file_get_contents($cached_file), 2);
 
@@ -2374,12 +2379,12 @@
 					}
 				}
 
-				$minified = JShrink\Minifier::minify(file_get_contents("js/$js.js"));
+				$minified = JShrink\Minifier::minify(file_get_contents("js/$js"));
 				file_put_contents($cached_file, "tt-rss:" . VERSION . "\n" . $minified);
 				$rv .= $minified;
 
 			} else {
-				$rv .= file_get_contents("js/$js.js"); // no cache in debug mode
+				$rv .= file_get_contents("js/$js"); // no cache in debug mode
 			}
 		}
 
@@ -2442,6 +2447,9 @@
 	}
 
 	function get_theme_path($theme) {
+		if ($theme == "default.php")
+			return "css/default.css";
+
 		$check = "themes/$theme";
 		if (file_exists($check)) return $check;
 
@@ -2550,17 +2558,28 @@
 	}
 
 	function check_mysql_tables() {
-		$schema = db_escape_string(DB_NAME);
+		$pdo = Db::pdo();
 
-		$result = db_query("SELECT engine, table_name FROM information_schema.tables WHERE
-			table_schema = '$schema' AND table_name LIKE 'ttrss_%' AND engine != 'InnoDB'");
+		$sth = $pdo->prepare("SELECT engine, table_name FROM information_schema.tables WHERE
+			table_schema = ? AND table_name LIKE 'ttrss_%' AND engine != 'InnoDB'");
+		$sth->execute([DB_NAME]);
 
 		$bad_tables = [];
 
-		while ($line = db_fetch_assoc($result)) {
+		while ($line = $sth->fetch()) {
 			array_push($bad_tables, $line);
 		}
 
 		return $bad_tables;
 	}
 
+	function validate_field($string, $allowed, $default = "") {
+		if (in_array($string, $allowed))
+			return $string;
+		else
+			return $default;
+	}
+
+	function arr_qmarks($arr) {
+		return str_repeat('?,', count($arr) - 1) . '?';
+	}

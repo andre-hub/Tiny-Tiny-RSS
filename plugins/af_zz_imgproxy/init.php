@@ -1,5 +1,7 @@
 <?php
 class Af_Zz_ImgProxy extends Plugin {
+
+	/* @var PluginHost $host */
 	private $host;
 
 	function about() {
@@ -241,8 +243,8 @@ class Af_Zz_ImgProxy extends Plugin {
 	}
 
 	function save() {
-		$proxy_all = checkbox_to_sql_bool($_POST["proxy_all"]) == "true";
-		$disable_cache = checkbox_to_sql_bool($_POST["disable_cache"]) == "true";
+		$proxy_all = checkbox_to_sql_bool($_POST["proxy_all"]);
+		$disable_cache = checkbox_to_sql_bool($_POST["disable_cache"]);
 
 		$this->host->set($this, "proxy_all", $proxy_all, false);
 		$this->host->set($this, "disable_cache", $disable_cache);

@@ -9,7 +9,7 @@ function notify_callback2(transport, sticky) {
 	notify_info(transport.responseText, sticky);
 }
 
-function updateFeedList(sort_key) {
+function updateFeedList() {
 
 	var user_search = $("feed_search");
 	var search = "";
@@ -83,7 +83,7 @@ function addUser() {
 
 }
 
-function editUser(id, event) {
+function editUser(id) {
 
 	var query = "backend.php?op=pref-users&method=edit&id=" +
 		param_escape(id);
@@ -91,7 +91,7 @@ function editUser(id, event) {
 	if (dijit.byId("userEditDlg"))
 		dijit.byId("userEditDlg").destroyRecursive();
 
-	dialog = new dijit.Dialog({
+	var dialog = new dijit.Dialog({
 		id: "userEditDlg",
 		title: __("User Editor"),
 		style: "width: 600px",
@@ -126,7 +126,7 @@ function editFilter(id) {
 	if (dijit.byId("filterEditDlg"))
 		dijit.byId("filterEditDlg").destroyRecursive();
 
-	dialog = new dijit.Dialog({
+	var dialog = new dijit.Dialog({
 		id: "filterEditDlg",
 		title: __("Edit Filter"),
 		style: "width: 600px",
@@ -401,65 +401,6 @@ function removeSelectedFeeds() {
 	return false;
 }
 
-function clearSelectedFeeds() {
-
-	var sel_rows = getSelectedFeeds();
-
-	if (sel_rows.length > 1) {
-		alert(__("Please select only one feed."));
-		return;
-	}
-
-	if (sel_rows.length > 0) {
-
-		var ok = confirm(__("Erase all non-starred articles in selected feed?"));
-
-		if (ok) {
-			notify_progress("Clearing selected feed...");
-			clearFeedArticles(sel_rows[0]);
-		}
-
-	} else {
-
-		alert(__("No feeds are selected."));
-
-	}
-
-	return false;
-}
-
-function purgeSelectedFeeds() {
-
-	var sel_rows = getSelectedFeeds();
-
-	if (sel_rows.length > 0) {
-
-		var pr = prompt(__("How many days of articles to keep (0 - use default)?"), "0");
-
-		if (pr != undefined) {
-			notify_progress("Purging selected feed...");
-
-			var query = "?op=rpc&method=purge&ids="+
-				param_escape(sel_rows.toString()) + "&days=" + pr;
-
-			console.log(query);
-
-			new Ajax.Request("prefs.php",	{
-				parameters: query,
-				onComplete: function(transport) {
-					notify('');
-				} });
-		}
-
-	} else {
-
-		alert(__("No feeds are selected."));
-
-	}
-
-	return false;
-}
-
 function editSelectedUser() {
 	var rows = getSelectedUsers();
 
@@ -533,7 +474,7 @@ function selectedUserDetails() {
 	if (dijit.byId("userDetailsDlg"))
 		dijit.byId("userDetailsDlg").destroyRecursive();
 
-	dialog = new dijit.Dialog({
+	var dialog = new dijit.Dialog({
 		id: "userDetailsDlg",
 		title: __("User details"),
 		style: "width: 600px",
@@ -735,7 +676,7 @@ function opmlImportComplete(iframe) {
 
 	var content = iframe.contentDocument.body.innerHTML;
 
-	dialog = new dijit.Dialog({
+	var dialog = new dijit.Dialog({
 		id: "opmlImportDlg",
 		title: __("OPML Import"),
 		style: "width: 600px",
@@ -808,7 +749,7 @@ function updateSystemList() {
 		} });
 }
 
-function selectTab(id, noupdate, method) {
+function selectTab(id, noupdate) {
 	if (!noupdate) {
 		notify_progress("Loading, please wait...");
 
@@ -925,7 +866,7 @@ function validatePrefsReset() {
 
 	if (ok) {
 
-		query = "?op=pref-prefs&method=resetconfig";
+		var query = "?op=pref-prefs&method=resetconfig";
 		console.log(query);
 
 		new Ajax.Request("backend.php", {
@@ -998,7 +939,7 @@ function pref_hotkey_handler(e) {
 	var hotkey_action = false;
 	var hotkeys = getInitParam("hotkeys");
 
-	for (sequence in hotkeys[1]) {
+	for (var sequence in hotkeys[1]) {
 		if (sequence == hotkey) {
 			hotkey_action = hotkeys[1][sequence];
 			break;
@@ -1097,7 +1038,7 @@ function showInactiveFeeds() {
 	if (dijit.byId("inactiveFeedsDlg"))
 		dijit.byId("inactiveFeedsDlg").destroyRecursive();
 
-	dialog = new dijit.Dialog({
+	var dialog = new dijit.Dialog({
 		id: "inactiveFeedsDlg",
 		title: __("Feeds without recent updates"),
 		style: "width: 600px",
@@ -1177,107 +1118,6 @@ function opmlRegenKey() {
 	return false;
 }
 
-function feedActionChange() {
-	var chooser = $("feedActionChooser");
-	var opid = chooser[chooser.selectedIndex].value;
-
-	chooser.selectedIndex = 0;
-	feedActionGo(opid);
-}
-
-function feedActionGo(op) {
-	if (op == "facEdit") {
-
-		var rows = getSelectedFeeds();
-
-		if (rows.length > 1) {
-			editSelectedFeeds();
-		} else {
-			editSelectedFeed();
-		}
-	}
-
-	if (op == "facClear") {
-		clearSelectedFeeds();
-	}
-
-	if (op == "facPurge") {
-		purgeSelectedFeeds();
-	}
-
-	if (op == "facEditCats") {
-		editFeedCats();
-	}
-
-	if (op == "facRescore") {
-		rescoreSelectedFeeds();
-	}
-
-	if (op == "facUnsubscribe") {
-		removeSelectedFeeds();
-	}
-}
-
-function clearFeedArticles(feed_id) {
-
-	notify_progress("Clearing feed...");
-
-	var query = "?op=pref-feeds&quiet=1&method=clear&id=" + feed_id;
-
-	new Ajax.Request("backend.php",	{
-		parameters: query,
-		onComplete: function(transport) {
-				notify('');
-			} });
-
-	return false;
-}
-
-function rescoreSelectedFeeds() {
-
-	var sel_rows = getSelectedFeeds();
-
-	if (sel_rows.length > 0) {
-
-		//var ok = confirm(__("Rescore last 100 articles in selected feeds?"));
-		var ok = confirm(__("Rescore articles in selected feeds?"));
-
-		if (ok) {
-			notify_progress("Rescoring selected feeds...", true);
-
-			var query = "?op=pref-feeds&method=rescore&quiet=1&ids="+
-				param_escape(sel_rows.toString());
-
-			new Ajax.Request("backend.php",	{
-				parameters: query,
-				onComplete: function(transport) {
-						notify_callback2(transport);
-			} });
-
-		}
-	} else {
-		alert(__("No feeds are selected."));
-	}
-
-	return false;
-}
-
-function rescore_all_feeds() {
-	var ok = confirm(__("Rescore all articles? This operation may take a lot of time."));
-
-	if (ok) {
-		notify_progress("Rescoring feeds...", true);
-
-		var query = "?op=pref-feeds&method=rescoreAll&quiet=1";
-
-		new Ajax.Request("backend.php",	{
-			parameters: query,
-			onComplete: function(transport) {
-					notify_callback2(transport);
-		} });
-	}
-}
-
 function labelColorReset() {
 	var labels = getSelectedLabels();
 
@@ -1312,7 +1152,7 @@ function editProfiles() {
 
 	var query = "backend.php?op=pref-prefs&method=editPrefProfiles";
 
-	dialog = new dijit.Dialog({
+	var dialog = new dijit.Dialog({
 		id: "profileEditDlg",
 		title: __("Settings Profiles"),
 		style: "width: 600px",
@@ -1479,7 +1319,7 @@ function resetCatOrder() {
 	});
 }
 
-function editCat(id, item, event) {
+function editCat(id, item) {
 	var new_name = prompt(__('Rename category to:'), item.name);
 
 	if (new_name && new_name != item.name) {
@@ -1500,14 +1340,14 @@ function editCat(id, item, event) {
 	}
 }
 
-function editLabel(id, event) {
+function editLabel(id) {
 	var query = "backend.php?op=pref-labels&method=edit&id=" +
 		param_escape(id);
 
 	if (dijit.byId("labelEditDlg"))
 		dijit.byId("labelEditDlg").destroyRecursive();
 
-	dialog = new dijit.Dialog({
+	var dialog = new dijit.Dialog({
 		id: "labelEditDlg",
 		title: __("Label Editor"),
 		style: "width: 600px",
@@ -1575,7 +1415,7 @@ function customizeCSS() {
 	if (dijit.byId("cssEditDlg"))
 		dijit.byId("cssEditDlg").destroyRecursive();
 
-	dialog = new dijit.Dialog({
+	var dialog = new dijit.Dialog({
 		id: "cssEditDlg",
 		title: __("Customize stylesheet"),
 		style: "width: 600px",
@@ -1601,7 +1441,7 @@ function insertSSLserial(value) {
 }
 
 function gotoExportOpml(filename, settings) {
-	tmp = settings ? 1 : 0;
+	var tmp = settings ? 1 : 0;
 	document.location.href = "backend.php?op=opml&method=export&filename=" + filename + "&settings=" + tmp;
 }
 

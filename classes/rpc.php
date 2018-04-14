@@ -2,47 +2,54 @@
 class RPC extends Handler_Protected {
 
 	function csrf_ignore($method) {
-		$csrf_ignored = array("sanitycheck", "completelabels");
+		$csrf_ignored = array("sanitycheck", "completelabels", "saveprofile");
 
 		return array_search($method, $csrf_ignored) !== false;
 	}
 
 	function setprofile() {
-		$id = $this->dbh->escape_string($_REQUEST["id"]);
+		$_SESSION["profile"] = clean($_REQUEST["id"]);
 
-		$_SESSION["profile"] = $id;
+		// default value
+		if (!$_SESSION["profile"]) $_SESSION["profile"] = null;
 	}
 
 	function remprofiles() {
-		$ids = explode(",", $this->dbh->escape_string(trim($_REQUEST["ids"])));
+		$ids = explode(",", trim(clean($_REQUEST["ids"])));
 
 		foreach ($ids as $id) {
 			if ($_SESSION["profile"] != $id) {
-				$this->dbh->query("DELETE FROM ttrss_settings_profiles WHERE id = '$id' AND
-							owner_uid = " . $_SESSION["uid"]);
+				$sth = $this->pdo->prepare("DELETE FROM ttrss_settings_profiles WHERE id = ? AND
+							owner_uid = ?");
+				$sth->execute([$id, $_SESSION['uid']]);
 			}
 		}
 	}
 
 	// Silent
 	function addprofile() {
-		$title = $this->dbh->escape_string(trim($_REQUEST["title"]));
+		$title = trim(clean($_REQUEST["title"]));
+
 		if ($title) {
-			$this->dbh->query("BEGIN");
+			$this->pdo->beginTransaction();
 
-			$result = $this->dbh->query("SELECT id FROM ttrss_settings_profiles
-				WHERE title = '$title' AND owner_uid = " . $_SESSION["uid"]);
+			$sth = $this->pdo->prepare("SELECT id FROM ttrss_settings_profiles
+				WHERE title = ? AND owner_uid = ?");
+			$sth->execute([$title, $_SESSION['uid']]);
 
-			if ($this->dbh->num_rows($result) == 0) {
+			if (!$sth->fetch()) {
 
-				$this->dbh->query("INSERT INTO ttrss_settings_profiles (title, owner_uid)
-							VALUES ('$title', ".$_SESSION["uid"] .")");
+				$sth = $this->pdo->prepare("INSERT INTO ttrss_settings_profiles (title, owner_uid)
+							VALUES (?, ?)");
 
-				$result = $this->dbh->query("SELECT id FROM ttrss_settings_profiles WHERE
-					title = '$title'");
+				$sth->execute([$title, $_SESSION['uid']]);
 
-				if ($this->dbh->num_rows($result) != 0) {
-					$profile_id = $this->dbh->fetch_result($result, 0, "id");
+				$sth = $this->pdo->prepare("SELECT id FROM ttrss_settings_profiles WHERE
+					title = ? AND owner_uid = ?");
+				$sth->execute([$title, $_SESSION['uid']]);
+
+				if ($row = $sth->fetch()) {
+					$profile_id = $row['id'];
 
 					if ($profile_id) {
 						initialize_user_prefs($_SESSION["uid"], $profile_id);
@@ -50,14 +57,13 @@ class RPC extends Handler_Protected {
 				}
 			}
 
-			$this->dbh->query("COMMIT");
+			$this->pdo->commit();
 		}
 	}
 
-	// Silent
 	function saveprofile() {
-		$id = $this->dbh->escape_string($_REQUEST["id"]);
-		$title = $this->dbh->escape_string(trim($_REQUEST["value"]));
+		$id = clean($_REQUEST["id"]);
+		$title = trim(clean($_REQUEST["value"]));
 
 		if ($id == 0) {
 			print __("Default profile");
@@ -65,45 +71,35 @@ class RPC extends Handler_Protected {
 		}
 
 		if ($title) {
-			$this->dbh->query("BEGIN");
+			$sth = $this->pdo->prepare("UPDATE ttrss_settings_profiles
+				SET title = ? WHERE id = ? AND
+					owner_uid = ?");
 
-			$result = $this->dbh->query("SELECT id FROM ttrss_settings_profiles
-				WHERE title = '$title' AND owner_uid =" . $_SESSION["uid"]);
-
-			if ($this->dbh->num_rows($result) == 0) {
-				$this->dbh->query("UPDATE ttrss_settings_profiles
-							SET title = '$title' WHERE id = '$id' AND
-							owner_uid = " . $_SESSION["uid"]);
-				print $title;
-			} else {
-				$result = $this->dbh->query("SELECT title FROM ttrss_settings_profiles
-							WHERE id = '$id' AND owner_uid =" . $_SESSION["uid"]);
-				print $this->dbh->fetch_result($result, 0, "title");
-			}
-
-			$this->dbh->query("COMMIT");
+			$sth->execute([$title, $id, $_SESSION['uid']]);
+			print $title;
 		}
 	}
 
 	// Silent
 	function remarchive() {
-		$ids = explode(",", $this->dbh->escape_string($_REQUEST["ids"]));
+		$ids = explode(",", clean($_REQUEST["ids"]));
+
+		$sth = $this->pdo->prepare("DELETE FROM ttrss_archived_feeds WHERE
+		  		(SELECT COUNT(*) FROM ttrss_user_entries
+					WHERE orig_feed_id = :id) = 0 AND
+						id = :id AND owner_uid = :uid");
 
 		foreach ($ids as $id) {
-			$result = $this->dbh->query("DELETE FROM ttrss_archived_feeds WHERE
-		(SELECT COUNT(*) FROM ttrss_user_entries
-							WHERE orig_feed_id = '$id') = 0 AND
-		id = '$id' AND owner_uid = ".$_SESSION["uid"]);
-
-			$this->dbh->affected_rows($result);
+			$sth->execute([":id" => $id, ":uid" => $_SESSION['uid']]);
 		}
 	}
 
 	function addfeed() {
-		$feed = $this->dbh->escape_string($_REQUEST['feed']);
-		$cat = $this->dbh->escape_string($_REQUEST['cat']);
-		$login = $this->dbh->escape_string($_REQUEST['login']);
-		$pass = trim($_REQUEST['pass']); // escaped later
+		$feed = clean($_REQUEST['feed']);
+		$cat = clean($_REQUEST['cat']);
+		$need_auth = isset($_REQUEST['need_auth']);
+		$login = $need_auth ? clean($_REQUEST['login']) : '';
+		$pass = $need_auth ? trim(clean($_REQUEST['pass'])) : '';
 
 		$rc = Feeds::subscribe_to_feed($feed, $cat, $login, $pass);
 
@@ -111,7 +107,7 @@ class RPC extends Handler_Protected {
 	}
 
 	function togglepref() {
-		$key = $this->dbh->escape_string($_REQUEST["key"]);
+		$key = clean($_REQUEST["key"]);
 		set_pref($key, !get_pref($key));
 		$value = get_pref($key);
 
@@ -120,8 +116,8 @@ class RPC extends Handler_Protected {
 
 	function setpref() {
 		// set_pref escapes input, so no need to double escape it here
-		$key = $_REQUEST['key'];
-		$value = str_replace("\n", "<br/>", $_REQUEST['value']);
+		$key = clean($_REQUEST['key']);
+		$value = $_REQUEST['value'];
 
 		set_pref($key, $value, false, $key != 'USER_STYLESHEET');
 
@@ -129,27 +125,25 @@ class RPC extends Handler_Protected {
 	}
 
 	function mark() {
-		$mark = $_REQUEST["mark"];
-		$id = $this->dbh->escape_string($_REQUEST["id"]);
+		$mark = clean($_REQUEST["mark"]);
+		$id = clean($_REQUEST["id"]);
 
-		if ($mark == "1") {
-			$mark = "true";
-		} else {
-			$mark = "false";
-		}
-
-		$this->dbh->query("UPDATE ttrss_user_entries SET marked = $mark,
+		$sth = $this->pdo->prepare("UPDATE ttrss_user_entries SET marked = ?,
 					last_marked = NOW()
-					WHERE ref_id = '$id' AND owner_uid = " . $_SESSION["uid"]);
+					WHERE ref_id = ? AND owner_uid = ?");
+
+		$sth->execute([$mark, $id, $_SESSION['uid']]);
 
 		print json_encode(array("message" => "UPDATE_COUNTERS"));
 	}
 
 	function delete() {
-		$ids = $this->dbh->escape_string($_REQUEST["ids"]);
+		$ids = explode(",", clean($_REQUEST["ids"]));
+		$ids_qmarks = arr_qmarks($ids);
 
-		$this->dbh->query("DELETE FROM ttrss_user_entries
-			WHERE ref_id IN ($ids) AND owner_uid = " . $_SESSION["uid"]);
+		$sth = $this->pdo->prepare("DELETE FROM ttrss_user_entries
+			WHERE ref_id IN ($ids_qmarks) AND owner_uid = ?");
+		$sth->execute(array_merge($ids, [$_SESSION['uid']]));
 
 		Article::purge_orphans();
 
@@ -157,64 +151,60 @@ class RPC extends Handler_Protected {
 	}
 
 	function unarchive() {
-		$ids = explode(",", $_REQUEST["ids"]);
+		$ids = explode(",", clean($_REQUEST["ids"]));
 
 		foreach ($ids as $id) {
-			$id = $this->dbh->escape_string(trim($id));
-			$this->dbh->query("BEGIN");
+			$this->pdo->beginTransaction();
 
-			$result = $this->dbh->query("SELECT feed_url,site_url,title FROM ttrss_archived_feeds
-				WHERE id = (SELECT orig_feed_id FROM ttrss_user_entries WHERE ref_id = $id
-				AND owner_uid = ".$_SESSION["uid"].") AND owner_uid = " . $_SESSION["uid"]);
+			$sth = $this->pdo->prepare("SELECT feed_url,site_url,title FROM ttrss_archived_feeds
+				WHERE id = (SELECT orig_feed_id FROM ttrss_user_entries WHERE ref_id = :id
+				AND owner_uid = :uid) AND owner_uid = :uid");
+			$sth->execute([":uid" => $_SESSION['uid'], ":id" => $id]);
 
-			if ($this->dbh->num_rows($result) != 0) {
-				$feed_url = $this->dbh->escape_string(db_fetch_result($result, 0, "feed_url"));
-				$site_url = $this->dbh->escape_string(db_fetch_result($result, 0, "site_url"));
-				$title = $this->dbh->escape_string(db_fetch_result($result, 0, "title"));
+			if ($row = $sth->fetch()) {
+				$feed_url = $row['feed_url'];
+				$site_url = $row['site_url'];
+				$title = $row['title'];
 
-				$result = $this->dbh->query("SELECT id FROM ttrss_feeds WHERE feed_url = '$feed_url'
-					AND owner_uid = " .$_SESSION["uid"]);
+				$sth = $this->pdo->prepare("SELECT id FROM ttrss_feeds WHERE feed_url = ?
+					AND owner_uid = ?");
+				$sth->execute([$feed_url, $_SESSION['uid']]);
 
-				if ($this->dbh->num_rows($result) == 0) {
-
+				if ($row = $sth->fetch()) {
+					$feed_id = $row["id"];
+				} else {
 					if (!$title) $title = '[Unknown]';
 
-					$result = $this->dbh->query(
-						"INSERT INTO ttrss_feeds
+					$sth = $this->pdo->prepare("INSERT INTO ttrss_feeds
 							(owner_uid,feed_url,site_url,title,cat_id,auth_login,auth_pass,update_method)
-							VALUES (".$_SESSION["uid"].",
-							'$feed_url',
-							'$site_url',
-							'$title',
-							NULL, '', '', 0)");
+							VALUES (?, ?, ?, ?, NULL, '', '', 0)");
+					$sth->execute([$_SESSION['uid'], $feed_url, $site_url, $title]);
 
-					$result = $this->dbh->query(
-						"SELECT id FROM ttrss_feeds WHERE feed_url = '$feed_url'
-						AND owner_uid = ".$_SESSION["uid"]);
+					$sth = $this->pdo->prepare("SELECT id FROM ttrss_feeds WHERE feed_url = ?
+						AND owner_uid = ?");
+					$sth->execute([$feed_url, $_SESSION['uid']]);
 
-					if ($this->dbh->num_rows($result) != 0) {
-						$feed_id = $this->dbh->fetch_result($result, 0, "id");
+					if ($row = $sth->fetch()) {
+						$feed_id = $row['id'];
 					}
-
-				} else {
-					$feed_id = $this->dbh->fetch_result($result, 0, "id");
 				}
 
 				if ($feed_id) {
-					$result = $this->dbh->query("UPDATE ttrss_user_entries
-						SET feed_id = '$feed_id', orig_feed_id = NULL
-						WHERE ref_id = $id AND owner_uid = " . $_SESSION["uid"]);
+					$sth = $this->pdo->prepare("UPDATE ttrss_user_entries
+						SET feed_id = ?, orig_feed_id = NULL
+						WHERE ref_id = ? AND owner_uid = ?");
+					$sth->execute([$feed_id, $id, $_SESSION['uid']]);
 				}
 			}
 
-			$this->dbh->query("COMMIT");
+			$this->pdo->commit();
 		}
 
 		print json_encode(array("message" => "UPDATE_COUNTERS"));
 	}
 
 	function archive() {
-		$ids = explode(",", $this->dbh->escape_string($_REQUEST["ids"]));
+		$ids = explode(",", clean($_REQUEST["ids"]));
 
 		foreach ($ids as $id) {
 			$this->archive_article($id, $_SESSION["uid"]);
@@ -224,61 +214,64 @@ class RPC extends Handler_Protected {
 	}
 
 	private function archive_article($id, $owner_uid) {
-		$this->dbh->query("BEGIN");
+		$this->pdo->beginTransaction();
 
-		$result = $this->dbh->query("SELECT feed_id FROM ttrss_user_entries
-			WHERE ref_id = '$id' AND owner_uid = $owner_uid");
+		if (!$owner_uid) $owner_uid = $_SESSION['uid'];
 
-		if ($this->dbh->num_rows($result) != 0) {
+		$sth = $this->pdo->prepare("SELECT feed_id FROM ttrss_user_entries
+			WHERE ref_id = ? AND owner_uid = ?");
+		$sth->execute([$id, $owner_uid]);
+
+		if ($row = $sth->fetch()) {
 
 			/* prepare the archived table */
 
-			$feed_id = (int) $this->dbh->fetch_result($result, 0, "feed_id");
+			$feed_id = (int) $row['feed_id'];
 
 			if ($feed_id) {
-				$result = $this->dbh->query("SELECT id FROM ttrss_archived_feeds
-					WHERE id = '$feed_id' AND owner_uid = " . $_SESSION["uid"]);
+				$sth = $this->pdo->prepare("SELECT id FROM ttrss_archived_feeds
+					WHERE id = ? AND owner_uid = ?");
+				$sth->execute([$feed_id, $owner_uid]);
 
-				if ($this->dbh->num_rows($result) == 0) {
-					$result = db_query("SELECT MAX(id) AS id FROM ttrss_archived_feeds");
-					$new_feed_id = (int)db_fetch_result($result, 0, "id") + 1;
-
-					$this->dbh->query("INSERT INTO ttrss_archived_feeds
-						(id, owner_uid, title, feed_url, site_url)
-					SELECT $new_feed_id, owner_uid, title, feed_url, site_url from ttrss_feeds
-				  	WHERE id = '$feed_id'");
+				if ($row = $sth->fetch()) {
+					$new_feed_id = $row['id'];
 				} else {
-					$new_feed_id = $this->dbh->fetch_result($result, 0, "id");
+					$row = $this->pdo->query("SELECT MAX(id) AS id FROM ttrss_archived_feeds")->fetch();
+					$new_feed_id = (int)$row['id'] + 1;
+
+					$sth = $this->pdo->prepare("INSERT INTO ttrss_archived_feeds
+						(id, owner_uid, title, feed_url, site_url)
+							SELECT ?, owner_uid, title, feed_url, site_url from ttrss_feeds
+							  	WHERE id = ?");
+
+					$sth->execute([$new_feed_id, $feed_id]);
 				}
 
-				$this->dbh->query("UPDATE ttrss_user_entries
-					SET orig_feed_id = $new_feed_id, feed_id = NULL
-					WHERE ref_id = '$id' AND owner_uid = " . $_SESSION["uid"]);
+				$sth = $this->pdo->prepare("UPDATE ttrss_user_entries
+					SET orig_feed_id = ?, feed_id = NULL
+					WHERE ref_id = ? AND owner_uid = ?");
+				$sth->execute([$new_feed_id, $id, $owner_uid]);
 			}
 		}
 
-		$this->dbh->query("COMMIT");
+		$this->pdo->commit();
 	}
 
 	function publ() {
-		$pub = $_REQUEST["pub"];
-		$id = $this->dbh->escape_string($_REQUEST["id"]);
+		$pub = clean($_REQUEST["pub"]);
+		$id = clean($_REQUEST["id"]);
 
-		if ($pub == "1") {
-			$pub = "true";
-		} else {
-			$pub = "false";
-		}
+		$sth = $this->pdo->prepare("UPDATE ttrss_user_entries SET
+			published = ?, last_published = NOW()
+			WHERE ref_id = ? AND owner_uid = ?");
 
-		$this->dbh->query("UPDATE ttrss_user_entries SET
-			published = $pub, last_published = NOW()
-			WHERE ref_id = '$id' AND owner_uid = " . $_SESSION["uid"]);
+		$sth->execute([$pub, $id, $_SESSION['uid']]);
 
 		print json_encode(array("message" => "UPDATE_COUNTERS"));
 	}
 
 	function getAllCounters() {
-		$last_article_id = (int) $_REQUEST["last_article_id"];
+		$last_article_id = (int) clean($_REQUEST["last_article_id"]);
 
 		$reply = array();
 
@@ -295,8 +288,8 @@ class RPC extends Handler_Protected {
 
 	/* GET["cmode"] = 0 - mark as read, 1 - as unread, 2 - toggle */
 	function catchupSelected() {
-		$ids = explode(",", $this->dbh->escape_string($_REQUEST["ids"]));
-		$cmode = sprintf("%d", $_REQUEST["cmode"]);
+		$ids = explode(",", clean($_REQUEST["ids"]));
+		$cmode = sprintf("%d", clean($_REQUEST["cmode"]));
 
 		Article::catchupArticlesById($ids, $cmode);
 
@@ -304,8 +297,8 @@ class RPC extends Handler_Protected {
 	}
 
 	function markSelected() {
-		$ids = explode(",", $this->dbh->escape_string($_REQUEST["ids"]));
-		$cmode = sprintf("%d", $_REQUEST["cmode"]);
+		$ids = explode(",", clean($_REQUEST["ids"]));
+		$cmode = (int)clean($_REQUEST["cmode"]);
 
 		$this->markArticlesById($ids, $cmode);
 
@@ -313,8 +306,8 @@ class RPC extends Handler_Protected {
 	}
 
 	function publishSelected() {
-		$ids = explode(",", $this->dbh->escape_string($_REQUEST["ids"]));
-		$cmode = sprintf("%d", $_REQUEST["cmode"]);
+		$ids = explode(",", clean($_REQUEST["ids"]));
+		$cmode = (int)clean($_REQUEST["cmode"]);
 
 		$this->publishArticlesById($ids, $cmode);
 
@@ -322,10 +315,10 @@ class RPC extends Handler_Protected {
 	}
 
 	function sanityCheck() {
-		$_SESSION["hasAudio"] = $_REQUEST["hasAudio"] === "true";
-		$_SESSION["hasSandbox"] = $_REQUEST["hasSandbox"] === "true";
-		$_SESSION["hasMp3"] = $_REQUEST["hasMp3"] === "true";
-		$_SESSION["clientTzOffset"] = $_REQUEST["clientTzOffset"];
+		$_SESSION["hasAudio"] = clean($_REQUEST["hasAudio"]) === "true";
+		$_SESSION["hasSandbox"] = clean($_REQUEST["hasSandbox"]) === "true";
+		$_SESSION["hasMp3"] = clean($_REQUEST["hasMp3"]) === "true";
+		$_SESSION["clientTzOffset"] = clean($_REQUEST["clientTzOffset"]);
 
 		$reply = array();
 
@@ -340,42 +333,28 @@ class RPC extends Handler_Protected {
 	}
 
 	function completeLabels() {
-		$search = $this->dbh->escape_string($_REQUEST["search"]);
+		$search = clean($_REQUEST["search"]);
 
-		$result = $this->dbh->query("SELECT DISTINCT caption FROM
+		$sth = $this->pdo->prepare("SELECT DISTINCT caption FROM
 				ttrss_labels2
-				WHERE owner_uid = '".$_SESSION["uid"]."' AND
-				LOWER(caption) LIKE LOWER('$search%') ORDER BY caption
+				WHERE owner_uid = ? AND
+				LOWER(caption) LIKE LOWER(?) ORDER BY caption
 				LIMIT 5");
+		$sth->execute([$_SESSION['uid'], "%$search%"]);
 
 		print "<ul>";
-		while ($line = $this->dbh->fetch_assoc($result)) {
+		while ($line = $sth->fetch()) {
 			print "<li>" . $line["caption"] . "</li>";
 		}
 		print "</ul>";
 	}
 
-	function purge() {
-		$ids = explode(",", $this->dbh->escape_string($_REQUEST["ids"]));
-		$days = sprintf("%d", $_REQUEST["days"]);
-
-		foreach ($ids as $id) {
-
-			$result = $this->dbh->query("SELECT id FROM ttrss_feeds WHERE
-				id = '$id' AND owner_uid = ".$_SESSION["uid"]);
-
-			if ($this->dbh->num_rows($result) == 1) {
-				purge_feed($id, $days);
-			}
-		}
-	}
-
 	function updateFeedBrowser() {
 		if (defined('_DISABLE_FEED_BROWSER') && _DISABLE_FEED_BROWSER) return;
 
-		$search = $this->dbh->escape_string($_REQUEST["search"]);
-		$limit = $this->dbh->escape_string($_REQUEST["limit"]);
-		$mode = (int) $this->dbh->escape_string($_REQUEST["mode"]);
+		$search = clean($_REQUEST["search"]);
+		$limit = clean($_REQUEST["limit"]);
+		$mode = (int) clean($_REQUEST["mode"]);
 
 		require_once "feedbrowser.php";
 
@@ -387,46 +366,51 @@ class RPC extends Handler_Protected {
 	// Silent
 	function massSubscribe() {
 
-		$payload = json_decode($_REQUEST["payload"], false);
-		$mode = $_REQUEST["mode"];
+		$payload = json_decode(clean($_REQUEST["payload"]), false);
+		$mode = clean($_REQUEST["mode"]);
 
 		if (!$payload || !is_array($payload)) return;
 
 		if ($mode == 1) {
 			foreach ($payload as $feed) {
 
-				$title = $this->dbh->escape_string($feed[0]);
-				$feed_url = $this->dbh->escape_string($feed[1]);
+				$title = $feed[0];
+				$feed_url = $feed[1];
 
-				$result = $this->dbh->query("SELECT id FROM ttrss_feeds WHERE
-					feed_url = '$feed_url' AND owner_uid = " . $_SESSION["uid"]);
+				$sth = $this->pdo->prepare("SELECT id FROM ttrss_feeds WHERE
+					feed_url = ? AND owner_uid = ?");
+				$sth->execute([$feed_url, $_SESSION['uid']]);
 
-				if ($this->dbh->num_rows($result) == 0) {
-					$result = $this->dbh->query("INSERT INTO ttrss_feeds
+				if (!$sth->fetch()) {
+					$sth = $this->pdo->prepare("INSERT INTO ttrss_feeds
 									(owner_uid,feed_url,title,cat_id,site_url)
-									VALUES ('".$_SESSION["uid"]."',
-									'$feed_url', '$title', NULL, '')");
+									VALUES (?, ?, ?, NULL, '')");
+
+					$sth->execute([$_SESSION['uid'], $feed_url, $title]);
 				}
 			}
 		} else if ($mode == 2) {
 			// feed archive
 			foreach ($payload as $id) {
-				$result = $this->dbh->query("SELECT * FROM ttrss_archived_feeds
-					WHERE id = '$id' AND owner_uid = " . $_SESSION["uid"]);
+				$sth = $this->pdo->prepare("SELECT * FROM ttrss_archived_feeds
+					WHERE id = ? AND owner_uid = ?");
+				$sth->execute([$id, $_SESSION['uid']]);
 
-				if ($this->dbh->num_rows($result) != 0) {
-					$site_url = $this->dbh->escape_string(db_fetch_result($result, 0, "site_url"));
-					$feed_url = $this->dbh->escape_string(db_fetch_result($result, 0, "feed_url"));
-					$title = $this->dbh->escape_string(db_fetch_result($result, 0, "title"));
+				if ($row = $sth->fetch()) {
+					$site_url = $row['site_url'];
+					$feed_url = $row['feed_url'];
+					$title = $row['title'];
 
-					$result = $this->dbh->query("SELECT id FROM ttrss_feeds WHERE
-						feed_url = '$feed_url' AND owner_uid = " . $_SESSION["uid"]);
+					$sth = $this->pdo->prepare("SELECT id FROM ttrss_feeds WHERE
+						feed_url = ? AND owner_uid = ?");
+					$sth->execute([$feed_url, $_SESSION['uid']]);
 
-					if ($this->dbh->num_rows($result) == 0) {
-						$result = $this->dbh->query("INSERT INTO ttrss_feeds
-										(owner_uid,feed_url,title,cat_id,site_url)
-									VALUES ('".$_SESSION["uid"]."',
-									'$feed_url', '$title', NULL, '$site_url')");
+					if (!$sth->fetch()) {
+						$sth = $this->pdo->prepare("INSERT INTO ttrss_feeds
+								(owner_uid,feed_url,title,cat_id,site_url)
+									VALUES (?, ?, ?, NULL, ?)");
+
+						$sth->execute([$_SESSION['uid'], $feed_url, $title, $site_url]);
 					}
 				}
 			}
@@ -434,36 +418,19 @@ class RPC extends Handler_Protected {
 	}
 
 	function catchupFeed() {
-		$feed_id = $this->dbh->escape_string($_REQUEST['feed_id']);
-		$is_cat = $this->dbh->escape_string($_REQUEST['is_cat']) == "true";
-		$mode = $this->dbh->escape_string($_REQUEST['mode']);
-		$search_query = $this->dbh->escape_string($_REQUEST['search_query']);
-		$search_lang = $this->dbh->escape_string($_REQUEST['search_lang']);
+		$feed_id = clean($_REQUEST['feed_id']);
+		$is_cat = clean($_REQUEST['is_cat']) == "true";
+		$mode = clean($_REQUEST['mode']);
+		$search_query = clean($_REQUEST['search_query']);
+		$search_lang = clean($_REQUEST['search_lang']);
 
 		Feeds::catchup_feed($feed_id, $is_cat, false, $mode, [$search_query, $search_lang]);
 
 		print json_encode(array("message" => "UPDATE_COUNTERS"));
 	}
 
-	function quickAddCat() {
-		$cat = $this->dbh->escape_string($_REQUEST["cat"]);
-
-		add_feed_category($cat);
-
-		$result = $this->dbh->query("SELECT id FROM ttrss_feed_categories WHERE
-			title = '$cat' AND owner_uid = " . $_SESSION["uid"]);
-
-		if ($this->dbh->num_rows($result) == 1) {
-			$id = $this->dbh->fetch_result($result, 0, "id");
-		} else {
-			$id = 0;
-		}
-
-		print_feed_cat_select("cat_id", $id, '');
-	}
-
 	function setpanelmode() {
-		$wide = (int) $_REQUEST["wide"];
+		$wide = (int) clean($_REQUEST["wide"]);
 
 		setcookie("ttrss_widescreen", $wide,
 			time() + COOKIE_LIFETIME_LONG);
@@ -471,7 +438,7 @@ class RPC extends Handler_Protected {
 		print json_encode(array("wide" => $wide));
 	}
 
-	static function updaterandomfeed_real($dbh) {
+	static function updaterandomfeed_real() {
 
 		// Test if the feed need a update (update interval exceded).
 		if (DB_TYPE == "pgsql") {
@@ -503,15 +470,17 @@ class RPC extends Handler_Protected {
 
 		$random_qpart = sql_random_function();
 
+		$pdo = Db::pdo();
+
 		// we could be invoked from public.php with no active session
 		if ($_SESSION["uid"]) {
-			$owner_check_qpart = "AND ttrss_feeds.owner_uid = '".$_SESSION["uid"]."'";
+			$owner_check_qpart = "AND ttrss_feeds.owner_uid = ".$pdo->quote($_SESSION["uid"]);
 		} else {
 			$owner_check_qpart = "";
 		}
 
 		// We search for feed needing update.
-		$result = $dbh->query("SELECT ttrss_feeds.feed_url,ttrss_feeds.id
+		$res = $pdo->query("SELECT ttrss_feeds.feed_url,ttrss_feeds.id
 			FROM
 				ttrss_feeds, ttrss_users, ttrss_user_prefs
 			WHERE
@@ -523,13 +492,11 @@ class RPC extends Handler_Protected {
 				$updstart_thresh_qpart
 			ORDER BY $random_qpart LIMIT 30");
 
-		$feed_id = -1;
-
 		$num_updated = 0;
 
 		$tstart = time();
 
-		while ($line = $dbh->fetch_assoc($result)) {
+		while ($line = $res->fetch()) {
 			$feed_id = $line["id"];
 
 			if (time() - $tstart < ini_get("max_execution_time") * 0.7) {
@@ -554,68 +521,61 @@ class RPC extends Handler_Protected {
 	}
 
 	function updaterandomfeed() {
-		RPC::updaterandomfeed_real($this->dbh);
+		RPC::updaterandomfeed_real();
 	}
 
 	private function markArticlesById($ids, $cmode) {
 
-		$tmp_ids = array();
-
-		foreach ($ids as $id) {
-			array_push($tmp_ids, "ref_id = '$id'");
-		}
-
-		$ids_qpart = join(" OR ", $tmp_ids);
+		$ids_qmarks = arr_qmarks($ids);
 
 		if ($cmode == 0) {
-			$this->dbh->query("UPDATE ttrss_user_entries SET
-			marked = false, last_marked = NOW()
-			WHERE ($ids_qpart) AND owner_uid = " . $_SESSION["uid"]);
+			$sth = $this->pdo->prepare("UPDATE ttrss_user_entries SET
+				marked = false, last_marked = NOW()
+					WHERE ref_id IN ($ids_qmarks) AND owner_uid = ?");
 		} else if ($cmode == 1) {
-			$this->dbh->query("UPDATE ttrss_user_entries SET
-			marked = true, last_marked = NOW()
-			WHERE ($ids_qpart) AND owner_uid = " . $_SESSION["uid"]);
+			$sth = $this->pdo->prepare("UPDATE ttrss_user_entries SET
+				marked = true, last_marked = NOW()
+					WHERE ref_id IN ($ids_qmarks) AND owner_uid = ?");
 		} else {
-			$this->dbh->query("UPDATE ttrss_user_entries SET
-			marked = NOT marked,last_marked = NOW()
-			WHERE ($ids_qpart) AND owner_uid = " . $_SESSION["uid"]);
+			$sth = $this->pdo->prepare("UPDATE ttrss_user_entries SET
+				marked = NOT marked,last_marked = NOW()
+					WHERE ref_id IN ($ids_qmarks) AND owner_uid = ?");
 		}
+
+		$sth->execute(array_merge($ids, [$_SESSION['uid']]));
 	}
 
 	private function publishArticlesById($ids, $cmode) {
 
-		$tmp_ids = array();
-
-		foreach ($ids as $id) {
-			array_push($tmp_ids, "ref_id = '$id'");
-		}
-
-		$ids_qpart = join(" OR ", $tmp_ids);
+		$ids_qmarks = arr_qmarks($ids);
 
 		if ($cmode == 0) {
-			$this->dbh->query("UPDATE ttrss_user_entries SET
-			published = false,last_published = NOW()
-			WHERE ($ids_qpart) AND owner_uid = " . $_SESSION["uid"]);
+			$sth = $this->pdo->prepare("UPDATE ttrss_user_entries SET
+				published = false, last_published = NOW()
+					WHERE ref_id IN ($ids_qmarks) AND owner_uid = ?");
 		} else if ($cmode == 1) {
-			$this->dbh->query("UPDATE ttrss_user_entries SET
-			published = true,last_published = NOW()
-			WHERE ($ids_qpart) AND owner_uid = " . $_SESSION["uid"]);
+			$sth = $this->pdo->prepare("UPDATE ttrss_user_entries SET
+				published = true, last_published = NOW()
+					WHERE ref_id IN ($ids_qmarks) AND owner_uid = ?");
 		} else {
-			$this->dbh->query("UPDATE ttrss_user_entries SET
-			published = NOT published,last_published = NOW()
-			WHERE ($ids_qpart) AND owner_uid = " . $_SESSION["uid"]);
+			$sth = $this->pdo->prepare("UPDATE ttrss_user_entries SET
+				published = NOT published,last_published = NOW()
+					WHERE ref_id IN ($ids_qmarks) AND owner_uid = ?");
 		}
+
+		$sth->execute(array_merge($ids, [$_SESSION['uid']]));
 	}
 
 	function getlinktitlebyid() {
-		$id = $this->dbh->escape_string($_REQUEST['id']);
+		$id = clean($_REQUEST['id']);
 
-		$result = $this->dbh->query("SELECT link, title FROM ttrss_entries, ttrss_user_entries
-			WHERE ref_id = '$id' AND ref_id = id AND owner_uid = ". $_SESSION["uid"]);
+		$sth = $this->pdo->prepare("SELECT link, title FROM ttrss_entries, ttrss_user_entries
+			WHERE ref_id = ? AND ref_id = id AND owner_uid = ?");
+		$sth->execute([$id, $_SESSION['uid']]);
 
-		if ($this->dbh->num_rows($result) != 0) {
-			$link = $this->dbh->fetch_result($result, 0, "link");
-			$title = $this->dbh->fetch_result($result, 0, "title");
+		if ($row = $sth->fetch()) {
+			$link = $row['link'];
+			$title = $row['title'];
 
 			echo json_encode(array("link" => $link, "title" => $title));
 		} else {
@@ -624,10 +584,10 @@ class RPC extends Handler_Protected {
 	}
 
 	function log() {
-		$msg = $this->dbh->escape_string($_REQUEST['msg']);
-		$file = $this->dbh->escape_string(basename($_REQUEST['file']));
-		$line = (int) $_REQUEST['line'];
-		$context = $this->dbh->escape_string($_REQUEST['context']);
+		$msg = clean($_REQUEST['msg']);
+		$file = basename(clean($_REQUEST['file']));
+		$line = (int) clean($_REQUEST['line']);
+		$context = clean($_REQUEST['context']);
 
 		if ($msg) {
 			Logger::get()->log_error(E_USER_WARNING,

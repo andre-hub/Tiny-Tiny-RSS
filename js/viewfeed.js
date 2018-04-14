@@ -423,11 +423,9 @@ function toggleMark(id, client_only) {
 
 		if (!row.hasClassName("marked")) {
 			img.src = img.src.replace("mark_unset", "mark_set");
-			img.alt = __("Unstar article");
 			query = query + "&mark=1";
 		} else {
 			img.src = img.src.replace("mark_set", "mark_unset");
-			img.alt = __("Star article");
 			query = query + "&mark=0";
 		}
 	}
@@ -472,16 +470,14 @@ function togglePub(id, client_only, no_effects, note) {
 			imgs.push(fte[i]);
 	}
 
-	for (i = 0; i < imgs.length; i++) {
+	for (var i = 0; i < imgs.length; i++) {
 		var img = imgs[i];
 
 		if (!row.hasClassName("published") || note != undefined) {
 			img.src = img.src.replace("pub_unset", "pub_set");
-			img.alt = __("Unpublish article");
 			query = query + "&pub=1";
 		} else {
 			img.src = img.src.replace("pub_set", "pub_unset");
-			img.alt = __("Publish article");
 			query = query + "&pub=0";
 		}
 	}
@@ -938,7 +934,7 @@ function deleteSelection() {
 		return;
 	}
 
-	query = "?op=rpc&method=delete&ids=" + param_escape(rows);
+	var query = "?op=rpc&method=delete&ids=" + param_escape(rows);
 
 	console.log(query);
 
@@ -982,7 +978,7 @@ function archiveSelection() {
 		return;
 	}
 
-	query = "?op=rpc&method="+op+"&ids=" + param_escape(rows);
+	var query = "?op=rpc&method="+op+"&ids=" + param_escape(rows);
 
 	console.log(query);
 
@@ -1028,7 +1024,7 @@ function editArticleTags(id) {
 	if (dijit.byId("editTagsDlg"))
 		dijit.byId("editTagsDlg").destroyRecursive();
 
-	dialog = new dijit.Dialog({
+	var dialog = new dijit.Dialog({
 		id: "editTagsDlg",
 		title: __("Edit article Tags"),
 		style: "width: 600px",
@@ -1263,7 +1259,7 @@ function catchupBatchedArticles() {
 
 				_catchup_request_sent = false;
 
-				reply = JSON.parse(transport.responseText);
+				var reply = JSON.parse(transport.responseText);
 				var batch = reply.ids;
 
 				batch.each(function (id) {
@@ -1552,8 +1548,6 @@ function hlClicked(event, id) {
 		view(id);
 		return true;
 	} else if (event.ctrlKey || event.metaKey) {
-		toggleSelected(id, true);
-		toggleUnread(id, 0, false);
 		openArticleInNewWindow(id);
 		return false;
 	} else {

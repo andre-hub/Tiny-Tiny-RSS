@@ -90,10 +90,12 @@
 				}
 			}
 
-			if (SINGLE_USER_MODE) {
-				$result = db_query("SELECT id FROM ttrss_users WHERE id = 1");
+			if (SINGLE_USER_MODE && class_exists("PDO")) {
+			    $pdo = DB::pdo();
 
-				if (db_num_rows($result) != 1) {
+				$res = $pdo->query("SELECT id FROM ttrss_users WHERE id = 1");
+
+				if (!$res->fetch()) {
 					array_push($errors, "SINGLE_USER_MODE is enabled in config.php but default admin account is not found.");
 				}
 			}
@@ -135,6 +137,10 @@
 
 			if (DB_TYPE == "pgsql" && !function_exists("pg_connect")) {
 				array_push($errors, "PHP support for PostgreSQL is required for configured DB_TYPE in config.php");
+			}
+
+			if (!class_exists("PDO")) {
+				array_push($errors, "PHP support for PDO is required but was not found.");
 			}
 
 			if (!function_exists("mb_strlen")) {
@@ -186,9 +192,9 @@
 			<head>
 			<title>Startup failed</title>
 				<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
-				<link rel="stylesheet" type="text/css" href="css/utility.css">
+				<link rel="stylesheet" type="text/css" href="css/default.css">
 			</head>
-		<body class='sanity_failed'>
+		<body class='sanity_failed claro ttrss_utility'>
 		<div class="floatingLogo"><img src="images/logo_small.png"></div>
 			<div class="content">
 

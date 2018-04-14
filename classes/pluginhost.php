@@ -1,6 +1,6 @@
 <?php
 class PluginHost {
-	private $dbh;
+	private $pdo;
 	private $hooks = array();
 	private $plugins = array();
 	private $handlers = array();
@@ -56,13 +56,14 @@ class PluginHost {
 	const HOOK_FORMAT_ARTICLE_CDM = 35;
 	const HOOK_FEED_BASIC_INFO = 36;
 	const HOOK_SEND_LOCAL_FILE = 37;
+	const HOOK_UNSUBSCRIBE_FEED = 38;
 
 	const KIND_ALL = 1;
 	const KIND_SYSTEM = 2;
 	const KIND_USER = 3;
 
 	function __construct() {
-		$this->dbh = Db::get();
+		$this->pdo = Db::pdo();
 
 		$this->storage = array();
 	}
@@ -89,9 +90,13 @@ class PluginHost {
 	}
 
 	function get_dbh() {
-		return $this->dbh;
+		return Db::get();
 	}
 
+	function get_pdo() {
+		return $this->pdo;
+	}
+	
 	function get_plugin_names() {
 		$names = array();
 
@@ -275,8 +280,6 @@ class PluginHost {
 		} else {
 			return false;
 		}
-
-		return false;
 	}
 
 	function get_commands() {
@@ -294,10 +297,11 @@ class PluginHost {
 
 	function load_data() {
 		if ($this->owner_uid)  {
-			$result = $this->dbh->query("SELECT name, content FROM ttrss_plugin_storage
-				WHERE owner_uid = '".$this->owner_uid."'");
+			$sth = $this->pdo->prepare("SELECT name, content FROM ttrss_plugin_storage
+				WHERE owner_uid = ?");
+			$sth->execute([$this->owner_uid]);
 
-			while ($line = $this->dbh->fetch_assoc($result)) {
+			while ($line = $sth->fetch()) {
 				$this->storage[$line["name"]] = unserialize($line["content"]);
 			}
 		}
@@ -305,30 +309,30 @@ class PluginHost {
 
 	private function save_data($plugin) {
 		if ($this->owner_uid) {
-			$plugin = $this->dbh->escape_string($plugin);
+			$this->pdo->beginTransaction();
 
-			$this->dbh->query("BEGIN");
-
-			$result = $this->dbh->query("SELECT id FROM ttrss_plugin_storage WHERE
-				owner_uid= '".$this->owner_uid."' AND name = '$plugin'");
+			$sth = $this->pdo->prepare("SELECT id FROM ttrss_plugin_storage WHERE
+				owner_uid= ? AND name = ?");
+			$sth->execute([$this->owner_uid, $plugin]);
 
 			if (!isset($this->storage[$plugin]))
 				$this->storage[$plugin] = array();
 
-			$content = $this->dbh->escape_string(serialize($this->storage[$plugin]),
-				false);
+			$content = serialize($this->storage[$plugin]);
 
-			if ($this->dbh->num_rows($result) != 0) {
-				$this->dbh->query("UPDATE ttrss_plugin_storage SET content = '$content'
-					WHERE owner_uid= '".$this->owner_uid."' AND name = '$plugin'");
+			if ($sth->fetch()) {
+				$sth = $this->pdo->prepare("UPDATE ttrss_plugin_storage SET content = ?
+					WHERE owner_uid= ? AND name = ?");
+				$sth->execute([(string)$content, $this->owner_uid, $plugin]);
 
 			} else {
-				$this->dbh->query("INSERT INTO ttrss_plugin_storage
+				$sth = $this->pdo->prepare("INSERT INTO ttrss_plugin_storage
 					(name,owner_uid,content) VALUES
-					('$plugin','".$this->owner_uid."','$content')");
+					(?, ?, ?)");
+				$sth->execute([$plugin, $this->owner_uid, (string)$content]);
 			}
 
-			$this->dbh->query("COMMIT");
+			$this->pdo->commit();
 		}
 	}
 
@@ -356,7 +360,9 @@ class PluginHost {
 	function get_all($sender) {
 		$idx = get_class($sender);
 
-		return $this->storage[$idx];
+		$data = $this->storage[$idx];
+
+		return $data ? $data : [];
 	}
 
 	function clear_data($sender) {
@@ -365,8 +371,9 @@ class PluginHost {
 
 			unset($this->storage[$idx]);
 
-			$this->dbh->query("DELETE FROM ttrss_plugin_storage WHERE name = '$idx'
-				AND owner_uid = " . $this->owner_uid);
+			$sth = $this->pdo->prepare("DELETE FROM ttrss_plugin_storage WHERE name = ?
+				AND owner_uid = ?");
+			$sth->execute([$idx, $this->owner_uid]);
 		}
 	}
 

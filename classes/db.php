@@ -1,17 +1,29 @@
 <?php
-class Db implements IDb {
+class Db
+{
+
+	/* @var Db $instance */
 	private static $instance;
+
+	/* @var IDb $adapter */
 	private $adapter;
+
 	private $link;
 
-	private function __construct() {
+	/* @var PDO $pdo */
+	private $pdo;
+
+	private function __clone() {
+		//
+	}
+
+	private function legacy_connect() {
+
+		user_error("Legacy connect requested to " . DB_TYPE, E_USER_NOTICE);
 
 		$er = error_reporting(E_ALL);
 
-		if (defined('_ENABLE_PDO') && _ENABLE_PDO && class_exists("PDO")) {
-			$this->adapter = new Db_PDO();
-		} else {
-			switch (DB_TYPE) {
+		switch (DB_TYPE) {
 			case "mysql":
 				$this->adapter = new Db_Mysqli();
 				break;
@@ -20,7 +32,6 @@ class Db implements IDb {
 				break;
 			default:
 				die("Unknown DB_TYPE: " . DB_TYPE);
-			}
 		}
 
 		if (!$this->adapter) {
@@ -38,63 +49,57 @@ class Db implements IDb {
 		error_reporting($er);
 	}
 
-	private function __clone() {
-		//
+	private function pdo_connect() {
+
+		$db_port = defined('DB_PORT') && DB_PORT ? ';port=' . DB_PORT : '';
+		$db_host = defined('DB_HOST') && DB_HOST ? ';host=' . DB_HOST : '';
+
+		try {
+			$this->pdo = new PDO(DB_TYPE . ':dbname=' . DB_NAME . $db_host . $db_port,
+				DB_USER,
+				DB_PASS);
+		} catch (Exception $e) {
+			print "<pre>Exception while creating PDO object:" . $e->getMessage() . "</pre>";
+			exit(101);
+		}
+
+		$this->pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_WARNING);
+
+		if (DB_TYPE == "pgsql") {
+
+			$this->pdo->query("set client_encoding = 'UTF-8'");
+			$this->pdo->query("set datestyle = 'ISO, european'");
+			$this->pdo->query("set TIME ZONE 0");
+			$this->pdo->query("set cpu_tuple_cost = 0.5");
+
+		} else if (DB_TYPE == "mysql") {
+			$this->pdo->query("SET time_zone = '+0:0'");
+
+			if (defined('MYSQL_CHARSET') && MYSQL_CHARSET) {
+				$this->pdo->query("SET NAMES " . MYSQL_CHARSET);
+			}
+		}
 	}
 
 	public static function get() {
 		if (self::$instance == null)
 			self::$instance = new self();
 
-		return self::$instance;
+		if (!self::$instance->adapter) {
+			self::$instance->legacy_connect();
+		}
+
+		return self::$instance->adapter;
 	}
 
-	static function quote($str){
-		return("'$str'");
-	}
+	public static function pdo() {
+		if (self::$instance == null)
+			self::$instance = new self();
 
-	function reconnect() {
-		$this->link = $this->adapter->connect(DB_HOST, DB_USER, DB_PASS, DB_NAME, defined('DB_PORT') ? DB_PORT : "");
-	}
+		if (!self::$instance->pdo) {
+			self::$instance->pdo_connect();
+		}
 
-	function connect($host, $user, $pass, $db, $port) {
-		//return $this->adapter->connect($host, $user, $pass, $db, $port);
-		return ;
-	}
-
-	function escape_string($s, $strip_tags = true) {
-		return $this->adapter->escape_string($s, $strip_tags);
-	}
-
-	function query($query, $die_on_error = true) {
-		return $this->adapter->query($query, $die_on_error);
-	}
-
-	function fetch_assoc($result) {
-		return $this->adapter->fetch_assoc($result);
-	}
-
-	function num_rows($result) {
-		return $this->adapter->num_rows($result);
-	}
-
-	function fetch_result($result, $row, $param) {
-		return $this->adapter->fetch_result($result, $row, $param);
-	}
-
-	function close() {
-		return $this->adapter->close();
-	}
-
-	function affected_rows($result) {
-		return $this->adapter->affected_rows($result);
-	}
-
-	function last_error() {
-		return $this->adapter->last_error();
-	}
-
-	function last_query_error() {
-		return $this->adapter->last_query_error();
+		return self::$instance->pdo;
 	}
 }
