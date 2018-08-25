@@ -38,8 +38,8 @@
 	function sanity_check($db_type) {
 		$errors = array();
 
-		if (version_compare(PHP_VERSION, '5.4.0', '<')) {
-			array_push($errors, "PHP version 5.4.0 or newer required.");
+		if (version_compare(PHP_VERSION, '5.6.0', '<')) {
+			array_push($errors, "PHP version 5.6.0 or newer required. You're using " . PHP_VERSION . ".");
 		}
 
 		if (!function_exists("curl_init") && !ini_get("allow_url_fopen")) {
@@ -139,7 +139,7 @@
 	}
 
 	function is_server_https() {
-		return (!empty($_SERVER['HTTPS']) && ($_SERVER['HTTPS'] != 'off')) || $_SERVER['HTTP_X_FORWARDED_PROTO'] == 'https';
+		return (!empty($_SERVER['HTTPS']) && ($_SERVER['HTTPS'] != 'off')) || (!empty($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] == 'https');
 	}
 
 	function make_self_url_path() {

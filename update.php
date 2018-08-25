@@ -39,7 +39,6 @@
 			"debug-feed:",
 			"force-refetch",
 			"force-rehash",
-			"decrypt-feeds",
 			"help");
 
 	foreach (PluginHost::getInstance()->get_commands() as $command => $data) {
@@ -92,7 +91,6 @@
 		print "  --debug-feed N       - perform debug update of feed N\n";
 		print "  --force-refetch      - debug update: force refetch feed data\n";
 		print "  --force-rehash       - debug update: force rehash articles\n";
-		print "  --decrypt-feeds      - decrypt feed passwords\n";
 		print "  --help               - show this help\n";
 		print "Plugin options:\n";
 
@@ -160,7 +158,7 @@
 	if (isset($options["force-update"])) {
 		_debug("marking all feeds as needing update...");
 
-		$pdo->query( "UPDATE ttrss_feeds SET 
+		$pdo->query( "UPDATE ttrss_feeds SET
           last_update_started = '1970-01-01', last_updated = '1970-01-01'");
 	}
 
@@ -356,11 +354,11 @@
 		$limit = 500;
 		$processed = 0;
 
-		$sth = $pdo->prepare("SELECT id, title, content FROM ttrss_entries WHERE 
+		$sth = $pdo->prepare("SELECT id, title, content FROM ttrss_entries WHERE
           tsvector_combined IS NULL ORDER BY id LIMIT ?");
 		$sth->execute([$limit]);
 
-		$usth = $pdo->prepare("UPDATE ttrss_entries 
+		$usth = $pdo->prepare("UPDATE ttrss_entries
           SET tsvector_combined = to_tsvector('english', ?) WHERE id = ?");
 
 		while (true) {
@@ -415,39 +413,6 @@
 		$rc = RSSUtils::update_rss_feed($feed) != false ? 0 : 1;
 
 		exit($rc);
-	}
-
-	if (isset($options["decrypt-feeds"])) {
-
-		if (!function_exists("mcrypt_decrypt")) {
-			_debug("mcrypt functions not available.");
-			return;
-		}
-
-		$res = $pdo->query("SELECT id, auth_pass FROM ttrss_feeds WHERE auth_pass_encrypted = true");
-
-		require_once "crypt.php";
-
-		$total = 0;
-
-		$pdo->beginTransaction();
-
-		$usth = $pdo->prepare("UPDATE ttrss_feeds SET auth_pass_encrypted = false, auth_pass = ?
-				WHERE id = ?");
-
-		while ($line = $res->fetch()) {
-			_debug("processing feed id " . $line["id"]);
-
-			$auth_pass = decrypt_string($line["auth_pass"]);
-
-			$usth->execute([$auth_pass, $line['id']]);
-
-			++$total;
-		}
-
-		$pdo->commit();
-
-		_debug("$total feeds processed.");
 	}
 
 	PluginHost::getInstance()->run_commands($options);

@@ -1564,6 +1564,66 @@
 		return false;
 	}
 
+	// check for locally cached (media) URLs and rewrite to local versions
+	// this is called separately after sanitize() and plugin render article hooks to allow
+	// plugins work on original source URLs used before caching
+
+	function rewrite_cached_urls($str) {
+		$charset_hack = '<head>
+				<meta http-equiv="Content-Type" content="text/html; charset=utf-8"/>
+			</head>';
+
+		$res = trim($str); if (!$res) return '';
+
+		$doc = new DOMDocument();
+		$doc->loadHTML($charset_hack . $res);
+		$xpath = new DOMXPath($doc);
+
+		$entries = $xpath->query('(//img[@src]|//video[@poster]|//video/source[@src]|//audio/source[@src])');
+
+		$need_saving = false;
+
+		foreach ($entries as $entry) {
+
+			if ($entry->hasAttribute('src') || $entry->hasAttribute('poster')) {
+
+				// should be already absolutized because this is called after sanitize()
+				$src = $entry->hasAttribute('poster') ? $entry->getAttribute('poster') : $entry->getAttribute('src');
+				$cached_filename = CACHE_DIR . '/images/' . sha1($src);
+
+				if (file_exists($cached_filename)) {
+
+					// this is strictly cosmetic
+					if ($entry->tagName == 'img') {
+						$suffix = ".png";
+					} else if ($entry->parentNode && $entry->parentNode->tagName == "video") {
+						$suffix = ".mp4";
+					} else if ($entry->parentNode && $entry->parentNode->tagName == "audio") {
+						$suffix = ".ogg";
+					} else {
+						$suffix = "";
+					}
+
+					$src = get_self_url_prefix() . '/public.php?op=cached_url&hash=' . sha1($src) . $suffix;
+
+					if ($entry->hasAttribute('poster'))
+						$entry->setAttribute('poster', $src);
+					else
+						$entry->setAttribute('src', $src);
+
+					$need_saving = true;
+				}
+			}
+		}
+
+		if ($need_saving) {
+			$doc->removeChild($doc->firstChild); //remove doctype
+			$res = $doc->saveHTML();
+		}
+
+		return $res;
+	}
+
 	function sanitize($str, $force_remove_images = false, $owner = false, $site_url = false, $highlight_words = false, $article_id = false) {
 		if (!$owner) $owner = $_SESSION["uid"];
 
@@ -1596,31 +1656,8 @@
 
 			if ($entry->hasAttribute('src')) {
 				$src = rewrite_relative_url($rewrite_base_url, $entry->getAttribute('src'));
-				$cached_filename = CACHE_DIR . '/images/' . sha1($src);
 
-				if (file_exists($cached_filename)) {
-
-					// this is strictly cosmetic
-					if ($entry->tagName == 'img') {
-						$suffix = ".png";
-					} else if ($entry->parentNode && $entry->parentNode->tagName == "video") {
-						$suffix = ".mp4";
-					} else if ($entry->parentNode && $entry->parentNode->tagName == "audio") {
-						$suffix = ".ogg";
-					} else {
-						$suffix = "";
-					}
-
-					$src = get_self_url_prefix() . '/public.php?op=cached_url&hash=' . sha1($src) . $suffix;
-
-					if ($entry->hasAttribute('srcset')) {
-						$entry->removeAttribute('srcset');
-					}
-
-					if ($entry->hasAttribute('sizes')) {
-						$entry->removeAttribute('sizes');
-					}
-				}
+				// cache stuff has gone to rewrite_cached_urls()
 
 				$entry->setAttribute('src', $src);
 			}
@@ -2564,6 +2601,9 @@
 		should be loaded systemwide in config.php */
 	function send_local_file($filename) {
 		if (file_exists($filename)) {
+
+			if (is_writable($filename)) touch($filename);
+
 			$tmppluginhost = new PluginHost();
 
 			$tmppluginhost->load(PLUGINS, PluginHost::KIND_SYSTEM);
@@ -2574,6 +2614,13 @@
 			}
 
 			$mimetype = mime_content_type($filename);
+
+			// this is hardly ideal but 1) only media is cached in images/ and 2) seemingly only mp4
+			// video files are detected as octet-stream by mime_content_type()
+
+			if ($mimetype == "application/octet-stream")
+				$mimetype = "video/mp4";
+
 			header("Content-type: $mimetype");
 
 			$stamp = gmdate("D, d M Y H:i:s", filemtime($filename)) . " GMT";
