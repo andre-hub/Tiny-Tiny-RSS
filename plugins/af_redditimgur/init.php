@@ -132,25 +132,14 @@ class Af_RedditImgur extends Plugin {
 
 					_debug("Handling as Gfycat", $debug);
 
-					$tmp = fetch_file_contents($entry->getAttribute("href"));
+					$source_stream = 'https://giant.gfycat.com/' . $matches[2] . '.mp4';
+					$poster_url = 'https://thumbs.gfycat.com/' . $matches[2] . '-mobile.jpg';
 
-					if ($tmp) {
-						$tmpdoc = new DOMDocument();
+					$content_type = $this->get_content_type($source_stream);
 
-						if (@$tmpdoc->loadHTML($tmp)) {
-							$tmpxpath = new DOMXPath($tmpdoc);
-
-							$source_node = $tmpxpath->query("//video[contains(@class,'share-video')]//source[contains(@src, '.mp4')]")->item(0);
-							$poster_node = $tmpxpath->query("//video[contains(@class,'share-video') and @poster]")->item(0);
-
-							if ($source_node && $poster_node) {
-								$source_stream = $source_node->getAttribute("src");
-								$poster_url = $poster_node->getAttribute("poster");
-
-								$this->handle_as_video($doc, $entry, $source_stream, $poster_url);
-								$found = 1;
-							}
-						}
+					if (strpos($content_type, "video/") !== FALSE) {
+						$this->handle_as_video($doc, $entry, $source_stream, $poster_url);
+						$found = 1;
 					}
 				}
 
@@ -318,8 +307,25 @@ class Af_RedditImgur extends Plugin {
 							$cxpath = new DOMXPath($cdoc);
 
 							$og_image = $cxpath->query("//meta[@property='og:image']")->item(0);
+							$og_video = $cxpath->query("//meta[@property='og:video']")->item(0);
 
-							if ($og_image) {
+							if ($og_video) {
+
+								$source_stream = $og_video->getAttribute("content");
+
+								if ($source_stream) {
+
+									if ($og_image) {
+										$poster_url = $og_image->getAttribute("content");
+									} else {
+										$poster_url = false;
+									}
+
+									$this->handle_as_video($doc, $entry, $source_stream, $poster_url);
+									$found = true;
+								}
+
+							} else if ($og_image) {
 
 								$og_src = $og_image->getAttribute("content");
 
