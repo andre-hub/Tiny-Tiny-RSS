@@ -162,7 +162,7 @@ class Pref_Prefs extends Handler_Protected {
 
 		$prefs_blacklist = array("ALLOW_DUPLICATE_POSTS", "STRIP_UNSAFE_TAGS", "REVERSE_HEADLINES",
 			"SORT_HEADLINES_BY_FEED_DATE", "DEFAULT_ARTICLE_LIMIT",
-			"FEEDS_SORT_BY_UNREAD");
+			"FEEDS_SORT_BY_UNREAD", "CDM_EXPANDED");
 
 		/* "FEEDS_SORT_BY_UNREAD", "HIDE_READ_FEEDS", "REVERSE_HEADLINES" */
 
@@ -1089,7 +1089,7 @@ class Pref_Prefs extends Handler_Protected {
 
 		print "<div class='dlgButtons'>
 			<div style='float : left'>
-			<button dojoType=\"dijit.form.Button\" onclick=\"dijit.byId('profileEditDlg').removeSelected()\">".
+			<button class=\"btn-danger\" dojoType=\"dijit.form.Button\" onclick=\"dijit.byId('profileEditDlg').removeSelected()\">".
 			__('Remove selected profiles')."</button>
 			<button dojoType=\"dijit.form.Button\" onclick=\"dijit.byId('profileEditDlg').activateProfile()\">".
 			__('Activate profile')."</button>

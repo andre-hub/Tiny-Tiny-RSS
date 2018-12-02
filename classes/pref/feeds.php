@@ -328,13 +328,12 @@ class Pref_Feeds extends Handler_Protected {
 	}
 
 	private function process_category_order(&$data_map, $item_id, $parent_id = false, $nest_level = 0) {
-		$debug = isset($_REQUEST["debug"]);
 
 		$prefix = "";
 		for ($i = 0; $i < $nest_level; $i++)
 			$prefix .= "   ";
 
-		if ($debug) _debug("$prefix C: $item_id P: $parent_id");
+		Debug::log("$prefix C: $item_id P: $parent_id");
 
 		$bare_item_id = substr($item_id, strpos($item_id, ':')+1);
 
@@ -361,7 +360,7 @@ class Pref_Feeds extends Handler_Protected {
 				$id = $item['_reference'];
 				$bare_id = substr($id, strpos($id, ':')+1);
 
-				if ($debug) _debug("$prefix [$order_id] $id/$bare_id");
+				Debug::log("$prefix [$order_id] $id/$bare_id");
 
 				if ($item['_reference']) {
 
@@ -641,7 +640,7 @@ class Pref_Feeds extends Handler_Protected {
 			$auth_checked = $auth_enabled ? 'checked' : '';
 			print "<div style=\"clear : both\">
 				<input type=\"checkbox\" $auth_checked name=\"need_auth\" dojoType=\"dijit.form.CheckBox\" id=\"feedEditDlg_loginCheck\"
-						onclick='checkboxToggleElement(this, \"feedEditDlg_loginContainer\")'>
+						onclick='displayIfChecked(this, \"feedEditDlg_loginContainer\")'>
 					<label for=\"feedEditDlg_loginCheck\">".
 				__('This feed requires authentication.')."</div>";
 
@@ -1545,12 +1544,10 @@ class Pref_Feeds extends Handler_Protected {
 	}
 
 	static function remove_feed($id, $owner_uid) {
-		$debug = isset($_REQUEST["debug"]);
-
 		foreach (PluginHost::getInstance()->get_hooks(PluginHost::HOOK_UNSUBSCRIBE_FEED) as $p) {
-			if( ! $p->hook_unsubscribe_feed($id, $owner_uid)){
-					if($debug) _debug("Feed not removed due to Error in Plugin. (HOOK_UNSUBSCRIBE_FEED)");
-					return;
+			if (! $p->hook_unsubscribe_feed($id, $owner_uid)) {
+                user_error("Feed $id (owner: $owner_uid) not removed due to plugin error (HOOK_UNSUBSCRIBE_FEED).", E_USER_WARNING);
+                return;
 			}
 		}
 
@@ -1659,7 +1656,7 @@ class Pref_Feeds extends Handler_Protected {
 
 		print "<div style=\"clear : both\">
 			<input type=\"checkbox\" name=\"need_auth\" dojoType=\"dijit.form.CheckBox\" id=\"feedDlg_loginCheck\"
-					onclick='checkboxToggleElement(this, \"feedDlg_loginContainer\")'>
+					onclick='displayIfChecked(this, \"feedDlg_loginContainer\")'>
 				<label for=\"feedDlg_loginCheck\">".
 				__('Feeds require authentication.')."</div>";
 
@@ -1714,11 +1711,11 @@ class Pref_Feeds extends Handler_Protected {
 
 	function regenFeedKey() {
 		$feed_id = clean($_REQUEST['id']);
-		$is_cat = clean($_REQUEST['is_cat']) == "true";
+		$is_cat = clean($_REQUEST['is_cat']);
 
 		$new_key = $this->update_feed_access_key($feed_id, $is_cat);
 
-		print json_encode(array("link" => $new_key));
+		print json_encode(["link" => $new_key]);
 	}
 
 
@@ -1728,7 +1725,7 @@ class Pref_Feeds extends Handler_Protected {
 		// clear old value and generate new one
 		$sth = $this->pdo->prepare("DELETE FROM ttrss_access_keys
 			WHERE feed_id = ? AND is_cat = ? AND owner_uid = ?");
-		$sth->execute([$feed_id, $is_cat, $owner_uid]);
+		$sth->execute([$feed_id, bool_to_sql_bool($is_cat), $owner_uid]);
 
 		return get_feed_access_key($feed_id, $is_cat, $owner_uid);
 	}

@@ -13,7 +13,6 @@
 	$fetch_last_error_content = false; // curl only for the time being
 	$fetch_effective_url = false;
 	$fetch_curl_used = false;
-	$suppress_debugging = false;
 
 	libxml_disable_entity_loader(true);
 
@@ -156,66 +155,10 @@
 
 	$schema_version = false;
 
-	function _debug_suppress($suppress) {
-		global $suppress_debugging;
-
-		$suppress_debugging = $suppress;
+	// TODO: compat wrapper, remove at some point
+	function _debug($msg) {
+	    Debug::log($msg);
 	}
-
-	/**
-	 * Print a timestamped debug message.
-	 *
-	 * @param string $msg The debug message.
-	 * @return void
-	 */
-	function _debug($msg, $show = true) {
-		global $suppress_debugging;
-
-		//echo "[$suppress_debugging] $msg $show\n";
-
-		if ($suppress_debugging) return false;
-
-		$ts = strftime("%H:%M:%S", time());
-		if (function_exists('posix_getpid')) {
-			$ts = "$ts/" . posix_getpid();
-		}
-
-		if ($show && !(defined('QUIET') && QUIET)) {
-			print "[$ts] $msg\n";
-		}
-
-		if (defined('LOGFILE'))  {
-			$fp = fopen(LOGFILE, 'a+');
-
-			if ($fp) {
-				$locked = false;
-
-				if (function_exists("flock")) {
-					$tries = 0;
-
-					// try to lock logfile for writing
-					while ($tries < 5 && !$locked = flock($fp, LOCK_EX | LOCK_NB)) {
-						sleep(1);
-						++$tries;
-					}
-
-					if (!$locked) {
-						fclose($fp);
-						return;
-					}
-				}
-
-				fputs($fp, "[$ts] $msg\n");
-
-				if (function_exists("flock")) {
-					flock($fp, LOCK_UN);
-				}
-
-				fclose($fp);
-			}
-		}
-
-	} // function _debug
 
 	/**
 	 * Purge a feed old posts.
@@ -227,7 +170,7 @@
 	 * @access public
 	 * @return void
 	 */
-	function purge_feed($feed_id, $purge_interval, $debug = false) {
+	function purge_feed($feed_id, $purge_interval) {
 
 		if (!$purge_interval) $purge_interval = feed_purge_interval($feed_id);
 
@@ -292,9 +235,7 @@
 
 		CCache::update($feed_id, $owner_uid);
 
-		if ($debug) {
-			_debug("Purged feed $feed_id ($purge_interval): deleted $rows articles");
-		}
+        Debug::log("Purged feed $feed_id ($purge_interval): deleted $rows articles");
 
 		return $rows;
 	} // function purge_feed
@@ -421,7 +362,7 @@
 				// holy shit closures in php
 				// download & upload are *expected* sizes respectively, could be zero
 				curl_setopt($ch, CURLOPT_PROGRESSFUNCTION, function($curl_handle, $download_size, $downloaded, $upload_size, $uploaded) use( &$max_size) {
-					//_debug("[curl progressfunction] $downloaded $max_size");
+					Debug::log("[curl progressfunction] $downloaded $max_size", Debug::$LOG_EXTENDED);
 
 					return ($downloaded > $max_size) ? 1 : 0; // if max size is set, abort when exceeding it
 				});
@@ -1223,8 +1164,8 @@
 				"feed_debug_viewfeed" => __("Debug viewfeed()"),
 				"catchup_all" => __("Mark all feeds as read"),
 				"cat_toggle_collapse" => __("Un/collapse current category"),
-				"toggle_combined_mode" => __("Toggle combined mode"),
-				"toggle_cdm_expanded" => __("Toggle auto expand in combined mode")),
+				"toggle_cdm_expanded" => __("Toggle auto expand in combined mode"),
+				"toggle_combined_mode" => __("Toggle combined mode")),
 			__("Go to") => array(
 				"goto_all" => __("All articles"),
 				"goto_fresh" => __("Fresh"),
@@ -1310,10 +1251,8 @@
 			"^(191)|Ctrl+/" => "help_dialog",
 		);
 
-		if (get_pref('COMBINED_DISPLAY_MODE')) {
-			$hotkeys["^(38)|Ctrl-up"] = "prev_article_noscroll";
-			$hotkeys["^(40)|Ctrl-down"] = "next_article_noscroll";
-		}
+		$hotkeys["^(38)|Ctrl-up"] = "prev_article_noscroll";
+		$hotkeys["^(40)|Ctrl-down"] = "next_article_noscroll";
 
 		foreach (PluginHost::getInstance()->get_hooks(PluginHost::HOOK_HOTKEY_MAP) as $plugin) {
 			$hotkeys = $plugin->hook_hotkey_map($hotkeys);
@@ -1823,6 +1762,10 @@
 						array_push($attrs_to_remove, $attr);
 					}
 
+					if (strpos($attr->nodeName, "data-") === 0) {
+						array_push($attrs_to_remove, $attr);
+					}
+
 					if ($attr->nodeName == 'href' && stripos($attr->value, 'javascript:') === 0) {
 						array_push($attrs_to_remove, $attr);
 					}
@@ -2152,7 +2095,7 @@
 		$sth = $pdo->prepare("SELECT access_key FROM ttrss_access_keys
 				WHERE feed_id = ? AND is_cat = ?
 				AND owner_uid = ?");
-		$sth->execute([$feed_id, (int)$is_cat, $owner_uid]);
+		$sth->execute([$feed_id, $is_cat, $owner_uid]);
 
 		if ($row = $sth->fetch()) {
 			return $row["access_key"];
@@ -2163,7 +2106,7 @@
 					(access_key, feed_id, is_cat, owner_uid)
 					VALUES (?, ?, ?, ?)");
 
-			$sth->execute([$key, $feed_id, (int)$is_cat, $owner_uid]);
+			$sth->execute([$key, $feed_id, $is_cat, $owner_uid]);
 
 			return $key;
 		}

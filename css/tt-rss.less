@@ -9,17 +9,17 @@ body.ttrss_main {
 		outline: none;
 	}
 
-	div.postReply {
+	div.post {
 		padding : 0px;
 
-		div.postHeader {
+		div.header {
 			padding : 5px;
 			color : #909090;
 			border: 0px solid #ddd;
 			border-bottom-width: 1px;
 			background: #f0f0f0;
 
-			div.postDate {
+			div.date {
 				text-align : right;
 				float : right;
 			}
@@ -35,7 +35,7 @@ body.ttrss_main {
 			}
 		}
 
-		div.postTitle {
+		div.title {
 			overflow : hidden;
 			font-size : 15px;
 			text-overflow: ellipsis;
@@ -45,11 +45,11 @@ body.ttrss_main {
 			font-family : @fonts-ui-bold;
 		}
 
-		div.postDate {
+		div.date {
 			padding-left : 10px;
 		}
 
-		div.postContent {
+		div.content {
 			padding : 10px;
 			font-size : 16px;
 
@@ -221,7 +221,7 @@ body.ttrss_main {
 		padding : 1px;
 		transition : color 0.2s, background 0.2s;
 
-		div.hlTitle {
+		div.title {
 			display : table-cell;
 			cursor : pointer;
 			width : 100%;
@@ -233,31 +233,31 @@ body.ttrss_main {
 			padding: 4px 6px;
 		}
 
-		div.hlLeft {
+		div.left {
 			display : table-cell;
 			vertical-align : middle;
 			white-space: nowrap;
 		}
 
-		div.hlRight {
+		div.right {
 			display : table-cell;
 			white-space: nowrap;
 			text-align : right;
 			vertical-align : middle;
 		}
 
-		div.hlRight img {
+		div.right img {
 			max-width : 16px;
 			max-height : 16px;
 		}
 
-		span.hlFeed {
+		span.feed {
 			display : table-cell;
 			vertical-align : middle;
 			text-align : right;
 		}
 
-		span.hlFeed a {
+		span.feed a {
 			border-radius : 4px;
 			display : inline-block;
 			padding : 1px 4px 1px 4px;
@@ -268,11 +268,11 @@ body.ttrss_main {
 			white-space : nowrap;
 		}
 
-		span.hlFeed a:hover {
+		span.feed a:hover {
 			color : @color-accent;
 		}
 
-		span.hlUpdated {
+		span.updated {
 			color : @default-text;
 			display : table-cell;
 			vertical-align : middle;
@@ -282,55 +282,55 @@ body.ttrss_main {
 			padding-left : 10px;
 		}
 
-		span.hlUpdated div {
+		span.updated div {
 			display : inline-block;
 		}
 
-		div.hlLeft {
+		div.left {
 			padding-left : 8px;
 		}
 
-		div.hlLeft input {
+		div.left input {
 			margin-left : 4px;
 			margin-right : 4px;
 		}
 
-		div.hlLeft img, div.hlRight img {
+		div.left img, div.right img {
 			margin : 0px 4px;
 		}
 
-		div.hlLeft img {
+		div.left img {
 			width : 16px;
 			height : 16px;
 		}
 
-		div.hlTitle a {
+		div.title a {
 			font-weight : 600;
 			text-rendering: optimizelegibility;
 			font-family : @fonts-ui;
 			color : #777;
 		}
 
-		a.title.high, span.hlContent.high .contentPreview {
+		a.title.high, span.hl-content.high .preview {
 			color : #00aa00;
 		}
 	}
 
-	.hl.Unread a.title.high, .hl.Unread span.hlContent.high .contentPreview {
+	.hl.Unread a.title.high, .hl.Unread span.hl-content.high .preview {
 		color : #00dd00;
 	}
 
-	.hl a.title.low, span.hlContent.low .contentPreview,
-	.hl.Unread a.title.low, .hl.Unread span.hlContent.low .contentPreview {
+	.hl a.title.low, span.hl-content.low .preview,
+	.hl.Unread a.title.low, .hl.Unread span.hl-content.low .preview {
 		color : #909090;
 		text-decoration : line-through;
 	}
 
-	.hl.Unread div.hlTitle a {
+	.hl.Unread div.title a {
 		color : black;
 	}
 
-	.hl.active div.hlTitle a {
+	.hl.active div.title a {
 		color : @color-accent;
 		/* text-shadow : 1px 1px 2px #fff; */
 	}
@@ -345,8 +345,8 @@ body.ttrss_main {
 		background : desaturate(@color-accent, 25%);
 
 		a,
-		.hlFeed a,
-		.hlContent a.title,
+		.feed a,
+		.hl-content a.title,
 		span {
 			color : white;
 		}
@@ -380,7 +380,6 @@ body.ttrss_main {
 	.dijitContentPane code {
 		color : #009900;
 		font-family : monospace;
-		font-size : 12px;
 	}
 
 	#content-insert pre,
@@ -541,7 +540,7 @@ body.ttrss_main {
 	}
 
 
-	span.contentPreview {
+	span.preview {
 		color : #999;
 		font-weight : normal;
 		font-size : 12px;
@@ -561,14 +560,14 @@ body.ttrss_main {
 		border-radius : 4px;
 	}
 
-	img.markedPic, img.pubPic {
+	img.marked-pic, img.pub-pic {
 		cursor : pointer;
 		vertical-align : middle;
 		opacity : 0.5;
 		transition : opacity 0.25s;
 	}
 
-	img.markedPic:hover, img.pubPic:hover {
+	img.marked-pic:hover, img.pub-pic:hover {
 		opacity : 1;
 	}
 
@@ -704,17 +703,17 @@ body.ttrss_main {
 	}
 
 
-	div#headlines-frame.wide .hlTitle {
+	div#headlines-frame.wide .title {
 		max-width : none;
 		overflow : visible;
 		white-space : normal;
 	}
 
-	div#headlines-frame.wide .hl .hlFeed {
+	div#headlines-frame.wide .hl .feed {
 		display : none;
 	}
 
-	img.hlScorePic {
+	img.score-pic {
 		vertical-align : middle;
 		width : 16px;
 		height : 16px;
@@ -1054,14 +1053,6 @@ body.ttrss_main {
 
 		h2 {
 			margin-top : 0px;
-		}
-	}
-
-	span.collapseBtn {
-		cursor : pointer;
-
-		img {
-			vertical-align : middle;
 		}
 	}
 

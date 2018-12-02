@@ -4,6 +4,7 @@ class Cache_Starred_Images extends Plugin implements IHandler {
 	/* @var PluginHost $host */
 	private $host;
 	private $cache_dir;
+    private $max_cache_attempts = 5; // per-article
 
 	function about() {
 		return array(1.0,
@@ -83,7 +84,7 @@ class Cache_Starred_Images extends Plugin implements IHandler {
 	 * @SuppressWarnings(PHPMD.UnusedLocalVariable)
 	 */
 	function hook_house_keeping() {
-		$files = glob($this->cache_dir . "/*.{png,mp4}", GLOB_BRACE);
+		$files = glob($this->cache_dir . "/*.{png,mp4,status}", GLOB_BRACE);
 
 		$last_article_id = 0;
 		$article_exists = 1;
@@ -167,6 +168,28 @@ class Cache_Starred_Images extends Plugin implements IHandler {
 	function cache_article_images($content, $site_url, $owner_uid, $article_id) {
 		libxml_use_internal_errors(true);
 
+		$status_filename = $this->cache_dir . $article_id . "-" . sha1($site_url) . ".status";
+
+		Debug::log("status: $status_filename", Debug::$LOG_EXTENDED);
+
+        if (file_exists($status_filename))
+            $status = json_decode(file_get_contents($status_filename), true);
+        else
+            $status = [];
+
+        $status["attempt"] += 1;
+
+        // only allow several download attempts for article
+        if ($status["attempt"] > $this->max_cache_attempts) {
+            Debug::log("too many attempts for $site_url", Debug::$LOG_VERBOSE);
+            return;
+        }
+
+        if (!file_put_contents($status_filename, json_encode($status))) {
+            user_error("unable to write status file: $status_filename", E_USER_WARNING);
+            return;
+        }
+
 		$charset_hack = '<head>
 			<meta http-equiv="Content-Type" content="text/html; charset=utf-8"/>
 		</head>';
@@ -191,13 +214,16 @@ class Cache_Starred_Images extends Plugin implements IHandler {
 
 				$local_filename = $this->cache_dir . $article_id . "-" . sha1($src) . $extension;
 
-				//_debug("cache_images: downloading: $src to $local_filename");
+				Debug::log("cache_images: downloading: $src to $local_filename", Debug::$LOG_VERBOSE);
 
 				if (!file_exists($local_filename)) {
 					$file_content = fetch_file_contents(["url" => $src, "max_size" => MAX_CACHE_FILE_SIZE]);
 
-					if ($file_content && strlen($file_content) > MIN_CACHE_FILE_SIZE) {
-						file_put_contents($local_filename, $file_content);
+					if ($file_content) {
+                        if (strlen($file_content) > MIN_CACHE_FILE_SIZE) {
+                            file_put_contents($local_filename, $file_content);
+                        }
+
 						$success = true;
 					}
 				} else {

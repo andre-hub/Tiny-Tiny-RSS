@@ -372,8 +372,7 @@ class Article extends Handler_Protected {
 		$ids = explode(",", clean($_REQUEST["ids"]));
 		$label_id = clean($_REQUEST["lid"]);
 
-		$label = db_escape_string(Labels::find_caption($label_id,
-		$_SESSION["uid"]));
+		$label = Labels::find_caption($label_id, $_SESSION["uid"]);
 
 		$reply["info-for-headlines"] = array();
 
@@ -457,7 +456,7 @@ class Article extends Handler_Protected {
 #				$entry .= " <a target=\"_blank\" href=\"" . htmlspecialchars($url) . "\" rel=\"noopener noreferrer\">" .
 #					$filename . " (" . $ctype . ")" . "</a>";
 
-				$entry = "<div onclick=\"openUrlPopup('".htmlspecialchars($url)."')\"
+				$entry = "<div onclick=\"popupOpenUrl('".htmlspecialchars($url)."')\"
 					dojoType=\"dijit.MenuItem\">$filename ($ctype)</div>";
 
 				array_push($entries_html, $entry);
@@ -537,7 +536,7 @@ class Article extends Handler_Protected {
 				else
 					$filename = "";
 
-				$rv .= "<div onclick='openUrlPopup(\"".htmlspecialchars($entry["url"])."\")'
+				$rv .= "<div onclick='popupOpenUrl(\"".htmlspecialchars($entry["url"])."\")'
 					dojoType=\"dijit.MenuItem\">".$filename . $title."</div>";
 
 			};
@@ -621,13 +620,13 @@ class Article extends Handler_Protected {
 				} else {
 					$comments_url = htmlspecialchars($line["link"]);
 				}
-				$entry_comments = "<a class=\"postComments\"
+				$entry_comments = "<a class=\"comments\"
 					target='_blank' rel=\"noopener noreferrer\" href=\"$comments_url\">$num_comments ".
 					_ngettext("comment", "comments", $num_comments)."</a>";
 
 			} else {
 				if ($line["comments"] && $line["link"] != $line["comments"]) {
-					$entry_comments = "<a class=\"postComments\" target='_blank' rel=\"noopener noreferrer\" href=\"".htmlspecialchars($line["comments"])."\">".__("comments")."</a>";
+					$entry_comments = "<a class=\"comments\" target='_blank' rel=\"noopener noreferrer\" href=\"".htmlspecialchars($line["comments"])."\">".__("comments")."</a>";
 				}
 			}
 
@@ -679,9 +678,9 @@ class Article extends Handler_Protected {
 				$rv['content'] .= "<body class=\"claro ttrss_utility ttrss_zoom\">";
 			}
 
-			$rv['content'] .= "<div class=\"postReply\" id=\"POST-$id\">";
+			$rv['content'] .= "<div class=\"post\" id=\"POST-$id\">";
 
-			$rv['content'] .= "<div class=\"postHeader\" id=\"POSTHDR-$id\">";
+			$rv['content'] .= "<div class=\"header\">";
 
 			$entry_author = $line["author"];
 
@@ -693,25 +692,25 @@ class Article extends Handler_Protected {
 				$owner_uid, true);
 
 			if (!$zoom_mode)
-				$rv['content'] .= "<div class=\"postDate\">$parsed_updated</div>";
+				$rv['content'] .= "<div class=\"date\">$parsed_updated</div>";
 
 			if ($line["link"]) {
-				$rv['content'] .= "<div class='postTitle'><a target='_blank' rel='noopener noreferrer'
+				$rv['content'] .= "<div class='title'><a target='_blank' rel='noopener noreferrer'
 					title=\"".htmlspecialchars($line['title'])."\"
 					href=\"" .
 					htmlspecialchars($line["link"]) . "\">" .
 					$line["title"] . "</a>" .
 					"<span class='author'>$entry_author</span></div>";
 			} else {
-				$rv['content'] .= "<div class='postTitle'>" . $line["title"] . "$entry_author</div>";
+				$rv['content'] .= "<div class='title'>" . $line["title"] . "$entry_author</div>";
 			}
 
 			if ($zoom_mode) {
 				$feed_title = htmlspecialchars($line["feed_title"]);
 
-				$rv['content'] .= "<div class=\"postFeedTitle\">$feed_title</div>";
+				$rv['content'] .= "<div class=\"feed-title\">$feed_title</div>";
 
-				$rv['content'] .= "<div class=\"postDate\">$parsed_updated</div>";
+				$rv['content'] .= "<div class=\"date\">$parsed_updated</div>";
 			}
 
 			$tags_str = Article::format_tags_string($line["tags"], $id);
@@ -721,7 +720,7 @@ class Article extends Handler_Protected {
 
 			if (!$entry_comments) $entry_comments = "&nbsp;"; # placeholder
 
-			$rv['content'] .= "<div class='postTags' style='float : right'>
+			$rv['content'] .= "<div class='tags' style='float : right'>
 				<img src='images/tag.png'
 				class='tagsPic' alt='Tags' title='Tags'>&nbsp;";
 
@@ -787,7 +786,7 @@ class Article extends Handler_Protected {
 
 			if (!$line['lang']) $line['lang'] = 'en';
 
-			$rv['content'] .= "<div class=\"postContent\" lang=\"".$line['lang']."\">";
+			$rv['content'] .= "<div class=\"content\" lang=\"".$line['lang']."\">";
 
 			$rv['content'] .= $line["content"];
 
@@ -937,24 +936,24 @@ class Article extends Handler_Protected {
 		return $rv;
 	}
 
-	static function purge_orphans($do_output = false) {
+	static function purge_orphans() {
 
-		// purge orphaned posts in main content table
+        // purge orphaned posts in main content table
 
-		if (DB_TYPE == "mysql")
-			$limit_qpart = "LIMIT 5000";
-		else
-			$limit_qpart = "";
+        if (DB_TYPE == "mysql")
+            $limit_qpart = "LIMIT 5000";
+        else
+            $limit_qpart = "";
 
-		$pdo = Db::pdo();
-		$res = $pdo->query("DELETE FROM ttrss_entries WHERE
+        $pdo = Db::pdo();
+        $res = $pdo->query("DELETE FROM ttrss_entries WHERE
 			NOT EXISTS (SELECT ref_id FROM ttrss_user_entries WHERE ref_id = id) $limit_qpart");
 
-		if ($do_output) {
-			$rows = $res->rowCount();
-			_debug("Purged $rows orphaned posts.");
-		}
-	}
+        if (Debug::enabled()) {
+            $rows = $res->rowCount();
+            Debug::log("Purged $rows orphaned posts.");
+        }
+    }
 
 	static function catchupArticlesById($ids, $cmode, $owner_uid = false) {
 

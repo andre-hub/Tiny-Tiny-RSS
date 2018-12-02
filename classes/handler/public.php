@@ -33,6 +33,7 @@ class Handler_Public extends Handler {
 			$date_sort_field = "updated DESC";
 			break;
 		}
+
 		$params = array(
 			"owner_uid" => $owner_uid,
 			"feed" => $feed,
@@ -47,7 +48,26 @@ class Handler_Public extends Handler {
 			"start_ts" => $start_ts
 		);
 
-		$qfh_ret = Feeds::queryFeedHeadlines($params);
+		if (!$is_cat && is_numeric($feed) && $feed < PLUGIN_FEED_BASE_INDEX && $feed > LABEL_BASE_INDEX) {
+
+			$user_plugins = get_pref("_ENABLED_PLUGINS", $owner_uid);
+
+			$tmppluginhost = new PluginHost();
+			$tmppluginhost->load(PLUGINS, PluginHost::KIND_ALL);
+			$tmppluginhost->load($user_plugins, PluginHost::KIND_USER, $owner_uid);
+			$tmppluginhost->load_data();
+
+			$handler = $tmppluginhost->get_feed_handler(
+				PluginHost::feed_to_pfeed_id($feed));
+
+			if ($handler) {
+				$qfh_ret = $handler->get_headlines(PluginHost::feed_to_pfeed_id($feed),
+					$options);
+			}
+
+		} else {
+			$qfh_ret = Feeds::queryFeedHeadlines($params);
+		}
 
 		$result = $qfh_ret[0];
 		$feed_title = htmlspecialchars($qfh_ret[1]);
@@ -757,7 +777,6 @@ class Handler_Public extends Handler {
 						$resetpass_link = get_self_url_prefix() . "/public.php?op=forgotpass&hash=" . $resetpass_token .
 							"&login=" . urlencode($login);
 
-						require_once 'classes/ttrssmailer.php';
 						require_once "lib/MiniTemplator.class.php";
 
 						$tpl = new MiniTemplator;
@@ -773,13 +792,14 @@ class Handler_Public extends Handler {
 
 						$tpl->generateOutputToString($message);
 
-						$mail = new ttrssMailer();
+						$mailer = new Mailer();
 
-						$rc = $mail->quickMail($email, $login,
-							__("[tt-rss] Password reset request"),
-							$message, false);
+						$rc = $mailer->mail(["to_name" => $login, 
+							"to_address" => $email,
+							"subject" => __("[tt-rss] Password reset request"),
+							"message" => $message]);
 
-						if (!$rc) print_error($mail->ErrorInfo);
+						if (!$rc) print_error($mailer->error());
 
 						$resetpass_token_full = time() . ":" . $resetpass_token;
 

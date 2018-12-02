@@ -10,7 +10,6 @@ class PluginHost {
 	private $api_methods = array();
 	private $plugin_actions = array();
 	private $owner_uid;
-	private $debug;
 	private $last_registered;
 	private static $instance;
 
@@ -57,6 +56,7 @@ class PluginHost {
 	const HOOK_FEED_BASIC_INFO = 36;
 	const HOOK_SEND_LOCAL_FILE = 37;
 	const HOOK_UNSUBSCRIBE_FEED = 38;
+	const HOOK_SEND_MAIL = 39;
 
 	const KIND_ALL = 1;
 	const KIND_SYSTEM = 2;
@@ -397,14 +397,6 @@ class PluginHost {
 				AND owner_uid = ?");
 			$sth->execute([$idx, $this->owner_uid]);
 		}
-	}
-
-	function set_debug($debug) {
-		$this->debug = $debug;
-	}
-
-	function get_debug() {
-		return $this->debug;
 	}
 
 	// Plugin feed functions are *EXPERIMENTAL*!

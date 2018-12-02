@@ -10,66 +10,55 @@ function shareArticle(id) {
 			title: __("Share article by URL"),
 			style: "width: 600px",
 			newurl: function() {
-
-				var ok = confirm(__("Generate new share URL for this article?"));
-
-				if (ok) {
+				if (confirm(__("Generate new share URL for this article?"))) {
 
 					notify_progress("Trying to change URL...", true);
 
-					var query = "op=pluginhandler&plugin=share&method=newkey&id=" + param_escape(id);
+					const query = { op: "pluginhandler", plugin: "share", method: "newkey", id: id };
 
-					new Ajax.Request("backend.php", {
-						parameters: query,
-						onComplete: function(transport) {
-								var reply = JSON.parse(transport.responseText);
-								var new_link = reply.link;
+					xhrJson("backend.php", query, (reply) => {
+						if (reply) {
+							const new_link = reply.link;
+							const e = $('gen_article_url');
 
-								var e = $('gen_article_url');
+							if (new_link) {
 
-								if (new_link) {
+								e.innerHTML = e.innerHTML.replace(/\&amp;key=.*$/,
+									"&amp;key=" + new_link);
 
-									e.innerHTML = e.innerHTML.replace(/\&amp;key=.*$/,
-										"&amp;key=" + new_link);
+								e.href = e.href.replace(/\&key=.*$/,
+									"&key=" + new_link);
 
-									e.href = e.href.replace(/\&key=.*$/,
-										"&key=" + new_link);
+								new Effect.Highlight(e);
 
-									new Effect.Highlight(e);
+								const img = $("SHARE-IMG-" + id);
+								if (img) img.src = img.src.replace("notshared.png", "share.png");
 
-									var img = $("SHARE-IMG-" + id);
-									if (img) img.src = img.src.replace("notshared.png", "share.png");
+								notify('');
 
-									notify('');
-
-								} else {
-									notify_error("Could not change URL.");
-								}
-						} });
-
+							} else {
+								notify_error("Could not change URL.");
+							}
+						}
+					});
 				}
 
 			},
 			unshare: function() {
-
-				var ok = confirm(__("Remove sharing for this article?"));
-
-				if (ok) {
+				if (confirm(__("Remove sharing for this article?"))) {
 
 					notify_progress("Trying to unshare...", true);
 
-					var query = "op=pluginhandler&plugin=share&method=unshare&id=" + param_escape(id);
+					const query = { op: "pluginhandler", plugin: "share", method: "unshare", id: id };
 
-					new Ajax.Request("backend.php", {
-						parameters: query,
-						onComplete: function(transport) {
-							notify("Article unshared.");
+					xhrPost("backend.php", query, () => {
+						notify("Article unshared.");
 
-							var img = $("SHARE-IMG-" + id);
-							if (img) img.src = img.src.replace("share.png", "notshared.png");
+						var img = $("SHARE-IMG-" + id);
+						if (img) img.src = img.src.replace("share.png", "notshared.png");
 
-							dialog.hide();
-						} });
+						dialog.hide();
+					});
 				}
 
 			},
@@ -77,7 +66,7 @@ function shareArticle(id) {
 
 		dialog.show();
 
-		var img = $("SHARE-IMG-" + id);
+		const img = $("SHARE-IMG-" + id);
 		if (img) img.src = img.src.replace("notshared.png", "share.png");
 
 	} catch (e) {

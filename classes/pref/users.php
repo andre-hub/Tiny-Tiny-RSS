@@ -287,8 +287,6 @@ class Pref_Users extends Handler_Protected {
 					print_notice(T_sprintf("Sending new password of user <b>%s</b> to <b>%s</b>", $login, $email));
 				}
 
-				require_once 'classes/ttrssmailer.php';
-
 				if ($email) {
 					require_once "lib/MiniTemplator.class.php";
 
@@ -305,13 +303,14 @@ class Pref_Users extends Handler_Protected {
 
 					$tpl->generateOutputToString($message);
 
-					$mail = new ttrssMailer();
+					$mailer = new Mailer();
 
-					$rc = $mail->quickMail($email, $login,
-						__("[tt-rss] Password change notification"),
-						$message, false);
+					$rc = $mailer->mail(["to_name" => $login,
+						"to_address" => $email,
+						"subject" => __("[tt-rss] Password change notification"),
+						"message" => $message]);
 
-					if (!$rc) print_error($mail->ErrorInfo);
+					if (!$rc) print_error($mailer->error());
 				}
 
 			}
@@ -426,7 +425,7 @@ class Pref_Users extends Handler_Protected {
 
 				$onclick = "onclick='editUser($uid, event)' title='".__('Click to edit')."'";
 
-				print "<td $onclick><img src='images/user.png' class='markedPic' alt=''> " . $line["login"] . "</td>";
+				print "<td $onclick><img src='images/user.png' class='marked-pic' alt=''> " . $line["login"] . "</td>";
 
 				if (!$line["email"]) $line["email"] = "&nbsp;";
 
