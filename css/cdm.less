@@ -1,30 +1,41 @@
 .cdm {
-	margin-right : 4px;
-
 	.header, .footer {
-		display : table;
+		display : flex;
+		flex-direction : row;
+		flex-wrap : nowrap;
 	}
 
-	.header img, .header input, .footer img {
-		vertical-align : middle;
-	}
-
-	.header > div, .footer > div {
-		white-space : nowrap;
-	}
-
-	.header > span, .footer > span.left {
-		width : 100%;
-	}
-
-	.header img, .footer img {
+	.header img, .footer img,
+	.footer i {
 		margin : 0px 4px;
+		vertical-align: middle;
 	}
 
 	.header {
 		> * {
-			display : table-cell;
-			padding : 5px;
+			align-self : center;
+			padding : 4px;
+			white-space : nowrap;
+		}
+
+		.left, .right {
+			display : flex;
+
+			> * {
+				align-self : center;
+			}
+
+			i.material-icons {
+				margin-left : 2px;
+				padding : 2px;
+				transition : color 0.2s linear;
+				user-select: none;
+				font-size : 21px;
+			}
+		}
+
+		.titleWrap {
+			flex-grow : 2;
 		}
 
 		span.updated {
@@ -32,26 +43,10 @@
 			font-weight : normal;
 			font-size : 11px;
 			white-space : nowrap;
-			vertical-align : middle;
 		}
 
 		input {
-			margin-right : 5px;
-		}
-
-		div.updPic {
-			width : 25px;
-			display : inline-block;
-			text-align : center;
-		}
-
-		div.updPic img {
-			vertical-align : middle;
-		}
-
-		input {
-			margin-left : 4px;
-			margin-right : 4px;
+			margin : 0px 4px;
 		}
 	}
 
@@ -63,30 +58,23 @@
 		clear : both;
 
 		> * {
-			display : table-cell;
-			vertical-align : middle;
+			align-self : center;
+		}
+
+		.left {
+			flex-grow : 2;
 		}
 	}
 
 	.intermediate {
-		margin : 10px;
+		margin-top : 10px;
+		margin-left : 10px;
 	}
 
 	.content-inner {
 		margin : 10px;
 		line-height : 1.5;
 		font-size : 16px;
-
-		h1 {
-			font-size : 16px;
-		}
-
-		h2,
-		h3,
-		h4 {
-			font-size : 15px;
-		}
-
 	}
 
 	.intermediate img,
@@ -100,15 +88,19 @@
 }
 
 .cdm.expanded {
-	margin-top : 4px;
-	margin-bottom : 4px;
+	/*margin-top : 4px;
+	margin-bottom : 4px;*/
 
-	.collapse {
+	.collapse, .excerpt {
 		display : none;
 	}
 
+	.titleWrap {
+		white-space : normal;
+	}
+
 	.footer {
-		border: 0px solid #ddd;
+		border: 0px solid @border-default;
 		border-bottom-width: 1px;
 	}
 
@@ -156,12 +148,11 @@ div.cdm.active div.content {
 	color : black;
 }
 
-.cdm {
-	div.content div.postEnclosures {
-		margin-top: 1em;
-		color: @default-text;
-	}
+div.cdm.vgrlf .feed {
+	display : none;
+}
 
+.cdm {
 	div.feed-title {
 		border: 0px solid @color-link;
 		border-bottom-width: 1px;
@@ -227,22 +218,42 @@ div#floatingTitle {
 	top : 0px;
 	right : 0px;
 	left : 0px;
-	border: 0px solid #ddd;
+	border: 0px solid @border-default;
 	border-bottom-width: 1px;
 	background : white;
 	color : @default-text;
+	display : flex;
+	flex-direction : row;
+	flex-wrap : nowrap;
 	box-shadow : 0px 1px 1px -1px rgba(0,0,0,0.1);
 
 	> * {
-		display : table-cell;
+		align-self: center;
 		white-space : nowrap;
-		vertical-align : middle;
-		padding : 9px 5px;
+		padding : 4px;
 	}
 
-	img {
-		margin-right : 4px;
-		margin-left : 4px;
+	.left, .right {
+		display : flex;
+
+		> * {
+			align-self : center;
+		}
+
+		i.material-icons {
+			margin-left : 2px;
+			font-size : 21px;
+			padding : 2px;
+			user-select: none;
+		}
+
+		i.icon-anchor {
+			margin-left : 0px;
+			margin-right : 1px; // replaces checkbox which is a bit wider
+			padding : 0px;
+			color : #ccc;
+			cursor : pointer;
+		}
 	}
 
 	span.author {
@@ -258,10 +269,6 @@ div#floatingTitle {
 		font-weight : 600;
 		text-rendering: optimizelegibility;
 		font-family : @fonts-ui-bold;
-	}
-
-	img.anchor {
-		margin-left : 0px;
 	}
 
 	div.feed {
@@ -290,18 +297,13 @@ div#floatingTitle {
 		color : @default-text;
 	}
 
-	.collapse {
+	.collapse, .excerpt {
 		display : none;
 	}
 
 	span.titleWrap {
 		width : 100%;
 		white-space : normal;
-	}
-
-	.dijit,
-	img.score-pic {
-		display : none;
 	}
 
 	.feed-title {
@@ -333,34 +335,9 @@ div#floatingTitle.Unread a.title {
 	color : black;
 }
 
-.cdm.high .header {
-	a.title.high,
-	.excerpt,
-	span.author {
-		color : #00aa00;
-	}
-}
-
-.cdm.Unread.high .header {
-	a.title.high,
-	.excerpt,
-	span.author {
-		color : #00dd00;
-	}
-}
-
-.cdm .header a.title.low,
-.cdm.low .header .excerpt,
-.cdm.Unread .header a.title.low,
-.cdm.Unread.low .header .excerpt,
-.cdm.low .header span.author {
-	color : #909090;
-	text-decoration : line-through;
-}
-
 .cdm.expandable {
-	background-color : #f0f0f0;
-	border: 0px solid #ddd;
+	background-color : @color-panel-bg;
+	border: 0px solid @border-default;
 	border-bottom-width: 1px;
 
 	> hr {
@@ -371,8 +348,16 @@ div#floatingTitle.Unread a.title {
 		white-space : nowrap;
 		text-overflow : ellipsis;
 		overflow : hidden;
-		max-width : 500px;
 	}
+
+	.excerpt {
+		white-space : nowrap;
+		font-size : 11px;
+		color : #999;
+		font-weight : normal;
+		cursor : pointer;
+	}
+
 }
 
 .cdm.expandable.Unread {
@@ -410,12 +395,23 @@ div.cdm.expandable.Unread div.header a.title {
 	color : black;
 }
 
-div.cdm.expandable.active div.header a.title {
-	color: @color-link;
-	font-size: 16px;
-	font-weight: 600;
-	text-rendering: optimizelegibility;
-	font-family: @fonts-ui-bold;
+div.cdm.expandable.active {
+	.collapse i {
+		color : @color-accent;
+		cursor : pointer;
+	}
+
+	.excerpt {
+		display: none;
+	}
+
+	div.header a.title {
+		color: @color-link;
+		font-size: 16px;
+		font-weight: 600;
+		text-rendering: optimizelegibility;
+		font-family: @fonts-ui-bold;
+	}
 }
 
 div.cdm.expandable:not(.active) {

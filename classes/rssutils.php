@@ -259,9 +259,13 @@ class RSSUtils {
 				global $fetch_curl_used;
 
 				if (!$fetch_curl_used) {
-					$tmp = @gzdecode($feed_data);
+					$is_gzipped = RSSUtils::is_gzipped($feed_data);
 
-					if ($tmp) $feed_data = $tmp;
+					if ($is_gzipped) {
+						$tmp = @gzdecode($feed_data);
+
+						if ($tmp) $feed_data = $tmp;
+					}
 				}
 
 				$feed_data = trim($feed_data);
@@ -433,9 +437,15 @@ class RSSUtils {
 			global $fetch_curl_used;
 
 			if (!$fetch_curl_used) {
-				$tmp = @gzdecode($feed_data);
+				$is_gzipped = RSSUtils::is_gzipped($feed_data);
 
-				if ($tmp) $feed_data = $tmp;
+				Debug::log("is_gzipped: $is_gzipped", Debug::$LOG_VERBOSE);
+
+				if ($is_gzipped) {
+					$tmp = @gzdecode($feed_data);
+
+					if ($tmp) $feed_data = $tmp;
+				}
 			}
 
 			$feed_data = trim($feed_data);
@@ -769,13 +779,36 @@ class RSSUtils {
 
 				/* Collect article tags here so we could filter by them: */
 
-				$matched_rules = array();
+				$matched_rules = [];
+				$matched_filters = [];
 
 				$article_filters = RSSUtils::get_article_filters($filters, $article["title"],
 					$article["content"], $article["link"], $article["author"],
-					$article["tags"], $matched_rules);
+					$article["tags"], $matched_rules, $matched_filters);
+
+				// $article_filters should be renamed to something like $filter_actions; actual filter objects are in $matched_filters
+				foreach ($pluginhost->get_hooks(PluginHost::HOOK_FILTER_TRIGGERED) as $plugin) {
+					$plugin->hook_filter_triggered($feed, $owner_uid, $article, $matched_filters, $matched_rules, $article_filters);
+				}
+
+				$matched_filter_ids = array_map(function($f) { return $f['id']; }, $matched_filters);
+
+				if (count($matched_filter_ids) > 0) {
+					$filter_ids_qmarks = arr_qmarks($matched_filter_ids);
+
+					$fsth = $pdo->prepare("UPDATE ttrss_filters2 SET last_triggered = NOW() WHERE 
+							   id IN ($filter_ids_qmarks) AND owner_uid = ?");
+
+					$fsth->execute(array_merge($matched_filter_ids, [$owner_uid]));
+				}
 
 				if (Debug::get_loglevel() >= Debug::$LOG_EXTENDED) {
+					Debug::log("matched filters: ", Debug::$LOG_VERBOSE);
+
+					if (count($matched_filters != 0)) {
+						print_r($matched_filters);
+					}
+
 					Debug::log("matched filter rules: ", Debug::$LOG_VERBOSE);
 
 					if (count($matched_rules) != 0) {
@@ -807,7 +840,7 @@ class RSSUtils {
 								$start = microtime(true);
 								$article = $plugin->hook_article_filter_action($article, $pfaction);
 
-								Debug::log(sprintf("=== %.4f (sec)"), Debug::$LOG_VERBOSE);
+								Debug::log(sprintf("=== %.4f (sec)", microtime(true) - $start), Debug::$LOG_VERBOSE);
 							} else {
 								Debug::log("??? $pfclass: plugin object not found.", Debug::$LOG_VERBOSE);
 							}
@@ -900,6 +933,7 @@ class RSSUtils {
 					$entry_ref_id = $ref_id;
 
 					if (RSSUtils::find_article_filter($article_filters, "filter")) {
+						Debug::log("article is filtered out, nothing to do.");
 						$pdo->commit();
 						continue;
 					}
@@ -1342,7 +1376,7 @@ class RSSUtils {
 		return $params;
 	}
 
-	static function get_article_filters($filters, $title, $content, $link, $author, $tags, &$matched_rules = false) {
+	static function get_article_filters($filters, $title, $content, $link, $author, $tags, &$matched_rules = false, &$matched_filters = false) {
 		$matches = array();
 
 		foreach ($filters as $filter) {
@@ -1409,6 +1443,7 @@ class RSSUtils {
 
 			if ($filter_match) {
 				if (is_array($matched_rules)) array_push($matched_rules, $rule);
+				if (is_array($matched_filters)) array_push($matched_filters, $filter);
 
 				foreach ($filter["actions"] AS $action) {
 					array_push($matches, $action);
@@ -1577,6 +1612,8 @@ class RSSUtils {
 		}
 	}
 
-
+	private static function is_gzipped($feed_data) {
+		return mb_strpos($feed_data, "\x1f" . "\x8b" . "\x08", 0, "US-ASCII") === 0;
+	}
 
 }

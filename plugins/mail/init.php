@@ -32,7 +32,8 @@ class Mail extends Plugin {
 	function hook_prefs_tab($args) {
 		if ($args != "prefPrefs") return;
 
-		print "<div dojoType=\"dijit.layout.AccordionPane\" title=\"".__('Mail plugin')."\">";
+		print "<div dojoType=\"dijit.layout.AccordionPane\" 
+			title=\"<i class='material-icons'>mail</i> ".__('Mail plugin')."\">";
 
 		print "<p>" . __("You can set predefined email addressed here (comma-separated list):") . "</p>";
 
@@ -45,7 +46,7 @@ class Mail extends Plugin {
 				new Ajax.Request('backend.php', {
 					parameters: dojo.objectToQuery(this.getValues()),
 					onComplete: function(transport) {
-						notify_info(transport.responseText);
+						Notify.info(transport.responseText);
 					}
 				});
 				//this.reset();
@@ -70,10 +71,9 @@ class Mail extends Plugin {
 	}
 
 	function hook_article_button($line) {
-		return "<img src=\"plugins/mail/mail.png\"
-					class='tagsPic' style=\"cursor : pointer\"
-					onclick=\"emailArticle(".$line["id"].")\"
-					alt='Zoom' title='".__('Forward by email')."'>";
+		return "<i class='material-icons' style=\"cursor : pointer\"
+					onclick=\"Plugins.Mail.send(".$line["id"].")\"
+					title='".__('Forward by email')."'>mail</i>";
 	}
 
 	function emailArticle() {

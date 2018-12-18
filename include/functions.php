@@ -1,6 +1,6 @@
 <?php
 	define('EXPECTED_CONFIG_VERSION', 26);
-	define('SCHEMA_VERSION', 134);
+	define('SCHEMA_VERSION', 135);
 
 	define('LABEL_BASE_INDEX', -1024);
 	define('PLUGIN_FEED_BASE_INDEX', -128);
@@ -584,7 +584,7 @@
 
 		$sth = $pdo->query("SELECT pref_name,def_value FROM ttrss_prefs");
 
-		$profile = $profile ? $profile : null;
+		if (!is_numeric($profile) || !$profile || get_schema_version() < 63) $profile = null;
 
 		$u_sth = $pdo->prepare("SELECT pref_name
 			FROM ttrss_user_prefs WHERE owner_uid = :uid AND
@@ -678,8 +678,6 @@
 				$_SESSION["ip_address"] = $_SERVER["REMOTE_ADDR"];
 				$_SESSION["user_agent"] = sha1($_SERVER['HTTP_USER_AGENT']);
 				$_SESSION["pwd_hash"] = $row["pwd_hash"];
-
-				$_SESSION["last_version_check"] = time();
 
 				initialize_user_prefs($_SESSION["uid"]);
 
@@ -1068,6 +1066,7 @@
 			$params[strtolower($param)] = (int) get_pref($param);
 		}
 
+		$params["check_for_updates"] = CHECK_FOR_UPDATES;
 		$params["icons_url"] = ICONS_URL;
 		$params["cookie_lifetime"] = SESSION_COOKIE_LIFETIME;
 		$params["default_view_mode"] = get_pref("_DEFAULT_VIEW_MODE");
@@ -1078,7 +1077,7 @@
 		$params["label_base_index"] = (int) LABEL_BASE_INDEX;
 
 		$theme = get_pref( "USER_CSS_THEME", false, false);
-		$params["theme"] = theme_valid("$theme") ? $theme : "";
+		$params["theme"] = theme_exists($theme) ? $theme : "";
 
 		$params["plugins"] = implode(", ", PluginHost::getInstance()->get_plugin_names());
 
@@ -1107,9 +1106,6 @@
 
 		$params['simple_update'] = defined('SIMPLE_UPDATE_MODE') && SIMPLE_UPDATE_MODE;
 
-		$params["icon_alert"] = base64_img("images/alert.png");
-		$params["icon_information"] = base64_img("images/information.png");
-		$params["icon_cross"] = base64_img("images/cross.png");
 		$params["icon_indicator_white"] = base64_img("images/indicator_white.gif");
 
 		$params["labels"] = Labels::get_all_labels($_SESSION["uid"]);
@@ -1177,6 +1173,7 @@
 				"create_label" => __("Create label"),
 				"create_filter" => __("Create filter"),
 				"collapse_sidebar" => __("Un/collapse sidebar"),
+				"toggle_night_mode" => __("Toggle night mode"),
 				"help_dialog" => __("Show help dialog"))
 		);
 
@@ -1244,10 +1241,11 @@
 			"g t" => "goto_tagcloud",
 			"g *p" => "goto_prefs",
 	//			"other" => array(
-			"(9)|Tab" => "select_article_cursor", // tab
+			"r" => "select_article_cursor",
 			"c l" => "create_label",
 			"c f" => "create_filter",
 			"c s" => "collapse_sidebar",
+			"a *n" => "toggle_night_mode",
 			"^(191)|Ctrl+/" => "help_dialog",
 		);
 
@@ -1271,27 +1269,7 @@
 		return array($prefixes, $hotkeys);
 	}
 
-	function check_for_update() {
-		if (defined("GIT_VERSION_TIMESTAMP")) {
-			$content = @fetch_file_contents(array("url" => "http://tt-rss.org/version.json", "timeout" => 5));
-
-			if ($content) {
-				$content = json_decode($content, true);
-
-				if ($content && isset($content["changeset"])) {
-					if ((int)GIT_VERSION_TIMESTAMP < (int)$content["changeset"]["timestamp"] &&
-						GIT_VERSION_HEAD != $content["changeset"]["id"]) {
-
-						return $content["changeset"]["id"];
-					}
-				}
-			}
-		}
-
-		return "";
-	}
-
-	function make_runtime_info($disable_update_check = false) {
+	function make_runtime_info() {
 		$data = array();
 
 		$pdo = Db::pdo();
@@ -1306,21 +1284,22 @@
 
 		$data["max_feed_id"] = (int) $max_feed_id;
 		$data["num_feeds"] = (int) $num_feeds;
-
-		$data['last_article_id'] = Article::getLastArticleId();
 		$data['cdm_expanded'] = get_pref('CDM_EXPANDED');
-
-		$data['dep_ts'] = calculate_dep_timestamp();
-		$data['reload_on_ts_change'] = !defined('_NO_RELOAD_ON_TS_CHANGE');
-
 		$data["labels"] = Labels::get_all_labels($_SESSION["uid"]);
 
-		if (CHECK_FOR_UPDATES && !$disable_update_check && $_SESSION["last_version_check"] + 86400 + rand(-1000, 1000) < time()) {
-			$update_result = @check_for_update();
+		if (LOG_DESTINATION == 'sql' && $_SESSION['access_level'] >= 10) {
+			if (DB_TYPE == 'pgsql') {
+				$log_interval = "created_at > NOW() - interval '1 hour'";
+			} else {
+				$log_interval = "created_at > DATE_SUB(NOW(), INTERVAL 1 HOUR)";
+			}
 
-			$data["update_result"] = $update_result;
+			$sth = $pdo->prepare("SELECT COUNT(id) AS cid FROM ttrss_error_log WHERE $log_interval");
+			$sth->execute();
 
-			$_SESSION["last_version_check"] = time();
+			if ($row = $sth->fetch()) {
+				$data['recent_log_events'] = $row['cid'];
+			}
 		}
 
 		if (file_exists(LOCK_DIRECTORY . "/update_daemon.lock")) {
@@ -1951,7 +1930,8 @@
 				}
 			}
 
-			$filter = array();
+			$filter = [];
+			$filter["id"] = $filter_id;
 			$filter["match_any_rule"] = sql_bool_to_bool($line["match_any_rule"]);
 			$filter["inverse"] = sql_bool_to_bool($line["inverse"]);
 			$filter["rules"] = $rules;
@@ -1963,20 +1943,6 @@
 		}
 
 		return $filters;
-	}
-
-	function get_score_pic($score) {
-		if ($score > 100) {
-			return "score_high.png";
-		} else if ($score > 0) {
-			return "score_half_high.png";
-		} else if ($score < -100) {
-			return "score_low.png";
-		} else if ($score < 0) {
-			return "score_half_low.png";
-		} else {
-			return "score_neutral.png";
-		}
 	}
 
 	function init_plugins() {
@@ -2379,52 +2345,6 @@
 		return in_array($interface, class_implements($class));
 	}
 
-	function get_minified_js($files) {
-
-		$rv = '';
-
-		foreach ($files as $js) {
-			if (!isset($_GET['debug'])) {
-				$cached_file = CACHE_DIR . "/js/".basename($js);
-
-				if (file_exists($cached_file) && is_readable($cached_file) && filemtime($cached_file) >= filemtime("js/$js")) {
-
-					list($header, $contents) = explode("\n", file_get_contents($cached_file), 2);
-
-					if ($header && $contents) {
-						list($htag, $hversion) = explode(":", $header);
-
-						if ($htag == "tt-rss" && $hversion == VERSION) {
-							$rv .= $contents;
-							continue;
-						}
-					}
-				}
-
-				$minified = JShrink\Minifier::minify(file_get_contents("js/$js"));
-				file_put_contents($cached_file, "tt-rss:" . VERSION . "\n" . $minified);
-				$rv .= $minified;
-
-			} else {
-				$rv .= file_get_contents("js/$js"); // no cache in debug mode
-			}
-		}
-
-		return $rv;
-	}
-
-	function calculate_dep_timestamp() {
-		$files = array_merge(glob("js/*.js"), glob("css/*.css"));
-
-		$max_ts = -1;
-
-		foreach ($files as $file) {
-			if (filemtime($file) > $max_ts) $max_ts = filemtime($file);
-		}
-
-		return $max_ts;
-	}
-
 	function T_js_decl($s1, $s2) {
 		if ($s1 && $s2) {
 			$s1 = preg_replace("/\n/", "", $s1);
@@ -2479,27 +2399,8 @@
 		if (file_exists($check)) return $check;
 	}
 
-	function theme_valid($theme) {
-		$bundled_themes = [ "default.php", "night.css", "compact.css" ];
-
-		if (in_array($theme, $bundled_themes)) return true;
-
-		$file = "themes/" . basename($theme);
-
-		if (!file_exists($file)) $file = "themes.local/" . basename($theme);
-
-		if (file_exists($file) && is_readable($file)) {
-			$fh = fopen($file, "r");
-
-			if ($fh) {
-				$header = fgets($fh);
-				fclose($fh);
-
-				return strpos($header, "supports-version:" . VERSION_STATIC) !== FALSE;
-			}
-		}
-
-		return false;
+	function theme_exists($theme) {
+		return file_exists("themes/$theme") || file_exists("themes.local/$theme");
 	}
 
 	/**
@@ -2614,4 +2515,16 @@
 
 	function arr_qmarks($arr) {
 		return str_repeat('?,', count($arr) - 1) . '?';
+	}
+
+	function get_scripts_timestamp() {
+		$files = glob("js/*.js");
+		$ts = 0;
+
+		foreach ($files as $file) {
+			$file_ts = filemtime($file);
+			if ($file_ts > $ts) $ts = $file_ts;
+		}
+
+		return $ts;
 	}

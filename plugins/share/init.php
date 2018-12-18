@@ -20,6 +20,10 @@ class Share extends Plugin {
 		return file_get_contents(dirname(__FILE__) . "/share.js");
 	}
 
+	function get_css() {
+		return file_get_contents(dirname(__FILE__) . "/share.css");
+	}
+
 	function get_prefs_js() {
 		return file_get_contents(dirname(__FILE__) . "/share_prefs.js");
 	}
@@ -38,9 +42,11 @@ class Share extends Plugin {
 	function hook_prefs_tab_section($id) {
 		if ($id == "prefFeedsPublishedGenerated") {
 
+			print "<hr/>";
+
 			print "<p>" . __("You can disable all articles shared by unique URLs here.") . "</p>";
 
-			print "<button class=\"btn-danger\" dojoType=\"dijit.form.Button\" onclick=\"return clearArticleAccessKeys()\">".
+			print "<button class=\"alt-danger\" dojoType=\"dijit.form.Button\" onclick=\"return Plugins.Share.clearKeys()\">".
 				__('Unshare all articles')."</button> ";
 
 			print "</p>";
@@ -70,12 +76,11 @@ class Share extends Plugin {
 	}
 
 	function hook_article_button($line) {
-		$img = $line['uuid'] ? "share.png" : "notshared.png";
+		$img_class = $line['uuid'] ? "shared" : "";
 
-		return "<img id='SHARE-IMG-".$line['int_id']."' src=\"plugins/share/$img\"
-			class='tagsPic' style=\"cursor : pointer\"
-			onclick=\"shareArticle(".$line['int_id'].")\"
-			title='".__('Share by URL')."'>";
+		return "<i id='SHARE-IMG-".$line['int_id']."' class='material-icons icon-share $img_class'
+			style='cursor : pointer' onclick=\"Plugins.Share.shareArticle(".$line['int_id'].")\"
+			title='".__('Share by URL')."'>link</i>";
 	}
 
 	function shareArticle() {
@@ -102,7 +107,7 @@ class Share extends Plugin {
 			$url_path = get_self_url_prefix();
 			$url_path .= "/public.php?op=share&key=$uuid";
 
-			print "<div class=\"tagCloudContainer\">";
+			print "<div class='panel text-center'>";
 			print "<a id='gen_article_url' href='$url_path' target='_blank' rel='noopener noreferrer'>$url_path</a>";
 			print "</div>";
 

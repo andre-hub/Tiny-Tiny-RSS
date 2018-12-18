@@ -492,7 +492,7 @@ class Pref_Feeds extends Handler_Protected {
 		@unlink($icon_file);
 
 		print "<script type=\"text/javascript\">";
-		print "parent.uploadIconHandler($rc);";
+		print "parent.CommonDialogs.uploadIconHandler($rc);";
 		print "</script>";
 		return;
 	}
@@ -542,9 +542,8 @@ class Pref_Feeds extends Handler_Protected {
 			$last_error = $row["last_error"];
 
 			if ($last_error) {
-				print "&nbsp;<img src=\"images/error.png\" alt=\"(error)\"
-				style=\"vertical-align : middle\"
-				title=\"".htmlspecialchars($last_error)."\">";
+				print "&nbsp;<i class=\"material-icons\" 
+					title=\"".htmlspecialchars($last_error)."\">error</i>";
 
 			}
 
@@ -745,9 +744,9 @@ class Pref_Feeds extends Handler_Protected {
 			<input type=\"hidden\" name=\"op\" value=\"pref-feeds\">
 			<input type=\"hidden\" name=\"feed_id\" value=\"$feed_id\">
 			<input type=\"hidden\" name=\"method\" value=\"uploadicon\">
-			<button class=\"\" dojoType=\"dijit.form.Button\" onclick=\"return uploadFeedIcon();\"
+			<button class=\"\" dojoType=\"dijit.form.Button\" onclick=\"return CommonDialogs.uploadFeedIcon();\"
 				type=\"submit\">".__('Replace')."</button>
-			<button class=\"btn-danger\" dojoType=\"dijit.form.Button\" onclick=\"return removeFeedIcon($feed_id);\"
+			<button class=\"alt-danger\" dojoType=\"dijit.form.Button\" onclick=\"return CommonDialogs.removeFeedIcon($feed_id);\"
 				type=\"submit\">".__('Remove')."</button>
 			</form>";
 
@@ -765,7 +764,7 @@ class Pref_Feeds extends Handler_Protected {
 
 			print "<div class='dlgButtons'>
 			<div style=\"float : left\">
-			<button class=\"btn-danger\" dojoType=\"dijit.form.Button\" onclick='return unsubscribeFeed($feed_id, \"$title\")'>".
+			<button class=\"alt-danger\" dojoType=\"dijit.form.Button\" onclick='return CommonDialogs.unsubscribeFeed($feed_id, \"$title\")'>".
 				__('Unsubscribe')."</button>";
 
 			print "</div>";
@@ -1133,8 +1132,9 @@ class Pref_Feeds extends Handler_Protected {
 
 	function index() {
 
-		print "<div dojoType=\"dijit.layout.AccordionContainer\" region=\"center\">";
-		print "<div id=\"pref-feeds-feeds\" dojoType=\"dijit.layout.AccordionPane\" title=\"".__('Feeds')."\">";
+		print "<div dojoType='dijit.layout.AccordionContainer' region='center'>";
+		print "<div style='padding : 0px' dojoType='dijit.layout.AccordionPane' 
+			title=\"<i class='material-icons'>rss_feed</i> ".__('Feeds')."\">";
 
 		$sth = $this->pdo->prepare("SELECT COUNT(id) AS num_errors
 			FROM ttrss_feeds WHERE last_error != '' AND owner_uid = ?");
@@ -1149,14 +1149,14 @@ class Pref_Feeds extends Handler_Protected {
 		if ($num_errors > 0) {
 
 			$error_button = "<button dojoType=\"dijit.form.Button\"
-			  		onclick=\"showFeedsWithErrors()\" id=\"errorButton\">" .
+			  		onclick=\"CommonDialogs.showFeedsWithErrors()\" id=\"errorButton\">" .
 				__("Feeds with errors") . "</button>";
 		}
 
 		$inactive_button = "<button dojoType=\"dijit.form.Button\"
 				id=\"pref_feeds_inactive_btn\"
 				style=\"display : none\"
-				onclick=\"showInactiveFeeds()\">" .
+				onclick=\"dijit.byId('feedTree').showInactiveFeeds()\">" .
 				__("Inactive feeds") . "</button>";
 
 		$feed_search = clean($_REQUEST["search"]);
@@ -1174,7 +1174,7 @@ class Pref_Feeds extends Handler_Protected {
 		print "<div style='float : right; padding-right : 4px;'>
 			<input dojoType=\"dijit.form.TextBox\" id=\"feed_search\" size=\"20\" type=\"search\"
 				value=\"$feed_search\">
-			<button dojoType=\"dijit.form.Button\" onclick=\"updateFeedList()\">".
+			<button dojoType=\"dijit.form.Button\" onclick=\"dijit.byId('feedTree').reload()\">".
 				__('Search')."</button>
 			</div>";
 
@@ -1190,15 +1190,15 @@ class Pref_Feeds extends Handler_Protected {
 		print "<div dojoType=\"dijit.form.DropDownButton\">".
 				"<span>" . __('Feeds')."</span>";
 		print "<div dojoType=\"dijit.Menu\" style=\"display: none;\">";
-		print "<div onclick=\"quickAddFeed()\"
+		print "<div onclick=\"CommonDialogs.quickAddFeed()\"
 			dojoType=\"dijit.MenuItem\">".__('Subscribe to feed')."</div>";
-		print "<div onclick=\"editSelectedFeed()\"
+		print "<div onclick=\"dijit.byId('feedTree').editSelectedFeed()\"
 			dojoType=\"dijit.MenuItem\">".__('Edit selected feeds')."</div>";
-		print "<div onclick=\"resetFeedOrder()\"
+		print "<div onclick=\"dijit.byId('feedTree').resetFeedOrder()\"
 			dojoType=\"dijit.MenuItem\">".__('Reset sort order')."</div>";
-		print "<div onclick=\"batchSubscribe()\"
+		print "<div onclick=\"dijit.byId('feedTree').batchSubscribe()\"
 			dojoType=\"dijit.MenuItem\">".__('Batch subscribe')."</div>";
-		print "<div dojoType=\"dijit.MenuItem\" onclick=\"removeSelectedFeeds()\">"
+		print "<div dojoType=\"dijit.MenuItem\" onclick=\"dijit.byId('feedTree').removeSelectedFeeds()\">"
 			.__('Unsubscribe')."</div> ";
 		print "</div></div>";
 
@@ -1206,11 +1206,11 @@ class Pref_Feeds extends Handler_Protected {
 			print "<div dojoType=\"dijit.form.DropDownButton\">".
 					"<span>" . __('Categories')."</span>";
 			print "<div dojoType=\"dijit.Menu\" style=\"display: none;\">";
-			print "<div onclick=\"createCategory()\"
+			print "<div onclick=\"dijit.byId('feedTree').createCategory()\"
 				dojoType=\"dijit.MenuItem\">".__('Add category')."</div>";
-			print "<div onclick=\"resetCatOrder()\"
+			print "<div onclick=\"dijit.byId('feedTree').resetCatOrder()\"
 				dojoType=\"dijit.MenuItem\">".__('Reset sort order')."</div>";
-			print "<div onclick=\"removeSelectedCategories()\"
+			print "<div onclick=\"dijit.byId('feedTree').removeSelectedCategories()\"
 				dojoType=\"dijit.MenuItem\">".__('Remove selected')."</div>";
 			print "</div></div>";
 
@@ -1222,7 +1222,7 @@ class Pref_Feeds extends Handler_Protected {
 		print "</div>"; # toolbar
 
 		//print '</div>';
-		print '<div dojoType="dijit.layout.ContentPane" region="center">';
+		print '<div style="padding : 0px" dojoType="dijit.layout.ContentPane" region="center">';
 
 		print "<div id=\"feedlistLoading\">
 		<img src='images/indicator_tiny.gif'>".
@@ -1247,15 +1247,15 @@ class Pref_Feeds extends Handler_Protected {
 			var bare_id = id.substr(id.indexOf(':')+1);
 
 			if (id.match('FEED:')) {
-				editFeed(bare_id);
+				CommonDialogs.editFeed(bare_id);
 			} else if (id.match('CAT:')) {
-				editCat(bare_id, item);
+				dijit.byId('feedTree').editCategory(bare_id, item);
 			}
 		</script>
 		<script type=\"dojo/method\" event=\"onLoad\" args=\"item\">
 			Element.hide(\"feedlistLoading\");
 
-			checkInactiveFeeds();
+			dijit.byId('feedTree').checkInactiveFeeds();
 		</script>
 		</div>";
 
@@ -1268,13 +1268,16 @@ class Pref_Feeds extends Handler_Protected {
 
 		print "</div>"; # feeds pane
 
-		print "<div dojoType=\"dijit.layout.AccordionPane\" title=\"".__('OPML')."\">";
+		print "<div dojoType=\"dijit.layout.AccordionPane\" 
+			title=\"<i class='material-icons'>import_export</i> ".__('OPML')."\">";
 
-		print "<p>" . __("Using OPML you can export and import your feeds, filters, labels and Tiny Tiny RSS settings.") .
-			__("Only main settings profile can be migrated using OPML.") . "</p>";
+		print __("Using OPML you can export and import your feeds, filters, labels and Tiny Tiny RSS settings.") .
+			__("Only main settings profile can be migrated using OPML.");
+
+		print "<p/>";
 
 		print "<iframe id=\"upload_iframe\"
-			name=\"upload_iframe\" onload=\"opmlImportComplete(this)\"
+			name=\"upload_iframe\" onload=\"Helpers.OPML.onImportComplete(this)\"
 			style=\"width: 400px; height: 100px; display: none;\"></iframe>";
 
 		print "<form  name=\"opml_form\" style='display : block' target=\"upload_iframe\"
@@ -1285,28 +1288,35 @@ class Pref_Feeds extends Handler_Protected {
 			</label>
 			<input type=\"hidden\" name=\"op\" value=\"dlg\">
 			<input type=\"hidden\" name=\"method\" value=\"importOpml\">
-			<button dojoType=\"dijit.form.Button\" onclick=\"return opmlImport();\" type=\"submit\">" .
-			__('Import my OPML') . "</button>";
+			<button dojoType=\"dijit.form.Button\" onclick=\"return Helpers.OPML.import();\" type=\"submit\">" .
+			__('Import OPML') . "</button>";
+
+		print "</form>";
 
 		print "<hr>";
 
-		$opml_export_filename = "TinyTinyRSS_".date("Y-m-d").".opml";
+		print "<form dojoType=\"dijit.form.Form\" id=\"opmlExportForm\">";
 
-		print "<p>" . __('Filename:') .
-            " <input class=\"input input-text\" type=\"text\" id=\"filename\" value=\"$opml_export_filename\" />&nbsp;" .
-				__('Include settings') . "<input type=\"checkbox\" id=\"settings\" checked=\"1\"/>";
+		print "<button dojoType=\"dijit.form.Button\"
+			onclick=\"Helpers.OPML.export()\" >" .
+			__('Export OPML') . "</button>";
 
-		print "</p><button dojoType=\"dijit.form.Button\"
-			onclick=\"gotoExportOpml(document.opml_form.filename.value, document.opml_form.settings.checked)\" >" .
-              __('Export OPML') . "</button></p></form>";
+		print "<label>";
+		print_checkbox("include_settings", true, "1", "");
+		print "&nbsp;" . __("Include settings");
+		print "</label>";
 
-		print "<hr>";
+		print "</form>";
 
-		print "<p>" . __('Your OPML can be published publicly and can be subscribed by anyone who knows the URL below.') . "</p>";
+		print "<p/>";
 
-		print_warning("Published OPML does not include your Tiny Tiny RSS settings, feeds that require authentication or feeds hidden from Popular feeds.");
+		print "<h2>" . __("Published OPML") . "</h2>";
 
-		print "<button dojoType=\"dijit.form.Button\" onclick=\"return displayDlg('".__("Public OPML URL")."','pubOPMLUrl')\">".
+		print "<p>" . __('Your OPML can be published publicly and can be subscribed by anyone who knows the URL below.') .
+			" " .
+			__("Published OPML does not include your Tiny Tiny RSS settings, feeds that require authentication or feeds hidden from Popular feeds.") . "</p>";
+
+		print "<button dojoType=\"dijit.form.Button\" onclick=\"return App.displayDlg('".__("Public OPML URL")."','pubOPMLUrl')\">".
 			__('Display published OPML URL')."</button> ";
 
 		PluginHost::getInstance()->run_hooks(PluginHost::HOOK_PREFS_TAB_SECTION,
@@ -1314,19 +1324,20 @@ class Pref_Feeds extends Handler_Protected {
 
 		print "</div>"; # pane
 
-		print "<div dojoType=\"dijit.layout.AccordionPane\" title=\"".__('Published & shared articles / Generated feeds')."\">";
+		print "<div dojoType=\"dijit.layout.AccordionPane\" 
+			title=\"<i class='material-icons'>share</i> ".__('Published & shared articles / Generated feeds')."\">";
 
-		print "<p>" . __('Published articles are exported as a public RSS feed and can be subscribed by anyone who knows the URL specified below.') . "</p>";
+		print __('Published articles can be subscribed by anyone who knows the following URL:');
 
 		$rss_url = '-2::' . htmlspecialchars(get_self_url_prefix() .
 				"/public.php?op=rss&id=-2&view-mode=all_articles");;
 
 		print "<p>";
 
-		print "<button dojoType=\"dijit.form.Button\" onclick=\"return displayDlg('".__("View as RSS")."','generatedFeed', '$rss_url')\">".
+		print "<button dojoType=\"dijit.form.Button\" onclick=\"return App.displayDlg('".__("Show as feed")."','generatedFeed', '$rss_url')\">".
 			__('Display URL')."</button> ";
 
-		print "<button class=\"warning\" dojoType=\"dijit.form.Button\" onclick=\"return clearFeedAccessKeys()\">".
+		print "<button class=\"alt-danger\" dojoType=\"dijit.form.Button\" onclick=\"return Helpers.clearFeedAccessKeys()\">".
 			__('Clear all generated URLs')."</button> ";
 
 		print "</p>";
@@ -1412,36 +1423,32 @@ class Pref_Feeds extends Handler_Protected {
 		print "<div dojoType=\"dijit.form.DropDownButton\">".
 				"<span>" . __('Select')."</span>";
 		print "<div dojoType=\"dijit.Menu\" style=\"display: none;\">";
-		print "<div onclick=\"selectTableRows('prefInactiveFeedList', 'all')\"
+		print "<div onclick=\"Tables.select('inactive-feeds-list', true)\"
 			dojoType=\"dijit.MenuItem\">".__('All')."</div>";
-		print "<div onclick=\"selectTableRows('prefInactiveFeedList', 'none')\"
+		print "<div onclick=\"Tables.select('inactive-feeds-list', false)\"
 			dojoType=\"dijit.MenuItem\">".__('None')."</div>";
 		print "</div></div>";
 		print "</div>"; #toolbar
 
-		print "<div class=\"inactiveFeedHolder\">";
-
-		print "<table width=\"100%\" cellspacing=\"0\" id=\"prefInactiveFeedList\">";
+		print "<div class='panel panel-scrollable'>";
+		print "<table width='100%' id='inactive-feeds-list'>";
 
 		$lnum = 1;
 
 		while ($line = $sth->fetch()) {
 
 			$feed_id = $line["id"];
-			$this_row_id = "id=\"FUPDD-$feed_id\"";
 
-			# class needed for selectTableRows()
-			print "<tr class=\"placeholder\" $this_row_id>";
+			print "<tr data-row-id='$feed_id'>";
 
-			# id needed for selectTableRows()
 			print "<td width='5%' align='center'><input
-				onclick='toggleSelectRow2(this);' dojoType=\"dijit.form.CheckBox\"
-				type=\"checkbox\" id=\"FUPDC-$feed_id\"></td>";
+				onclick='Tables.onRowChecked(this);' dojoType=\"dijit.form.CheckBox\"
+				type=\"checkbox\"></td>";
 			print "<td>";
 
 			print "<a class=\"visibleLink\" href=\"#\" ".
 				"title=\"".__("Click to edit feed")."\" ".
-				"onclick=\"editFeed(".$line["id"].")\">".
+				"onclick=\"CommonDialogs.editFeed(".$line["id"].")\">".
 				htmlspecialchars($line["title"])."</a>";
 
 			print "</td><td class=\"insensitive\" align='right'>";
@@ -1457,7 +1464,7 @@ class Pref_Feeds extends Handler_Protected {
 
 		print "<div class='dlgButtons'>";
 		print "<div style='float : left'>";
-		print "<button class=\"btn-danger\" dojoType=\"dijit.form.Button\" onclick=\"dijit.byId('inactiveFeedsDlg').removeSelected()\">"
+		print "<button class=\"alt-danger\" dojoType=\"dijit.form.Button\" onclick=\"dijit.byId('inactiveFeedsDlg').removeSelected()\">"
 			.__('Unsubscribe from selected feeds')."</button> ";
 		print "</div>";
 
@@ -1477,36 +1484,32 @@ class Pref_Feeds extends Handler_Protected {
 		print "<div dojoType=\"dijit.form.DropDownButton\">".
 				"<span>" . __('Select')."</span>";
 		print "<div dojoType=\"dijit.Menu\" style=\"display: none;\">";
-		print "<div onclick=\"selectTableRows('prefErrorFeedList', 'all')\"
+		print "<div onclick=\"Tables.select('error-feeds-list', true)\"
 			dojoType=\"dijit.MenuItem\">".__('All')."</div>";
-		print "<div onclick=\"selectTableRows('prefErrorFeedList', 'none')\"
+		print "<div onclick=\"Tables.select('error-feeds-list', false)\"
 			dojoType=\"dijit.MenuItem\">".__('None')."</div>";
 		print "</div></div>";
 		print "</div>"; #toolbar
 
-		print "<div class=\"inactiveFeedHolder\">";
-
-		print "<table width=\"100%\" cellspacing=\"0\" id=\"prefErrorFeedList\">";
+		print "<div class='panel panel-scrollable'>";
+		print "<table width='100%' id='error-feeds-list'>";
 
 		$lnum = 1;
 
 		while ($line = $sth->fetch()) {
 
 			$feed_id = $line["id"];
-			$this_row_id = "id=\"FERDD-$feed_id\"";
 
-			# class needed for selectTableRows()
-			print "<tr class=\"placeholder\" $this_row_id>";
+			print "<tr data-row-id='$feed_id'>";
 
-			# id needed for selectTableRows()
 			print "<td width='5%' align='center'><input
-				onclick='toggleSelectRow2(this);' dojoType=\"dijit.form.CheckBox\"
-				type=\"checkbox\" id=\"FERDC-$feed_id\"></td>";
+				onclick='Tables.onRowChecked(this);' dojoType=\"dijit.form.CheckBox\"
+				type=\"checkbox\"></td>";
 			print "<td>";
 
 			print "<a class=\"visibleLink\" href=\"#\" ".
 				"title=\"".__("Click to edit feed")."\" ".
-				"onclick=\"editFeed(".$line["id"].")\">".
+				"onclick=\"CommonDialogs.editFeed(".$line["id"].")\">".
 				htmlspecialchars($line["title"])."</a>: ";
 
 			print "<span class=\"insensitive\">";
@@ -1524,7 +1527,7 @@ class Pref_Feeds extends Handler_Protected {
 
 		print "<div class='dlgButtons'>";
 		print "<div style='float : left'>";
-		print "<button class=\"btn-danger\" dojoType=\"dijit.form.Button\" onclick=\"dijit.byId('errorFeedsDlg').removeSelected()\">"
+		print "<button class=\"alt-danger\" dojoType=\"dijit.form.Button\" onclick=\"dijit.byId('errorFeedsDlg').removeSelected()\">"
 			.__('Unsubscribe from selected feeds')."</button> ";
 		print "</div>";
 

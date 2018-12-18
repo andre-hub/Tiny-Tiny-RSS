@@ -8,7 +8,7 @@ class RPC extends Handler_Protected {
 	}
 
 	function setprofile() {
-		$_SESSION["profile"] = clean($_REQUEST["id"]);
+		$_SESSION["profile"] = (int) clean($_REQUEST["id"]);
 
 		// default value
 		if (!$_SESSION["profile"]) $_SESSION["profile"] = null;
@@ -271,17 +271,15 @@ class RPC extends Handler_Protected {
 	}
 
 	function getAllCounters() {
-		$last_article_id = (int) clean($_REQUEST["last_article_id"]);
+		@$seq = (int) $_REQUEST['seq'];
 
-		$reply = array();
+		$reply = [
+			'counters' => Counters::getAllCounters(),
+			'seq' => $seq
+		];
 
-		if (!empty($_REQUEST['seq'])) $reply['seq'] = (int) $_REQUEST['seq'];
-
-		if ($last_article_id != Article::getLastArticleId()) {
-			$reply['counters'] = Counters::getAllCounters();
-		}
-
-		$reply['runtime-info'] = make_runtime_info();
+		if ($seq % 2 == 0)
+			$reply['runtime-info'] = make_runtime_info();
 
 		print json_encode($reply);
 	}
@@ -326,7 +324,7 @@ class RPC extends Handler_Protected {
 
 		if ($reply['error']['code'] == 0) {
 			$reply['init-params'] = make_init_params();
-			$reply['runtime-info'] = make_runtime_info(true);
+			$reply['runtime-info'] = make_runtime_info();
 		}
 
 		print json_encode($reply);
@@ -599,4 +597,27 @@ class RPC extends Handler_Protected {
 		}
 
 	}
+
+	function checkforupdates() {
+		$rv = [];
+
+		if (CHECK_FOR_UPDATES && $_SESSION["access_level"] >= 10 && defined("GIT_VERSION_TIMESTAMP")) {
+			$content = @fetch_file_contents(["url" => "https://tt-rss.org/version.json"]);
+
+			if ($content) {
+				$content = json_decode($content, true);
+
+				if ($content && isset($content["changeset"])) {
+					if ((int)GIT_VERSION_TIMESTAMP < (int)$content["changeset"]["timestamp"] &&
+						GIT_VERSION_HEAD != $content["changeset"]["id"]) {
+
+						$rv = $content["changeset"];
+					}
+				}
+			}
+		}
+
+		print json_encode($rv);
+	}
+
 }

@@ -56,14 +56,14 @@ class Af_Psql_Trgm extends Plugin {
 
 			$title = $row['title'];
 
-			print "<h2>$title</h2>";
+			print "<p>$title</p>";
 
 			$sth = $this->pdo->prepare("SELECT ttrss_entries.id AS id,
 				feed_id,
 				ttrss_entries.title AS title,
 				updated, link,
 				ttrss_feeds.title AS feed_title,
-				SIMILARITY(ttrss_entries.title, '$title') AS sm
+				SIMILARITY(ttrss_entries.title, ?) AS sm
 			FROM
 				ttrss_entries, ttrss_user_entries LEFT JOIN ttrss_feeds ON (ttrss_feeds.id = feed_id)
 			WHERE
@@ -75,28 +75,30 @@ class Af_Psql_Trgm extends Plugin {
 				sm DESC, date_entered DESC
 			LIMIT 10");
 
-			$sth->execute([$owner_uid, $id]);
+			$sth->execute([$title, $owner_uid, $id]);
 
-			print "<ul class=\"browseFeedList\" style=\"border-width : 1px\">";
+			print "<ul class='panel panel-scrollable'>";
 
 			while ($line = $sth->fetch()) {
-				print "<li>";
-				print "<div class='insensitive small' style='margin-left : 20px; float : right'>" .
-					smart_date_time(strtotime($line["updated"]))
-					. "</div>";
+				print "<li style='display : flex'>";
+				print "<i class='material-icons'>bookmark_outline</i>";
 
 				$sm = sprintf("%.2f", $line['sm']);
-				print "<img src='images/score_high.png' title='$sm'
-				style='vertical-align : middle'>";
-
 				$article_link = htmlspecialchars($line["link"]);
+
+				print "<div style='flex-grow : 2'>";
+
 				print " <a target=\"_blank\" rel=\"noopener noreferrer\" href=\"$article_link\">".
 					$line["title"]."</a>";
 
-				print " (<a href=\"#\" onclick=\"viewfeed({feed:".$line["feed_id"]."})\">".
+				print " (<a href=\"#\" onclick=\"Feeds.open({feed:".$line["feed_id"]."})\">".
 					htmlspecialchars($line["feed_title"])."</a>)";
 
-				print " <span class='insensitive'>($sm)</span>";
+				print " &mdash; $sm";
+
+				print "</div>";
+
+				print "<div style='text-align : right' class='insensitive'>" . smart_date_time(strtotime($line["updated"])) . "</div>";
 
 				print "</li>";
 			}
@@ -113,16 +115,16 @@ class Af_Psql_Trgm extends Plugin {
 	}
 
 	function hook_article_button($line) {
-		return "<img src=\"plugins/af_psql_trgm/button.png\"
-			style=\"cursor : pointer\" style=\"cursor : pointer\"
-			onclick=\"showTrgmRelated(".$line["id"].")\"
-			class='tagsPic' title='".__('Show related articles')."'>";
+		return "<i style=\"cursor : pointer\" class='material-icons'
+			onclick=\"Plugins.Psql_Trgm.showRelated(".$line["id"].")\"
+			title='".__('Show related articles')."'>bookmark_outline</i>";
 	}
 
 	function hook_prefs_tab($args) {
 		if ($args != "prefFeeds") return;
 
-		print "<div dojoType=\"dijit.layout.AccordionPane\" title=\"".__('Mark similar articles as read')."\">";
+		print "<div dojoType=\"dijit.layout.AccordionPane\" 
+			title=\"<i class='material-icons'>extension</i> ".__('Mark similar articles as read')."\">";
 
 		if (DB_TYPE != "pgsql") {
 			print_error("Database type not supported.");
@@ -150,7 +152,7 @@ class Af_Psql_Trgm extends Plugin {
 					new Ajax.Request('backend.php', {
 						parameters: dojo.objectToQuery(this.getValues()),
 						onComplete: function(transport) {
-							notify_info(transport.responseText);
+							Notify.info(transport.responseText);
 						}
 					});
 					//this.reset();
@@ -197,12 +199,11 @@ class Af_Psql_Trgm extends Plugin {
 			if (count($enabled_feeds) > 0) {
 				print "<h3>" . __("Currently enabled for (click to edit):") . "</h3>";
 
-				print "<ul class=\"browseFeedList\" style=\"border-width : 1px\">";
+				print "<ul class=\"panel panel-scrollable list list-unstyled\">";
 				foreach ($enabled_feeds as $f) {
 					print "<li>" .
-						"<img src='images/pub_set.png'
-							style='vertical-align : middle'> <a href='#'
-							onclick='editFeed($f)'>" .
+						"<i class='material-icons'>rss_feed</i> <a href='#'
+							onclick='CommonDialogs.editFeed($f)'>" .
 						Feeds::getFeedTitle($f) . "</a></li>";
 				}
 				print "</ul>";

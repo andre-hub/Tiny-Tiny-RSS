@@ -53,11 +53,9 @@
 				$site_url = htmlspecialchars($line["site_url"]);
 				$subscribers = $line["subscribers"];
 
-				$check_box = "<input onclick='toggleSelectListRow2(this)'
+				$check_box = "<input onclick='Lists.onRowChecked(this)'
 							dojoType=\"dijit.form.CheckBox\"
 							type=\"checkbox\" \">";
-
-				$class = ($feedctr % 2) ? "even" : "odd";
 
 				$site_url = "<a target=\"_blank\" rel=\"noopener noreferrer\"
 							href=\"$site_url\">
@@ -65,8 +63,7 @@
 				htmlspecialchars($line["title"])."</span></a>";
 
 				$feed_url = "<a target=\"_blank\" rel=\"noopener noreferrer\" class=\"fb_feedUrl\"
-							href=\"$feed_url\"><img src='images/pub_set.png'
-							style='vertical-align : middle'></a>";
+							href=\"$feed_url\"><i class='icon-syndicate material-icons'>rss_feed</i></a>";
 
 				$rv .= "<li>$check_box $feed_url $site_url".
 							"&nbsp;<span class='subscribers'>($subscribers)</span></li>";
@@ -75,10 +72,8 @@
 				$feed_url = htmlspecialchars($line["feed_url"]);
 				$site_url = htmlspecialchars($line["site_url"]);
 
-				$check_box = "<input onclick='toggleSelectListRow2(this)' dojoType=\"dijit.form.CheckBox\"
+				$check_box = "<input onclick='Lists.onRowChecked(this)' dojoType=\"dijit.form.CheckBox\"
 							type=\"checkbox\">";
-
-				$class = ($feedctr % 2) ? "even" : "odd";
 
 				if ($line['articles_archived'] > 0) {
 					$archived = sprintf(_ngettext("%d archived article", "%d archived articles", (int) $line['articles_archived']), $line['articles_archived']);
@@ -93,8 +88,7 @@
 				htmlspecialchars($line["title"])."</span></a>";
 
 				$feed_url = "<a target=\"_blank\" rel=\"noopener noreferrer\" class=\"fb_feedUrl\"
-							href=\"$feed_url\"><img src='images/pub_set.png'
-							style='vertical-align : middle'></a>";
+							href=\"$feed_url\"><i class='icon-syndicate material-icons'>rss_feed</i></a>";
 
 
 				$rv .= "<li id=\"FBROW-".$line["id"]."\">".

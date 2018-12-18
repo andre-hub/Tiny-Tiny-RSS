@@ -1,14 +1,26 @@
 body.ttrss_prefs {
-	background-color : #f5f5f5;
+	background-color : @color-panel-bg;
+	font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+	font-size: 14px;
 
 	#footer, #header {
-		background-color : #f5f5f5;
-		padding-left : 8px;
-		padding-right : 8px;
+		padding : 8px;
+		font-size : 13px;
 	}
 
-	#header a:hover {
-		color : black;
+	#header {
+		float : right;
+	}
+
+	#footer_splitter {
+		display : none;
+	}
+
+	#footer {
+		background-color : @color-panel-bg;
+		font-size : 13px;
+		border : 0px;
+		text-align : center;
 	}
 
 	#header img {
@@ -16,38 +28,23 @@ body.ttrss_prefs {
 		cursor : pointer;
 	}
 
-
-	div#pref-tabs .dijitContentPane {
-		font-size : 13px;
+	.dijitTree#filterTree .dijitTreeIcon,
+	.dijitTree#labelTree .dijitTreeIcon,
+	.dijitTree#filterTree .dijitTreeIcon {
+		display : none;
 	}
 
-	div#pref-tabs {
-		box-shadow : 0px 1px 1px -1px rgba(0,0,0,0.1);
-		margin : 0px 5px 0px 5px;
+	.dijitAccordionTitle i.material-icons {
+		top : -1px;
+		position : relative;
 	}
 
-	div#pref-tabs .dijitContentPane h3 {
-		font-size : 14px;
+	.dijitAccordionTitleSelected i.material-icons {
+		color : white;
 	}
 
-	#pref-filter-wrap, #pref-filter-header, #pref-filter-content,
-	#pref-label-wrap, #pref-label-header, #pref-label-content,
-	#pref-user-wrap, #pref-user-header, #pref-user-content,
-	#pref-instance-wrap, #pref-instance-header, #pref-instance-content {
-		margin : 0px;
+	.dijitDialog #pref-profiles-list .dijitInlineEditBoxDisplayMode {
 		padding : 0px;
-		border-width : 0px;
-	}
-
-	#userConfigTab, #labelConfigTab, #filterConfigTab, #pref-feeds-feeds, #instanceConfigTab {
-		padding : 0px;
-	}
-
-	/* preferences */
-
-	table.prefPrefsList h3 {
-		margin-top : 0.5em;
-		margin-bottom : 0px;
 	}
 
 	tr.title td {
@@ -56,25 +53,8 @@ body.ttrss_prefs {
 		color : @color-link;
 	}
 
-	div.prefProfileHolder, div.prefFeedOPMLHolder, div.inactiveFeedHolder {
-		height : 300px;
-		overflow : auto;
-		border: 1px solid #ddd;
-		border-top-width: 0px;
-		margin : 0px 0px 5px 0px;
-		background-color : white;
-	}
-	div.filterTestHolder, div.prefFeedOPMLHolder {
-		border-width : 1px;
-	}
-
-	ul.userFeedList {
-		height : 200px;
-		overflow : auto;
-		list-style-type : none;
-		border : 1px solid #ddd;
-		margin : 0px 0px 5px 0px;
-		padding : 5px;
+	.prefPrefsList td {
+		padding-bottom : 4px;
 	}
 
 	div#feedlistLoading, div#filterlistLoading, div#labellistLoading {
@@ -91,12 +71,27 @@ body.ttrss_prefs {
 		color : red;
 	}
 
+	.user-css-editor {
+		height : 300px;
+		width : 575px;
+	}
+
+	#filterTree .filterRules * {
+		white-space: normal;
+	}
+
 	table.prefPluginsList td label, table.prefUserList td {
 		cursor : pointer;
 	}
 
-	table.prefPluginsList label {
-		white-space : nowrap;
+	table.prefPluginsList{
+		label {
+			white-space : nowrap;
+		}
+
+		i.plugin-enabled {
+			color : @color-checked;
+		}
 	}
 
 	table.prefPluginsList label img {
@@ -121,8 +116,6 @@ body.ttrss_prefs {
 		border-color : #ecf4ff;
 		max-width : 100%;
 	}
-
-
 
 }
 

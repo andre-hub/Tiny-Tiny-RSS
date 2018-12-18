@@ -16,15 +16,12 @@ class Dlg extends Handler_Protected {
 	function importOpml() {
 		print __("If you have imported labels and/or filters, you might need to reload preferences to see your new data.") . "</p>";
 
-		print "<div class=\"prefFeedOPMLHolder\">";
-
-		print "<ul class='nomarks'>";
+		print "<div class='panel panel-scrollable'>";
 
 		$opml = new Opml($_REQUEST);
 
 		$opml->opml_import($_SESSION["uid"]);
 
-		print "</ul>";
 		print "</div>";
 
 		print "<div align='center'>";
@@ -43,16 +40,16 @@ class Dlg extends Handler_Protected {
 
 		print __("Your Public OPML URL is:");
 
-		print "<div class=\"tagCloudContainer\">";
+		print "<div class='panel text-center'>";
 		print "<a id='pub_opml_url' href='$url_path' target='_blank'>$url_path</a>";
 		print "</div>";
 
 		print "<div align='center'>";
 
-		print "<button dojoType=\"dijit.form.Button\" onclick=\"return opmlRegenKey()\">".
+		print "<button dojoType=\"dijit.form.Button\" onclick=\"return Helpers.OPML.changeKey()\">".
 			__('Generate new URL')."</button> ";
 
-		print "<button dojoType=\"dijit.form.Button\" onclick=\"return closeInfoBox()\">".
+		print "<button dojoType=\"dijit.form.Button\" onclick=\"return CommonDialogs.closeInfoBox()\">".
 			__('Close this window')."</button>";
 
 		print "</div>";
@@ -85,7 +82,7 @@ class Dlg extends Handler_Protected {
 
 		print "<div align='center'>";
 
-		print "<button onclick=\"return closeInfoBox()\">".
+		print "<button onclick=\"return CommonDialogs.closeInfoBox()\">".
 			__('Close this window')."</button>";
 
 		print "</div>";
@@ -94,7 +91,7 @@ class Dlg extends Handler_Protected {
 	}
 
 	function printTagCloud() {
-		print "<div class=\"tagCloudContainer\">";
+		print "<div class='panel text-center'>";
 
 		// from here: http://www.roscripts.com/Create_tag_cloud-71.html
 
@@ -139,7 +136,7 @@ class Dlg extends Handler_Protected {
 
 			$key_escaped = str_replace("'", "\\'", $key);
 
-			echo "<a href=\"javascript:viewfeed({feed:'$key_escaped'}) \" style=\"font-size: " .
+			echo "<a href=\"#\" onclick=\"Feeds.open({feed:'$key_escaped'}) \" style=\"font-size: " .
 				$size . "px\" title=\"$value articles tagged with " .
 				$key . '">' . $key . '</a> ';
 		}
@@ -150,7 +147,7 @@ class Dlg extends Handler_Protected {
 
 		print "<div align='center'>";
 		print "<button dojoType=\"dijit.form.Button\"
-			onclick=\"return closeInfoBox()\">".
+			onclick=\"return CommonDialogs.closeInfoBox()\">".
 			__('Close this window')."</button>";
 		print "</div>";
 
@@ -166,18 +163,20 @@ class Dlg extends Handler_Protected {
 
 		$url_path = htmlspecialchars($this->params[2]) . "&key=" . $key;
 
-		print "<h2>".__("You can view this feed as RSS using the following URL:")."</h2>";
+		$feed_title = Feeds::getFeedTitle($feed_id, $is_cat);
 
-		print "<div class=\"tagCloudContainer\">";
+		print "<div>".T_sprintf("%s can be accessed via the following secret URL:", $feed_title)."</div>";
+
+		print "<div class='panel text-center'>";
 		print "<a id='gen_feed_url' href='$url_path' target='_blank'>$url_path</a>";
 		print "</div>";
 
 		print "<div align='center'>";
 
-		print "<button dojoType=\"dijit.form.Button\" onclick=\"return genUrlChangeKey('$feed_id', '$is_cat')\">".
+		print "<button dojoType=\"dijit.form.Button\" onclick=\"return CommonDialogs.genUrlChangeKey('$feed_id', '$is_cat')\">".
 			__('Generate new URL')."</button> ";
 
-		print "<button dojoType=\"dijit.form.Button\" onclick=\"return closeInfoBox()\">".
+		print "<button dojoType=\"dijit.form.Button\" onclick=\"return CommonDialogs.closeInfoBox()\">".
 			__('Close this window')."</button>";
 
 		print "</div>";
@@ -190,10 +189,10 @@ class Dlg extends Handler_Protected {
     	print_warning(__("You are using default tt-rss password. Please change it in the Preferences (Personal data / Authentication)."));
 
 		print "<div align='center'>";
-		print "<button dojoType=\"dijit.form.Button\" onclick=\"gotoPreferences()\">".
+		print "<button dojoType=\"dijit.form.Button\" onclick=\"document.location.href = 'prefs.php'\">".
 			__('Open Preferences')."</button> ";
 		print "<button dojoType=\"dijit.form.Button\"
-			onclick=\"return closeInfoBox()\">".
+			onclick=\"return CommonDialogs.closeInfoBox()\">".
 			__('Close this window')."</button>";
 		print "</div>";
 	}

@@ -233,10 +233,12 @@ function print_feed_cat_select($id, $default_id,
 	}
 }
 
-function stylesheet_tag($filename) {
+function stylesheet_tag($filename, $id = false) {
 	$timestamp = filemtime($filename);
 
-	return "<link rel=\"stylesheet\" type=\"text/css\" href=\"$filename?$timestamp\"/>\n";
+	$id_part = $id ? "id=\"$id\"" : "";
+
+	return "<link rel=\"stylesheet\" $id_part type=\"text/css\" href=\"$filename?$timestamp\"/>\n";
 }
 
 function javascript_tag($filename) {
@@ -286,17 +288,21 @@ function format_inline_player($url, $ctype) {
 
 	if (strpos($ctype, "audio/") === 0) {
 
+		$entry .= "<div class='inline-player'>";
+
 		if ($_SESSION["hasAudio"] && (strpos($ctype, "ogg") !== false ||
 				$_SESSION["hasMp3"])) {
 
 			$entry .= "<audio preload=\"none\" controls>
 					<source type=\"$ctype\" src=\"$url\"/>
-					</audio>";
+					</audio> ";
 
 		}
 
-		if ($entry) $entry .= "&nbsp; <a target=\"_blank\" rel=\"noopener noreferrer\"
+		if ($entry) $entry .= "<a target=\"_blank\" rel=\"noopener noreferrer\"
 				href=\"$url\">" . basename($url) . "</a>";
+
+		$entry .= "</div>";
 
 		return $entry;
 

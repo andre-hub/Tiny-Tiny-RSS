@@ -8,30 +8,43 @@ define(["dojo/_base/declare", "dojo/dom-construct", "dijit/Tree", "dijit/Menu"],
 		_createTreeNode: function(args) {
 			const tnode = new dijit._TreeNode(args);
 
-			const icon = dojo.doc.createElement('img');
-			if (args.item.icon && args.item.icon[0]) {
-				icon.src = args.item.icon[0];
-			} else {
-				icon.src = 'images/blank_icon.gif';
+			const iconName = args.item.icon ? String(args.item.icon[0]) : null;
+			let iconNode;
+
+			if (iconName) {
+				if (iconName.indexOf("/") == -1) {
+					iconNode = dojo.doc.createElement("i");
+					iconNode.className = "material-icons icon icon-" + iconName;
+					iconNode.innerHTML = iconName;
+				} else {
+					iconNode = dojo.doc.createElement('img');
+					if (args.item.icon && args.item.icon[0]) {
+						iconNode.src = args.item.icon[0];
+					} else {
+						iconNode.src = 'images/blank_icon.gif';
+					}
+					iconNode.className = 'icon';
+				}
 			}
-			icon.className = 'tinyFeedIcon';
-			domConstruct.place(icon, tnode.iconNode, 'only');
+
+			if (iconNode)
+				domConstruct.place(iconNode, tnode.iconNode, 'only');
 
 			const id = args.item.id[0];
 			const bare_id = parseInt(id.substr(id.indexOf(':')+1));
 
 			if (bare_id < _label_base_index) {
-				const span = dojo.doc.createElement('span');
-				const fg_color = args.item.fg_color[0];
+				const label = dojo.doc.createElement('i');
+				//const fg_color = args.item.fg_color[0];
 				const bg_color = args.item.bg_color[0];
 
-				span.innerHTML = "&alpha;";
-				span.className = 'labelColorIndicator';
-				span.setStyle({
-					color: fg_color,
-					backgroundColor: bg_color});
+				label.className = "material-icons icon icon-label";
+				label.innerHTML = "label";
+				label.setStyle({
+					color: bg_color,
+					});
 
-				domConstruct.place(span, tnode.iconNode, 'only');
+				domConstruct.place(label, tnode.iconNode, 'only');
 			}
 
 			if (id.match("FEED:")) {
@@ -41,14 +54,14 @@ define(["dojo/_base/declare", "dojo/dom-construct", "dijit/Tree", "dijit/Menu"],
 				menu.addChild(new dijit.MenuItem({
 					label: __("Mark as read"),
 					onClick: function() {
-						catchupFeed(this.getParent().row_id);
+						Feeds.catchupFeed(this.getParent().row_id);
 					}}));
 
 				if (bare_id > 0) {
 					menu.addChild(new dijit.MenuItem({
 						label: __("Edit feed"),
 						onClick: function() {
-							editFeed(this.getParent().row_id, false);
+							CommonDialogs.editFeed(this.getParent().row_id, false);
 						}}));
 
 					/* menu.addChild(new dijit.MenuItem({
@@ -69,7 +82,7 @@ define(["dojo/_base/declare", "dojo/dom-construct", "dijit/Tree", "dijit/Menu"],
 				menu.addChild(new dijit.MenuItem({
 					label: __("Mark as read"),
 					onClick: function() {
-						catchupFeed(this.getParent().row_id, true);
+						Feeds.catchupFeed(this.getParent().row_id, true);
 					}}));
 
 				menu.addChild(new dijit.MenuItem({
@@ -97,7 +110,7 @@ define(["dojo/_base/declare", "dojo/dom-construct", "dijit/Tree", "dijit/Menu"],
 				menu.addChild(new dijit.MenuItem({
 					label: __("Mark all feeds as read"),
 					onClick: function() {
-						catchupAllFeeds();
+						Feeds.catchupAllFeeds();
 					}}));
 
 				menu.bindDomNode(tnode.domNode);
@@ -123,7 +136,7 @@ define(["dojo/_base/declare", "dojo/dom-construct", "dijit/Tree", "dijit/Menu"],
 		postCreate: function() {
 			this.connect(this.model, "onChange", "updateCounter");
 			this.connect(this, "_expandNode", function() {
-				this.hideRead(getInitParam("hide_read_feeds"), getInitParam("hide_read_shows_special"));
+				this.hideRead(App.getInitParam("hide_read_feeds"), App.getInitParam("hide_read_shows_special"));
 			});
 
 			this.inherited(arguments);
@@ -155,13 +168,10 @@ define(["dojo/_base/declare", "dojo/dom-construct", "dijit/Tree", "dijit/Menu"],
 
 		},
 		getTooltip: function (item) {
-			if (item.updated)
-				return item.updated;
-			else
-				return "";
+			return [item.updated, item.error].filter(x => x && x != "").join(" - ");
 		},
 		getIconClass: function (item, opened) {
-			return (!item || this.model.mayHaveChildren(item)) ? (opened ? "dijitFolderOpened" : "dijitFolderClosed") : "feedIcon";
+			return (!item || this.model.mayHaveChildren(item)) ? (opened ? "dijitFolderOpened" : "dijitFolderClosed") : "feed-icon";
 		},
 		getLabelClass: function (item, opened) {
 			return (item.unread == 0) ? "dijitTreeLabel" : "dijitTreeLabel Unread";
@@ -207,7 +217,7 @@ define(["dojo/_base/declare", "dojo/dom-construct", "dijit/Tree", "dijit/Menu"],
 					}
 				}
 			} catch (e) {
-				exception_error(e);
+				App.Error.report(e);
 			}
 		},
 		findNodeParentsAndExpandThem: function(feed, is_cat, root, parents) {
@@ -242,7 +252,7 @@ define(["dojo/_base/declare", "dojo/dom-construct", "dijit/Tree", "dijit/Menu"],
 							this.expandParentNodes(feed, is_cat, parents.slice(0));
 						}
 			} catch (e) {
-				exception_error(e);
+				App.Error.report(e);
 			}
 		},
 		selectFeed: function(feed, is_cat) {
@@ -275,7 +285,7 @@ define(["dojo/_base/declare", "dojo/dom-construct", "dijit/Tree", "dijit/Menu"],
 				treeNode = treeNode[0];
 				const icon = dojo.doc.createElement('img');
 				icon.src = src;
-				icon.className = 'tinyFeedIcon';
+				icon.className = 'icon';
 				domConstruct.place(icon, treeNode.iconNode, 'only');
 				return true;
 			}

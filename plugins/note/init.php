@@ -22,10 +22,8 @@ class Note extends Plugin {
 
 
 	function hook_article_button($line) {
-		return "<img src=\"plugins/note/note.png\"
-			style=\"cursor : pointer\" style=\"cursor : pointer\"
-			onclick=\"editArticleNote(".$line["id"].")\"
-			class='tagsPic' title='".__('Edit article note')."'>";
+		return "<i class='material-icons' onclick=\"Plugins.Note.edit(".$line["id"].")\"
+			style='cursor : pointer' title='".__('Edit article note')."'>note</i>";
 	}
 
 	function edit() {
