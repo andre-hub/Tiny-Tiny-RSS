@@ -437,6 +437,14 @@
 
 			curl_close($ch);
 
+			$is_gzipped = RSSUtils::is_gzipped($contents);
+
+			if ($is_gzipped) {
+				$tmp = @gzdecode($contents);
+
+				if ($tmp) $contents = $tmp;
+			}
+
 			return $contents;
 		} else {
 
@@ -522,6 +530,15 @@
 
 				return false;
 			}
+
+			$is_gzipped = RSSUtils::is_gzipped($data);
+
+			if ($is_gzipped) {
+				$tmp = @gzdecode($data);
+
+				if ($tmp) $data = $tmp;
+			}
+
 			return $data;
 		}
 
@@ -846,10 +863,18 @@
 		}
 	}
 
-	// is not utf8 clean
+	function mb_substr_replace($original, $replacement, $position, $length) {
+		$startString = mb_substr($original, 0, $position, "UTF-8");
+		$endString = mb_substr($original, $position + $length, mb_strlen($original), "UTF-8");
+
+		$out = $startString . $replacement . $endString;
+
+		return $out;
+	}
+
 	function truncate_middle($str, $max_len, $suffix = '&hellip;') {
-		if (strlen($str) > $max_len) {
-			return substr_replace($str, $suffix, $max_len / 2, mb_strlen($str) - $max_len);
+		if (mb_strlen($str) > $max_len) {
+			return mb_substr_replace($str, $suffix, $max_len / 2, mb_strlen($str) - $max_len);
 		} else {
 			return $str;
 		}

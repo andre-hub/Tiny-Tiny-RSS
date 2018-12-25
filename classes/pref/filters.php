@@ -177,7 +177,7 @@ class Pref_Filters extends Handler_Protected {
 
 	}
 
-	private function getfilterrules_concise($filter_id) {
+	private function getfilterrules_list($filter_id) {
 		$sth = $this->pdo->prepare("SELECT reg_exp,
 			inverse,
 			match_on,
@@ -227,11 +227,11 @@ class Pref_Filters extends Handler_Protected {
 
 			$inverse = $line["inverse"] ? "inverse" : "";
 
-			$rv .= "<span class='$inverse'>" . T_sprintf("%s on %s in %s %s",
+			$rv .= "<li class='$inverse'>" . T_sprintf("%s on %s in %s %s",
 				htmlspecialchars($line["reg_exp"]),
 				$line["field"],
 				$where,
-				$line["inverse"] ? __("(inverse)") : "") . "</span>";
+				$line["inverse"] ? __("(inverse)") : "") . "</li>";
 		}
 
 		return $rv;
@@ -268,6 +268,10 @@ class Pref_Filters extends Handler_Protected {
 
 			$match_ok = false;
 			if ($filter_search) {
+				if (mb_strpos($line['title'], $filter_search) !== false) {
+					$match_ok = true;
+				}
+
 				$rules_sth = $this->pdo->prepare("SELECT reg_exp
 					FROM ttrss_filters2_rules WHERE filter_id = ?");
 				$rules_sth->execute([$line['id']]);
@@ -302,7 +306,7 @@ class Pref_Filters extends Handler_Protected {
 			$filter['checkbox'] = false;
 			$filter['last_triggered'] = $line["last_triggered"] ? make_local_datetime($line["last_triggered"], false) : null;
 			$filter['enabled'] = $line["enabled"];
-			$filter['rules'] = $this->getfilterrules_concise($line['id']);
+			$filter['rules'] = $this->getfilterrules_list($line['id']);
 
 			if (!$filter_search || $match_ok) {
 				array_push($folder['items'], $filter);
@@ -752,7 +756,7 @@ class Pref_Filters extends Handler_Protected {
 		print "<div style='float : right; padding-right : 4px;'>
 			<input dojoType=\"dijit.form.TextBox\" id=\"filter_search\" size=\"20\" type=\"search\"
 				value=\"$filter_search\">
-			<button dojoType=\"dijit.form.Button\" onclick=\"updateFilterList()\">".
+			<button dojoType=\"dijit.form.Button\" onclick=\"dijit.byId('filterTree').reload()\">".
 				__('Search')."</button>
 			</div>";
 

@@ -563,7 +563,14 @@ class Feeds extends Handler_Protected {
 		// this is parsed by handleRpcJson() on first viewfeed() to set cdm expanded, etc
 		$reply['runtime-info'] = make_runtime_info();
 
-		print json_encode($reply);
+		$reply_json = json_encode($reply);
+
+		if (!$reply_json) {
+		    $reply_json = json_encode(["error" => ["code" => 15,
+                "message" => json_last_error_msg()]]);
+        }
+
+		print $reply_json;
 
 	}
 
@@ -1798,6 +1805,7 @@ class Feeds extends Handler_Protected {
 							feed_id,
 							orig_feed_id,
 							marked,
+							published,
 							num_comments,
 							comments,
 							int_id,
