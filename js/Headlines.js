@@ -547,8 +547,8 @@ define(["dojo/_base/declare"], function (declare) {
 					return;
 
 				const headlines_count = reply['headlines-info']['count'];
-				Feeds.infscroll_disabled = parseInt(headlines_count) != 30;
 
+				Feeds.infscroll_disabled = parseInt(headlines_count) < 30;
 				console.log('received', headlines_count, 'headlines, infscroll disabled=', Feeds.infscroll_disabled);
 
 				//this.vgroup_last_feed = reply['headlines-info']['vgroup_last_feed'];
@@ -573,7 +573,7 @@ define(["dojo/_base/declare"], function (declare) {
 						console.warn(e);
 					}
 
-					//this.headlines = [];
+					this.headlines = [];
 					this.vgroup_last_feed = undefined;
 
 					dojo.html.set($("toolbar-headlines"),
@@ -623,17 +623,26 @@ define(["dojo/_base/declare"], function (declare) {
 					if (hsp)
 						c.domNode.removeChild(hsp);
 
+					let headlines_appended = 0;
+
 					if (typeof reply['headlines']['content'] == 'string') {
 						$("headlines-frame").innerHTML = reply['headlines']['content'];
 					} else {
 						for (let i = 0; i < reply['headlines']['content'].length; i++) {
 							const hl = reply['headlines']['content'][i];
 
-							$("headlines-frame").appendChild(this.render(reply['headlines'], hl));
+							if (!this.headlines[parseInt(hl.id)]) {
+								$("headlines-frame").appendChild(this.render(reply['headlines'], hl));
 
-							this.headlines[parseInt(hl.id)] = hl;
+								this.headlines[parseInt(hl.id)] = hl;
+								++headlines_appended;
+							}
 						}
 					}
+
+					Feeds.infscroll_disabled = headlines_appended != 30;
+
+					console.log('appended', headlines_appended, 'headlines, infscroll_disabled=', Feeds.infscroll_disabled);
 
 					if (!hsp) {
 						hsp = document.createElement("div");
