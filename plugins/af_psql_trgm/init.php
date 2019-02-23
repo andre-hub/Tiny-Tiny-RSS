@@ -107,9 +107,9 @@ class Af_Psql_Trgm extends Plugin {
 
 		}
 
-		print "<div style='text-align : center'>";
-		print "<button dojoType=\"dijit.form.Button\" onclick=\"dijit.byId('trgmRelatedDlg').hide()\">".__('Close this window')."</button>";
-		print "</div>";
+		print "<footer class='text-center'>";
+		print "<button dojoType='dijit.form.Button' onclick=\"dijit.byId('trgmRelatedDlg').hide()\">".__('Close this window')."</button>";
+		print "</footer>";
 
 
 	}
@@ -163,31 +163,38 @@ class Af_Psql_Trgm extends Plugin {
 			print_hidden("method", "save");
 			print_hidden("plugin", "af_psql_trgm");
 
-			print "<p>" . __("PostgreSQL trigram extension returns string similarity as a floating point number (0-1). Setting it too low might produce false positives, zero disables checking.") . "</p>";
-			print_notice("Enable the plugin for specific feeds in the feed editor.");
+			print "<h2>" . __("Global settings") . "</h2>";
 
-			print "<h3>" . __("Global settings") . "</h3>";
+			print_notice("Enable for specific feeds in the feed editor.");
 
-			print "<table>";
+			print "<fieldset>";
 
-			print "<tr><td width=\"40%\">" . __("Minimum similarity:") . "</td>";
-			print "<td>
-				<input dojoType=\"dijit.form.ValidationTextBox\"
-				placeholder=\"0.75\"
-				required=\"1\" name=\"similarity\" value=\"$similarity\"></td></tr>";
-			print "<tr><td width=\"40%\">" . __("Minimum title length:") . "</td>";
-			print "<td>
-				<input dojoType=\"dijit.form.ValidationTextBox\"
+			print "<label>" . __("Minimum similarity:") . "</label> ";
+			print "<input dojoType=\"dijit.form.NumberSpinner\"
+				placeholder=\"0.75\" id='psql_trgm_similarity'
+				required=\"1\" name=\"similarity\" value=\"$similarity\">";
+
+			print "<div dojoType='dijit.Tooltip' connectId='psql_trgm_similarity' position='below'>" .
+				__("PostgreSQL trigram extension returns string similarity as a floating point number (0-1). Setting it too low might produce false positives, zero disables checking.") .
+				"</div>";
+
+			print "</fieldset><fieldset>";
+
+			print "<label>" . __("Minimum title length:") . "</label> ";
+			print "<input dojoType=\"dijit.form.NumberSpinner\"
 				placeholder=\"32\"
-				required=\"1\" name=\"min_title_length\" value=\"$min_title_length\"></td></tr>";
-			print "<tr><td width=\"40%\">" . __("Enable for all feeds:") . "</td>";
-			print "<td>";
+				required=\"1\" name=\"min_title_length\" value=\"$min_title_length\">";
+
+			print "</fieldset><fieldset>";
+
+			print "<label class='checkbox'>";
 			print_checkbox("enable_globally", $enable_globally);
-			print "</td></tr>";
+			print " " . __("Enable for all feeds:");
+			print "</label>";
 
-			print "</table>";
+			print "</fieldset>";
 
-			print "<p>"; print_button("submit", __("Save"));
+			print_button("submit", __("Save"), "class='alt-primary'");
 			print "</form>";
 
 			$enabled_feeds = $this->host->get($this, "enabled_feeds");
@@ -214,8 +221,8 @@ class Af_Psql_Trgm extends Plugin {
 	}
 
 	function hook_prefs_edit_feed($feed_id) {
-		print "<div class=\"dlgSec\">".__("Similarity (pg_trgm)")."</div>";
-		print "<div class=\"dlgSecCont\">";
+		print "<header>".__("Similarity (pg_trgm)")."</header>";
+		print "<section>";
 
 		$enabled_feeds = $this->host->get($this, "enabled_feeds");
 		if (!array($enabled_feeds)) $enabled_feeds = array();
@@ -223,11 +230,14 @@ class Af_Psql_Trgm extends Plugin {
 		$key = array_search($feed_id, $enabled_feeds);
 		$checked = $key !== FALSE ? "checked" : "";
 
-		print "<hr/><input dojoType=\"dijit.form.CheckBox\" type=\"checkbox\" id=\"trgm_similarity_enabled\"
-			name=\"trgm_similarity_enabled\"
-			$checked>&nbsp;<label for=\"trgm_similarity_enabled\">".__('Mark similar articles as read')."</label>";
+		print "<fieldset>";
 
-		print "</div>";
+		print "<label class='checkbox'><input dojoType='dijit.form.CheckBox' type='checkbox' id='trgm_similarity_enabled'
+			name='trgm_similarity_enabled' $checked> ".__('Mark similar articles as read')."</label>";
+
+		print "</fieldset>";
+
+		print "</section>";
 	}
 
 	function hook_prefs_save_feed($feed_id) {

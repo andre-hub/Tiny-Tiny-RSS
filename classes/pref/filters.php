@@ -170,10 +170,10 @@ class Pref_Filters extends Handler_Protected {
 		print "<ul class='panel panel-scrollable list list-unstyled' id='prefFilterTestResultList'>";
 		print "</ul>";
 
-		print "<div style='text-align : center'>";
-		print "<button dojoType=\"dijit.form.Button\" onclick=\"dijit.byId('filterTestDlg').hide()\">".
+		print "<footer class='text-center'>";
+		print "<button dojoType='dijit.form.Button' onclick=\"dijit.byId('filterTestDlg').hide()\">".
 			__('Close this window')."</button>";
-		print "</div>";
+		print "</footer>";
 
 	}
 
@@ -339,20 +339,20 @@ class Pref_Filters extends Handler_Protected {
 			$inverse = $row["inverse"];
 			$title = htmlspecialchars($row["title"]);
 
-			print "<form id=\"filter_edit_form\" onsubmit='return false'>";
+			print "<form id='filter_edit_form' onsubmit='return false'>";
 
 			print_hidden("op", "pref-filters");
 			print_hidden("id", "$filter_id");
 			print_hidden("method", "editSave");
 			print_hidden("csrf_token", $_SESSION['csrf_token']);
 
-			print "<div class=\"dlgSecHoriz\">".__("Caption")."</div>";
-
+			print "<header>".__("Caption")."</header>";
+			print "<section>";
 			print "<input required=\"true\" dojoType=\"dijit.form.ValidationTextBox\" style=\"width : 20em;\" name=\"title\" value=\"$title\">";
+			print "</section>";
 
-			print "</div>";
-
-			print "<div class=\"dlgSecHoriz\">".__("Match")."</div>";
+			print "<header class='horizontal'>".__("Match")."</header>";
+			print "<section>";
 
 			print "<div dojoType=\"dijit.Toolbar\">";
 
@@ -408,9 +408,11 @@ class Pref_Filters extends Handler_Protected {
 
 			print "</ul>";
 
-			print "</div>";
+			print "</section>";
 
-			print "<div class=\"dlgSecHoriz\">".__("Apply actions")."</div>";
+			print "<header class='horizontal'>".__("Apply actions")."</header>";
+
+			print "<section>";
 
 			print "<div dojoType=\"dijit.Toolbar\">";
 
@@ -452,7 +454,10 @@ class Pref_Filters extends Handler_Protected {
 
 			print "</ul>";
 
-			print "</div>";
+			print "</section>";
+
+			print "<header>".__("Options")."</header>";
+			print "<section>";
 
 			if ($enabled) {
 				$checked = "checked=\"1\"";
@@ -460,8 +465,9 @@ class Pref_Filters extends Handler_Protected {
 				$checked = "";
 			}
 
-			print "<input dojoType=\"dijit.form.CheckBox\" type=\"checkbox\" name=\"enabled\" id=\"enabled\" $checked>
-				<label for=\"enabled\">".__('Enabled')."</label>";
+			print "<fieldset class='narrow'>";
+			print "<label class='checkbox'><input dojoType=\"dijit.form.CheckBox\" type=\"checkbox\" name=\"enabled\" id=\"enabled\" $checked>
+				".__('Enabled')."</label>";
 
 			if ($match_any_rule) {
 				$checked = "checked=\"1\"";
@@ -469,8 +475,12 @@ class Pref_Filters extends Handler_Protected {
 				$checked = "";
 			}
 
-			print "<br/><input dojoType=\"dijit.form.CheckBox\" type=\"checkbox\" name=\"match_any_rule\" id=\"match_any_rule\" $checked>
-				<label for=\"match_any_rule\">".__('Match any rule')."</label>";
+			print "</fieldset><fieldset class='narrow'>";
+
+			print "<label class='checkbox'><input dojoType=\"dijit.form.CheckBox\" type=\"checkbox\" name=\"match_any_rule\" id=\"match_any_rule\" $checked>
+				".__('Match any rule')."</label>";
+
+			print "</fieldset><fieldset class='narrow'>";
 
 			if ($inverse) {
 				$checked = "checked=\"1\"";
@@ -478,12 +488,14 @@ class Pref_Filters extends Handler_Protected {
 				$checked = "";
 			}
 
-			print "<br/><input dojoType=\"dijit.form.CheckBox\" type=\"checkbox\" name=\"inverse\" id=\"inverse\" $checked>
-				<label for=\"inverse\">".__('Inverse matching')."</label>";
+			print "<label class='checkbox'><input dojoType=\"dijit.form.CheckBox\" type=\"checkbox\" name=\"inverse\" id=\"inverse\" $checked>
+				".__('Inverse matching')."</label>";
 
-			print "<p/>";
+			print "</fieldset>";
 
-			print "<div class=\"dlgButtons\">";
+			print "</section>";
+
+			print "<footer>";
 
 			print "<div style=\"float : left\">";
 			print "<button dojoType=\"dijit.form.Button\" class=\"alt-danger\" onclick=\"return dijit.byId('filterEditDlg').removeFilter()\">".
@@ -499,7 +511,7 @@ class Pref_Filters extends Handler_Protected {
 			print "<button dojoType=\"dijit.form.Button\" onclick=\"return dijit.byId('filterEditDlg').hide()\">".
 				__('Cancel')."</button>";
 
-			print "</div>";
+			print "</footer>";
 			print "</form>";
 
 		}
@@ -835,27 +847,30 @@ class Pref_Filters extends Handler_Protected {
 		print_hidden("method", "add");
 		print_hidden("csrf_token", $_SESSION['csrf_token']);
 
-		print "<div class=\"dlgSecHoriz\">".__("Caption")."</div>";
+		print "<header>".__("Caption")."</header>";
 
-		print "<input required=\"true\" dojoType=\"dijit.form.ValidationTextBox\" style=\"width : 20em;\" name=\"title\" value=\"\">";
+		print "<section>";
+		print "<input required='true' dojoType='dijit.form.ValidationTextBox' style='width : 20em;' name='title' value=''>";
+		print "</section>";
 
-		print "<div class=\"dlgSecHoriz\">".__("Match")."</div>";
+		print "<header class='horizontal'>".__("Match")."</header >";
+		print "<section>";
 
-		print "<div dojoType=\"dijit.Toolbar\">";
+		print "<div dojoType='dijit.Toolbar'>";
 
-		print "<div dojoType=\"dijit.form.DropDownButton\">".
+		print "<div dojoType='dijit.form.DropDownButton'>".
 				"<span>" . __('Select')."</span>";
-		print "<div dojoType=\"dijit.Menu\" style=\"display: none;\">";
+		print "<div dojoType='dijit.Menu' style='display: none'>";
 		print "<div onclick=\"dijit.byId('filterEditDlg').selectRules(true)\"
-			dojoType=\"dijit.MenuItem\">".__('All')."</div>";
+			dojoType='dijit.MenuItem'>".__('All')."</div>";
 		print "<div onclick=\"dijit.byId('filterEditDlg').selectRules(false)\"
-			dojoType=\"dijit.MenuItem\">".__('None')."</div>";
+			dojoType='dijit.MenuItem'>".__('None')."</div>";
 		print "</div></div>";
 
-		print "<button dojoType=\"dijit.form.Button\" onclick=\"return dijit.byId('filterEditDlg').addRule()\">".
+		print "<button dojoType='dijit.form.Button' onclick=\"return dijit.byId('filterEditDlg').addRule()\">".
 			__('Add')."</button> ";
 
-		print "<button dojoType=\"dijit.form.Button\" onclick=\"return dijit.byId('filterEditDlg').deleteRule()\">".
+		print "<button dojoType='dijit.form.Button' onclick=\"return dijit.byId('filterEditDlg').deleteRule()\">".
 			__('Delete')."</button> ";
 
 		print "</div>";
@@ -864,25 +879,27 @@ class Pref_Filters extends Handler_Protected {
 #		print "<li>No rules</li>";
 		print "</ul>";
 
-		print "</div>";
+		print "</section>";
 
-		print "<div class=\"dlgSecHoriz\">".__("Apply actions")."</div>";
+		print "<header class='horizontal'>".__("Apply actions")."</header>";
 
-		print "<div dojoType=\"dijit.Toolbar\">";
+		print "<section>";
 
-		print "<div dojoType=\"dijit.form.DropDownButton\">".
+		print "<div dojoType='dijit.Toolbar'>";
+
+		print "<div dojoType='dijit.form.DropDownButton'>".
 				"<span>" . __('Select')."</span>";
-		print "<div dojoType=\"dijit.Menu\" style=\"display: none;\">";
+		print "<div dojoType='dijit.Menu' style='display: none'>";
 		print "<div onclick=\"dijit.byId('filterEditDlg').selectActions(true)\"
-			dojoType=\"dijit.MenuItem\">".__('All')."</div>";
+			dojoType='dijit.MenuItem'>".__('All')."</div>";
 		print "<div onclick=\"dijit.byId('filterEditDlg').selectActions(false)\"
-			dojoType=\"dijit.MenuItem\">".__('None')."</div>";
+			dojoType='dijit.MenuItem'>".__('None')."</div>";
 		print "</div></div>";
 
-		print "<button dojoType=\"dijit.form.Button\" onclick=\"return dijit.byId('filterEditDlg').addAction()\">".
+		print "<button dojoType='dijit.form.Button' onclick=\"return dijit.byId('filterEditDlg').addAction()\">".
 			__('Add')."</button> ";
 
-		print "<button dojoType=\"dijit.form.Button\" onclick=\"return dijit.byId('filterEditDlg').deleteAction()\">".
+		print "<button dojoType='dijit.form.Button' onclick=\"return dijit.byId('filterEditDlg').deleteAction()\">".
 			__('Delete')."</button> ";
 
 		print "</div>";
@@ -891,32 +908,40 @@ class Pref_Filters extends Handler_Protected {
 #		print "<li>No actions</li>";
 		print "</ul>";
 
-/*		print "<div class=\"dlgSec\">".__("Options")."</div>";
-		print "<div class=\"dlgSecCont\">"; */
+		print "</section>";
 
-		print "<input dojoType=\"dijit.form.CheckBox\" type=\"checkbox\" name=\"enabled\" id=\"enabled\" checked=\"1\">
-				<label for=\"enabled\">".__('Enabled')."</label>";
+		print "<header>".__("Options")."</header>";
 
-		print "<br/><input dojoType=\"dijit.form.CheckBox\" type=\"checkbox\" name=\"match_any_rule\" id=\"match_any_rule\">
-				<label for=\"match_any_rule\">".__('Match any rule')."</label>";
+		print "<section>";
+		print "<fieldset class='narrow'>";
 
-		print "<br/><input dojoType=\"dijit.form.CheckBox\" type=\"checkbox\" name=\"inverse\" id=\"inverse\">
-				<label for=\"inverse\">".__('Inverse matching')."</label>";
+		print "<label class='checkbox'><input dojoType='dijit.form.CheckBox' type='checkbox' name='enabled' id='enabled' checked='1'>
+				".__('Enabled')."</label>";
 
-//		print "</div>";
+		print "</fieldset><fieldset class='narrow'>";
 
-		print "<div class=\"dlgButtons\">";
+		print "<label class='checkbox'><input dojoType='dijit.form.CheckBox' type='checkbox' name='match_any_rule' id='match_any_rule'>
+				".__('Match any rule')."</label>";
 
-		print "<button dojoType=\"dijit.form.Button\" class=\"alt-info\" onclick=\"return dijit.byId('filterEditDlg').test()\">".
+		print "</fieldset><fieldset class='narrow'>";
+
+		print "<label class='checkbox'><input dojoType='dijit.form.CheckBox' type='checkbox' name='inverse' id='inverse'>
+				".__('Inverse matching')."</label>";
+
+		print "</fieldset>";
+
+		print "</section>";
+
+		print "<footer>";
+
+		print "<button dojoType='dijit.form.Button' class='alt-info' onclick=\"return dijit.byId('filterEditDlg').test()\">".
 			__('Test')."</button> ";
-
-		print "<button dojoType=\"dijit.form.Button\" type=\"submit\" class=\"alt-primary\" onclick=\"return dijit.byId('filterEditDlg').execute()\">".
+		print "<button dojoType='dijit.form.Button' type='submit' class='alt-primary' onclick=\"return dijit.byId('filterEditDlg').execute()\">".
 			__('Create')."</button> ";
-
-		print "<button dojoType=\"dijit.form.Button\" onclick=\"return dijit.byId('filterEditDlg').hide()\">".
+		print "<button dojoType='dijit.form.Button' onclick=\"return dijit.byId('filterEditDlg').hide()\">".
 			__('Cancel')."</button>";
 
-		print "</div>";
+		print "</footer>";
 
 	}
 
@@ -946,9 +971,9 @@ class Pref_Filters extends Handler_Protected {
 			$filter_types[$line["id"]] = __($line["description"]);
 		}
 
-		print "<div class=\"dlgSec\">".__("Match")."</div>";
+		print "<header>".__("Match")."</header>";
 
-		print "<div class=\"dlgSecCont\">";
+		print "<section>";
 
 		print "<input dojoType=\"dijit.form.ValidationTextBox\"
 			 required=\"true\" id=\"filterDlg_regExp\"
@@ -959,41 +984,43 @@ class Pref_Filters extends Handler_Protected {
 			".__("Regular expression, without outer delimiters (i.e. slashes)")."
 		</div>";
 
-		print "<hr/>";
-		print "<input id=\"filterDlg_inverse\" dojoType=\"dijit.form.CheckBox\"
-			 name=\"inverse\" $inverse_checked/>";
-		print "<label for=\"filterDlg_inverse\">".__("Inverse regular expression matching")."</label>";
+		print "<fieldset>";
+		print "<label class='checkbox'><input id=\"filterDlg_inverse\" dojoType=\"dijit.form.CheckBox\"
+			 name=\"inverse\" $inverse_checked/> ".
+		 	__("Inverse regular expression matching")."</label>";
+		print "</fieldset>";
 
-		print "<hr/>" .  __("on field") . " ";
+		print "<fieldset>";
+		print "<label style='display : inline'>".  __("on field") . "</label> ";
 		print_select_hash("filter_type", $filter_type, $filter_types,
 			'dojoType="dijit.form.Select"');
+		print "<label style='padding-left : 10px; display : inline'>" . __("in") . "</label> ";
 
-		print "<hr/>";
+		print "</fieldset>";
 
-		print __("in") . " ";
-
+		print "<fieldset>";
 		print "<span id='filterDlg_feeds'>";
 		print_feed_multi_select("feed_id",
 			$feed_id,
-			'dojoType="dijit.form.MultiSelect"');
+			'style="width : 500px; height : 300px" dojoType="dijit.form.MultiSelect"');
 		print "</span>";
 
-		print "</div>";
+		print "</fieldset>";
 
-		print "<div class=\"dlgButtons\">";
+		print "</section>";
 
-		print "<div style=\"float : left\">
-			<a class=\"visibleLink\" target=\"_blank\" href=\"http://tt-rss.org/wiki/ContentFilters\">".__("Wiki: Filters")."</a>
-		</div>";
+		print "<footer>";
 
+		print "<button dojoType='dijit.form.Button' style='float : left' class='alt-info' onclick='window.open(\"https://tt-rss.org/wiki/ContentFilters\")'>
+			<i class='material-icons'>help</i> ".__("More info...")."</button>";
 
-		print "<button dojoType=\"dijit.form.Button\" class=\"alt-primary \" type=\"submit\" onclick=\"return dijit.byId('filterNewRuleDlg').execute()\">".
+		print "<button dojoType='dijit.form.Button' class='alt-primary' type='submit' onclick=\"return dijit.byId('filterNewRuleDlg').execute()\">".
 			($rule ? __("Save rule") : __('Add rule'))."</button> ";
 
-		print "<button dojoType=\"dijit.form.Button\" onclick=\"return dijit.byId('filterNewRuleDlg').hide()\">".
+		print "<button dojoType='dijit.form.Button' onclick=\"return dijit.byId('filterNewRuleDlg').hide()\">".
 			__('Cancel')."</button>";
 
-		print "</div>";
+		print "</footer>";
 
 		print "</form>";
 	}
@@ -1011,12 +1038,12 @@ class Pref_Filters extends Handler_Protected {
 
 		print "<form name='filter_new_action_form' id='filter_new_action_form' onsubmit='return false;'>";
 
-		print "<div class=\"dlgSec\">".__("Perform Action")."</div>";
+		print "<header>".__("Perform Action")."</header>";
 
-		print "<div class=\"dlgSecCont\">";
+		print "<section>";
 
-		print "<select name=\"action_id\" dojoType=\"dijit.form.Select\"
-			onchange=\"Filters.filterDlgCheckAction(this)\">";
+		print "<select name='action_id' dojoType='dijit.form.Select'
+			onchange='Filters.filterDlgCheckAction(this)'>";
 
 		$res = $this->pdo->query("SELECT id,description FROM ttrss_filter_actions
 			ORDER BY name");
@@ -1037,16 +1064,16 @@ class Pref_Filters extends Handler_Protected {
 		$label_param_hidden = ($action_id == 7) ?	"" : "display : none";
 		$plugin_param_hidden = ($action_id == 9) ?	"" : "display : none";
 
-		print "<span id=\"filterDlg_paramBox\" style=\"$param_box_hidden\">";
+		print "<span id='filterDlg_paramBox' style=\"$param_box_hidden\">";
 		print " ";
 		//print " " . __("with parameters:") . " ";
-		print "<input dojoType=\"dijit.form.TextBox\"
-			id=\"filterDlg_actionParam\" style=\"$param_hidden\"
-			name=\"action_param\" value=\"$action_param\">";
+		print "<input dojoType='dijit.form.TextBox'
+			id='filterDlg_actionParam' style=\"$param_hidden\"
+			name='action_param' value=\"$action_param\">";
 
 		print_label_select("action_param_label", $action_param,
-			"id=\"filterDlg_actionParamLabel\" style=\"$label_param_hidden\"
-			dojoType=\"dijit.form.Select\"");
+			"id='filterDlg_actionParamLabel' style=\"$label_param_hidden\"
+			dojoType='dijit.form.Select'");
 
 		$filter_actions = PluginHost::getInstance()->get_filter_actions();
 		$filter_action_hash = array();
@@ -1069,24 +1096,24 @@ class Pref_Filters extends Handler_Protected {
 		}
 
 		print_select_hash("filterDlg_actionParamPlugin", $action_param, $filter_action_hash,
-			"style=\"$plugin_param_hidden\" dojoType=\"dijit.form.Select\" $filter_plugin_disabled",
+			"style=\"$plugin_param_hidden\" dojoType='dijit.form.Select' $filter_plugin_disabled",
 			"action_param_plugin");
 
 		print "</span>";
 
 		print "&nbsp;"; // tiny layout hack
 
-		print "</div>";
+		print "</section>";
 
-		print "<div class=\"dlgButtons\">";
+		print "<footer>";
 
-		print "<button dojoType=\"dijit.form.Button\" class=\"alt-primary\" type=\"submit\" onclick=\"return dijit.byId('filterNewActionDlg').execute()\">".
+		print "<button dojoType='dijit.form.Button' class='alt-primary' type='submit' onclick=\"return dijit.byId('filterNewActionDlg').execute()\">".
 			($action ? __("Save action") : __('Add action'))."</button> ";
 
-		print "<button dojoType=\"dijit.form.Button\" onclick=\"return dijit.byId('filterNewActionDlg').hide()\">".
+		print "<button dojoType='dijit.form.Button' onclick=\"return dijit.byId('filterNewActionDlg').hide()\">".
 			__('Cancel')."</button>";
 
-		print "</div>";
+		print "</footer>";
 
 		print "</form>";
 	}

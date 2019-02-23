@@ -110,7 +110,7 @@ define(["dojo/_base/declare", "dojo/dom-construct", "dijit/Tree", "dijit/Menu"],
 				menu.addChild(new dijit.MenuItem({
 					label: __("Mark all feeds as read"),
 					onClick: function() {
-						Feeds.catchupAllFeeds();
+						Feeds.catchupAll();
 					}}));
 
 				menu.bindDomNode(tnode.domNode);
@@ -270,8 +270,21 @@ define(["dojo/_base/declare", "dojo/dom-construct", "dijit/Tree", "dijit/Menu"],
 				this.focusNode(treeNode);
 
 				// focus headlines to route key events there
-				setTimeout(function() {
+				setTimeout(() => {
 					$("headlines-frame").focus();
+
+					if (treeNode) {
+						const node = treeNode.rowNode;
+						const tree = this.domNode;
+
+						if (node && tree) {
+							// scroll tree to selection if needed
+							if (node.offsetTop < tree.scrollTop || node.offsetTop > tree.scrollTop + tree.clientHeight) {
+								$("feedTree").scrollTop = node.offsetTop;
+							}
+						}
+					}
+
 				}, 0);
 			}
 		},

@@ -61,8 +61,7 @@ class Handler_Public extends Handler {
 				PluginHost::feed_to_pfeed_id($feed));
 
 			if ($handler) {
-				$qfh_ret = $handler->get_headlines(PluginHost::feed_to_pfeed_id($feed),
-					$options);
+				$qfh_ret = $handler->get_headlines(PluginHost::feed_to_pfeed_id($feed), $params);
 			}
 
 		} else {
@@ -383,26 +382,6 @@ class Handler_Public extends Handler {
 
 			$line['content'] = rewrite_cached_urls($line['content']);
 
-			$num_comments = (int) $line["num_comments"];
-			$entry_comments = "";
-
-			if ($num_comments > 0) {
-				if ($line["comments"]) {
-					$comments_url = htmlspecialchars($line["comments"]);
-				} else {
-					$comments_url = htmlspecialchars($line["link"]);
-				}
-				$entry_comments = "<a class=\"comments\"
-					target='_blank' rel=\"noopener noreferrer\" href=\"$comments_url\">$num_comments ".
-					_ngettext("comment", "comments", $num_comments)."</a>";
-
-			} else {
-				if ($line["comments"] && $line["link"] != $line["comments"]) {
-					$entry_comments = "<a class=\"comments\" target='_blank' rel=\"noopener noreferrer\" href=\"".
-						htmlspecialchars($line["comments"])."\">".__("comments")."</a>";
-				}
-			}
-
 			$enclosures = Article::get_article_enclosures($line["id"]);
 
             header("Content-Type: text/html");
@@ -429,7 +408,17 @@ class Handler_Public extends Handler {
             }
 
             $rv .= "<body class='flat ttrss_utility ttrss_zoom'>";
-			$rv .= "<div class='post post-$id'>";
+            $rv .= "<div class='container'>";
+
+			if ($line["link"]) {
+				$rv .= "<h1><a target='_blank' rel='noopener noreferrer'
+					title=\"".htmlspecialchars($line['title'])."\"
+					href=\"" .htmlspecialchars($line["link"]) . "\">" .	$line["title"] . "</a></h1>";
+			} else {
+				$rv .= "<h1>" . $line["title"] . "</h1>";
+			}
+
+			$rv .= "<div class='content post'>";
 
 			/* header */
 
@@ -440,51 +429,8 @@ class Handler_Public extends Handler {
 			$parsed_updated = make_local_datetime($line["updated"], true,
 				$owner_uid, true);
 
-			if ($line["link"]) {
-				$rv .= "<div class='title'><a target='_blank' rel='noopener noreferrer'
-					title=\"".htmlspecialchars($line['title'])."\"
-					href=\"" .htmlspecialchars($line["link"]) . "\">" .	$line["title"] . "</a></div>";
-			} else {
-				$rv .= "<div class='title'>" . $line["title"] . "</div>";
-			}
-
-            $rv .= "<div class='date'>$parsed_updated<br/></div>";
-
-			$rv .= "</div>"; # row
-
-			$rv .= "<div class='row'>"; # row
-
-			/* left buttons */
-
-			$rv .= "<div class='buttons left'>";
-			foreach (PluginHost::getInstance()->get_hooks(PluginHost::HOOK_ARTICLE_LEFT_BUTTON) as $p) {
-				$rv .= $p->hook_article_left_button($line);
-			}
-			$rv .= "</div>";
-
-			/* comments */
-
-			$rv .= "<div class='comments'>$entry_comments</div>";
-			$rv .= "<div class='author'>".$line['author']."</div>";
-
-			/* tags */
-
-			$tags_str = Article::format_tags_string($line["tags"], $id);
-
-			$rv .= "<i class='material-icons'>label_outline</i><div>";
-
-            $tags_str = strip_tags($tags_str);
-			$rv .= "<span id=\"ATSTR-$id\">$tags_str</span>";
-
-			$rv .= "</div>";
-
-			/* buttons */
-
-			$rv .= "<div class='buttons right'>";
-			foreach (PluginHost::getInstance()->get_hooks(PluginHost::HOOK_ARTICLE_BUTTON) as $p) {
-				$rv .= $p->hook_article_button($line);
-			}
-			$rv .= "</div>";
+			$rv .= "<div>".$line['author']."</div>";
+            $rv .= "<div>$parsed_updated</div>";
 
 			$rv .= "</div>"; # row
 
@@ -578,15 +524,38 @@ class Handler_Public extends Handler {
 		}
 
 		header('Content-Type: text/html; charset=utf-8');
-		print "<html><head><title>Tiny Tiny RSS</title>
-		<link rel=\"shortcut icon\" type=\"image/png\" href=\"images/favicon.png\">
-		<link rel=\"icon\" type=\"image/png\" sizes=\"72x72\" href=\"images/favicon-72px.png\">";
+		?>
+		<!DOCTYPE html>
+		<html>
+		<head>
+			<title><?php echo __("Share with Tiny Tiny RSS") ?> ?></title>
+			<?php
+			echo stylesheet_tag("css/default.css");
+			echo javascript_tag("lib/prototype.js");
+			echo javascript_tag("lib/dojo/dojo.js");
+			echo javascript_tag("lib/dojo/tt-rss-layer.js");
+			echo javascript_tag("lib/scriptaculous/scriptaculous.js?load=effects,controls")
+			?>
+			<meta http-equiv="Content-Type" content="text/html; charset=utf-8"/>
+			<link rel="shortcut icon" type="image/png" href="images/favicon.png">
+			<link rel="icon" type="image/png" sizes="72x72" href="images/favicon-72px.png">
+		</head>
+		<body class='flat ttrss_utility share_popup'>
+		<script type="text/javascript">
+			require(['dojo/parser', "dojo/ready", 'dijit/form/Button','dijit/form/CheckBox', 'dijit/form/Form',
+				'dijit/form/Select','dijit/form/TextBox','dijit/form/ValidationTextBox'],function(parser, ready){
+				ready(function() {
+					parser.parse();
 
-		echo stylesheet_tag("css/default.css");
-		echo javascript_tag("lib/prototype.js");
-		echo javascript_tag("lib/scriptaculous/scriptaculous.js?load=effects,controls");
-		print "<meta http-equiv=\"Content-Type\" content=\"text/html; charset=utf-8\"/>
-			</head><body id='sharepopup' class='ttrss_utility'>";
+					new Ajax.Autocompleter('labels_value', 'labels_choices',
+						"backend.php?op=rpc&method=completeLabels",
+						{ tokens: ',', paramName: "search" });
+				});
+			});
+		</script>
+		<div class="content">
+
+		<?php
 
 		$action = clean($_REQUEST["action"]);
 
@@ -611,50 +580,43 @@ class Handler_Public extends Handler {
 				$url = htmlspecialchars(clean($_REQUEST["url"]));
 
 				?>
-
-				<table height='100%' width='100%' class="panel"><tr><td colspan='2'>
-				<h1><?php echo __("Share with Tiny Tiny RSS") ?></h1>
-				</td></tr>
-
 				<form id='share_form' name='share_form'>
 
-				<input type="hidden" name="op" value="sharepopup">
-				<input type="hidden" name="action" value="share">
+					<input type="hidden" name="op" value="sharepopup">
+					<input type="hidden" name="action" value="share">
 
-				<tr><td align='right'><?php echo __("Title:") ?></td>
-				<td width='80%'><input name='title' value="<?php echo $title ?>"></td></tr>
-				<tr><td align='right'><?php echo __("URL:") ?></td>
-				<td><input name='url' value="<?php echo $url ?>"></td></tr>
-				<tr><td align='right'><?php echo __("Content:") ?></td>
-				<td><input name='content' value=""></td></tr>
-				<tr><td align='right'><?php echo __("Labels:") ?></td>
-				<td><input name='labels' id="labels_value"
-					placeholder='Alpha, Beta, Gamma' value="">
-				</td></tr>
+					<fieldset>
+						<label><?php echo __("Title:") ?></label>
+						<input style='width : 270px' dojoType='dijit.form.TextBox' name='title' value="<?php echo $title ?>">
+					</fieldset>
 
-				<tr><td>
-					<div class="autocomplete" id="labels_choices"
-						style="display : block"></div></td></tr>
+					<fieldset>
+						<label><?php echo __("URL:") ?></label>
+						<input style='width : 270px' name='url' dojoType='dijit.form.TextBox' value="<?php echo $url ?>">
+					</fieldset>
 
-				<script type='text/javascript'>document.forms[0].title.focus();</script>
+					<fieldset>
+						<label><?php echo __("Content:") ?></label>
+						<input style='width : 270px' name='content' dojoType='dijit.form.TextBox' value="">
+					</fieldset>
 
-				<script type='text/javascript'>
-					new Ajax.Autocompleter('labels_value', 'labels_choices',
-				   "backend.php?op=rpc&method=completeLabels",
-				   { tokens: ',', paramName: "search" });
-				</script>
+					<fieldset>
+						<label><?php echo __("Labels:") ?></label>
+						<input style='width : 270px' name='labels' dojoType='dijit.form.TextBox' id="labels_value"
+						   placeholder='Alpha, Beta, Gamma' value="">
+						<div class="autocomplete" id="labels_choices"
+							 style="display : block"></div>
+					</fieldset>
 
-				<tr><td colspan='2'>
-					<div style='float : right' class='insensitive-small'>
-					<?php echo __("Shared article will appear in the Published feed.") ?>
-					</div>
-					<button type="submit"><?php echo __('Share') ?></button>
-					<button onclick="return window.close()"><?php echo __('Cancel') ?></button>
-					</td>
+					<hr/>
+
+					<fieldset>
+						<button dojoType='dijit.form.Button' class="alt-primary" type="submit"><?php echo __('Share') ?></button>
+						<button dojoType='dijit.form.Button' onclick="return window.close()"><?php echo __('Cancel') ?></button>
+						<span class="insensitive small"><?php echo __("Shared article will appear in the Published feed.") ?></span>
+					</fieldset>
 
 				</form>
-				</td></tr></table>
-				</body></html>
 				<?php
 
 			}
@@ -662,34 +624,44 @@ class Handler_Public extends Handler {
 		} else {
 
 			$return = urlencode($_SERVER["REQUEST_URI"])
+
 			?>
 
-			<form action="public.php?return=<?php echo $return ?>"
-				method="POST" id="loginForm" name="loginForm">
+			<?php print_error("Not logged in"); ?>
 
-			<input type="hidden" name="op" value="login">
+			<form action="public.php?return=<?php echo $return ?>" method="post">
 
-			<table height='100%' width='100%'><tr><td colspan='2'>
-			<h1><?php echo __("Not logged in") ?></h1></td></tr>
+				<input type="hidden" name="op" value="login">
 
-			<tr><td align="right"><?php echo __("Login:") ?></td>
-			<td align="right"><input name="login"
-				value="<?php echo $_SESSION["fake_login"] ?>"></td></tr>
-				<tr><td align="right"><?php echo __("Password:") ?></td>
-				<td align="right"><input type="password" name="password"
-				value="<?php echo $_SESSION["fake_password"] ?>"></td></tr>
-			<tr><td colspan='2'>
-				<button type="submit">
-					<?php echo __('Log in') ?></button>
+				<fieldset>
+					<label><?php echo __("Login:") ?></label>
+					<input name="login" id="login" dojoType="dijit.form.TextBox" type="text"
+						   onchange="fetchProfiles()" onfocus="fetchProfiles()" onblur="fetchProfiles()"
+						   required="1" value="<?php echo $_SESSION["fake_login"] ?>" />
+				</fieldset>
 
-				<button onclick="return window.close()">
-					<?php echo __('Cancel') ?></button>
-			</td></tr>
-			</table>
+				<fieldset>
+					<label><?php echo __("Password:") ?></label>
+
+					<input type="password" name="password" required="1"
+						   dojoType="dijit.form.TextBox"
+						   class="input input-text"
+						   value="<?php echo $_SESSION["fake_password"] ?>"/>
+				</fieldset>
+
+				<hr/>
+
+				<fieldset>
+					<label> </label>
+
+					<button dojoType="dijit.form.Button" type="submit" class="alt-primary"><?php echo __('Log in') ?></button>
+				</fieldset>
 
 			</form>
 			<?php
 		}
+
+		print "</div></body></html>";
 	}
 
 	function login() {
@@ -770,95 +742,113 @@ class Handler_Public extends Handler {
 			$feed_url = trim(clean($_REQUEST["feed_url"]));
 
 			header('Content-Type: text/html; charset=utf-8');
-			print "<html>
-				<head>
-					<title>Tiny Tiny RSS</title>";
-			print stylesheet_tag("css/default.css");
+			?>
+			<!DOCTYPE html>
+			<html>
+			<head>
+				<title>Tiny Tiny RSS</title>
+				<?php
+					echo stylesheet_tag("css/default.css");
+					echo javascript_tag("lib/prototype.js");
+					echo javascript_tag("lib/dojo/dojo.js");
+					echo javascript_tag("lib/dojo/tt-rss-layer.js");
+				?>
+				<meta http-equiv="Content-Type" content="text/html; charset=utf-8"/>
+				<link rel="shortcut icon" type="image/png" href="images/favicon.png">
+				<link rel="icon" type="image/png" sizes="72x72" href="images/favicon-72px.png">
+			</head>
+			<body class='flat ttrss_utility'>
+			<script type="text/javascript">
+				require(['dojo/parser', "dojo/ready", 'dijit/form/Button','dijit/form/CheckBox', 'dijit/form/Form',
+					'dijit/form/Select','dijit/form/TextBox','dijit/form/ValidationTextBox'],function(parser, ready){
+					ready(function() {
+						parser.parse();
+					});
+				});
+			</script>
+			<div class="container">
+			<h1><?php echo __("Subscribe to feed...") ?></h1>
+			<div class='content'>
+			<?php
 
-            print "<meta http-equiv=\"Content-Type\" content=\"text/html; charset=utf-8\"/>
-                <link rel=\"shortcut icon\" type=\"image/png\" href=\"images/favicon.png\">
-                <link rel=\"icon\" type=\"image/png\" sizes=\"72x72\" href=\"images/favicon-72px.png\">
+			if (!$feed_url) {
+				print_error("No feed to subscribe to.");
+			} else {
 
-				</head>
-				<body class='claro ttrss_utility'>
-				<img class=\"floatingLogo\" src=\"images/logo_small.png\"
-			  		alt=\"Tiny Tiny RSS\"/>
-					<h1>".__("Subscribe to feed...")."</h1><div class='content'>";
+				$rc = Feeds::subscribe_to_feed($feed_url);
+				$feed_urls = false;
 
-			$rc = Feeds::subscribe_to_feed($feed_url);
-
-			switch ($rc['code']) {
-			case 0:
-				print_warning(T_sprintf("Already subscribed to <b>%s</b>.", $feed_url));
-				break;
-			case 1:
-				print_notice(T_sprintf("Subscribed to <b>%s</b>.", $feed_url));
-				break;
-			case 2:
-				print_error(T_sprintf("Could not subscribe to <b>%s</b>.", $feed_url));
-				break;
-			case 3:
-				print_error(T_sprintf("No feeds found in <b>%s</b>.", $feed_url));
-				break;
-			case 4:
-				print_notice(__("Multiple feed URLs found."));
-				$feed_urls = $rc["feeds"];
-				break;
-			case 5:
-				print_error(T_sprintf("Could not subscribe to <b>%s</b>.<br>Can't download the Feed URL.", $feed_url));
-				break;
-			}
-
-			if ($feed_urls) {
-
-				print "<form action=\"public.php\">";
-				print "<input type=\"hidden\" name=\"op\" value=\"subscribe\">";
-
-				print "<select name=\"feed_url\">";
-
-				foreach ($feed_urls as $url => $name) {
-					$url = htmlspecialchars($url);
-					$name = htmlspecialchars($name);
-
-					print "<option value=\"$url\">$name</option>";
+				switch ($rc['code']) {
+					case 0:
+						print_warning(T_sprintf("Already subscribed to <b>%s</b>.", $feed_url));
+						break;
+					case 1:
+						print_notice(T_sprintf("Subscribed to <b>%s</b>.", $feed_url));
+						break;
+					case 2:
+						print_error(T_sprintf("Could not subscribe to <b>%s</b>.", $feed_url));
+						break;
+					case 3:
+						print_error(T_sprintf("No feeds found in <b>%s</b>.", $feed_url));
+						break;
+					case 4:
+						$feed_urls = $rc["feeds"];
+						break;
+					case 5:
+						print_error(T_sprintf("Could not subscribe to <b>%s</b>.<br>Can't download the Feed URL.", $feed_url));
+						break;
 				}
 
-				print "<input type=\"submit\" value=\"".__("Subscribe to selected feed").
-					"\">";
+				if ($feed_urls) {
 
-				print "</form>";
-			}
+					print "<form action='public.php'>";
+					print "<input type='hidden' name='op' value='subscribe'>";
 
-			$tp_uri = get_self_url_prefix() . "/prefs.php";
-			$tt_uri = get_self_url_prefix();
+					print "<fieldset>";
+					print "<label style='display : inline'>" . __("Multiple feed URLs found:") . "</label>";
+					print "<select name='feed_url' dojoType='dijit.form.Select'>";
 
-			if ($rc['code'] <= 2){
-			    $sth = $this->pdo->prepare("SELECT id FROM ttrss_feeds WHERE
+					foreach ($feed_urls as $url => $name) {
+						$url = htmlspecialchars($url);
+						$name = htmlspecialchars($name);
+
+						print "<option value=\"$url\">$name</option>";
+					}
+
+					print "</select>";
+					print "<button class='alt-primary' dojoType='dijit.form.Button' type='submit'>".__("Subscribe to selected feed")."</button>";
+					print "</fieldset>";
+
+					print "</form>";
+				}
+
+				$tp_uri = get_self_url_prefix() . "/prefs.php";
+
+				if ($rc['code'] <= 2){
+					$sth = $this->pdo->prepare("SELECT id FROM ttrss_feeds WHERE
 					feed_url = ? AND owner_uid = ?");
-			    $sth->execute([$feed_url, $_SESSION['uid']]);
-			    $row = $sth->fetch();
+					$sth->execute([$feed_url, $_SESSION['uid']]);
+					$row = $sth->fetch();
 
-				$feed_id = $row["id"];
-			} else {
-				$feed_id = 0;
-			}
-			print "<p>";
+					$feed_id = $row["id"];
+				} else {
+					$feed_id = 0;
+				}
+				print "<p>";
 
-			if ($feed_id) {
-				print "<form method=\"GET\" style='display: inline'
-					action=\"$tp_uri\">
-					<input type=\"hidden\" name=\"tab\" value=\"feedConfig\">
-					<input type=\"hidden\" name=\"method\" value=\"editfeed\">
-					<input type=\"hidden\" name=\"methodparam\" value=\"$feed_id\">
-					<input type=\"submit\" value=\"".__("Edit subscription options")."\">
+				if ($feed_id) {
+					print "<form method='GET' style='float : left' action=\"$tp_uri\">
+					<input type='hidden' name='tab' value='feedConfig'>
+					<input type='hidden' name='method' value='editfeed'>
+					<input type='hidden' name='methodparam' value='$feed_id'>
+					<button dojoType='dijit.form.Button' class='alt-info' type='submit'>".__("Edit subscription options")."</button>
 					</form>";
+				}
 			}
 
-			print "<form style='display: inline' method=\"GET\" action=\"$tt_uri\">
-				<input type=\"submit\" value=\"".__("Return to Tiny Tiny RSS")."\">
-				</form></p>";
+			print "<a href='index.php'>".__("Return to Tiny Tiny RSS")."</a>";
 
-			print "</div></body></html>";
+			print "</div></div></body></html>";
 
 		} else {
 			render_login_form();
@@ -872,22 +862,39 @@ class Handler_Public extends Handler {
 
 	function forgotpass() {
 		startup_gettext();
+		session_start();
 
 		@$hash = clean($_REQUEST["hash"]);
 
 		header('Content-Type: text/html; charset=utf-8');
-		print "<html><head><title>Tiny Tiny RSS</title>
-		<link rel=\"shortcut icon\" type=\"image/png\" href=\"images/favicon.png\">
-		<link rel=\"icon\" type=\"image/png\" sizes=\"72x72\" href=\"images/favicon-72px.png\">";
+		?>
+		<!DOCTYPE html>
+		<html>
+		<head>
+			<title>Tiny Tiny RSS</title>
+			<link rel="shortcut icon" type="image/png" href="images/favicon.png">
+			<link rel="icon" type="image/png" sizes="72x72" href="images/favicon-72px.png">
+			<meta http-equiv="Content-Type" content="text/html; charset=utf-8"/>
+			<?php
+				echo stylesheet_tag("css/default.css");
+				echo javascript_tag("lib/prototype.js");
+				echo javascript_tag("lib/dojo/dojo.js");
+				echo javascript_tag("lib/dojo/tt-rss-layer.js");
+			?>
+		</head>
+		<body class='flat ttrss_utility'>
+		<div class='container'>
 
-		echo stylesheet_tag("lib/dijit/themes/claro/claro.css");
-		echo stylesheet_tag("css/default.css");
-		echo javascript_tag("lib/prototype.js");
+		<script type="text/javascript">
+		require(['dojo/parser', "dojo/ready", 'dijit/form/Button','dijit/form/CheckBox', 'dijit/form/Form',
+    		'dijit/form/Select','dijit/form/TextBox','dijit/form/ValidationTextBox'],function(parser, ready){
+			ready(function() {
+				parser.parse();
+			});
+		});
+		</script>
+		<?php
 
-		print "<meta http-equiv=\"Content-Type\" content=\"text/html; charset=utf-8\"/>
-			</head><body class='claro ttrss_utility'>";
-
-		print '<div class="floatingLogo"><img src="images/logo_small.png"></div>';
 		print "<h1>".__("Password recovery")."</h1>";
 		print "<div class='content'>";
 
@@ -928,59 +935,67 @@ class Handler_Public extends Handler {
 				print_error("Some of the information provided is missing or incorrect.");
 			}
 
-			print "<form method=\"GET\" action=\"index.php\">
-				<input type=\"submit\" value=\"".__("Return to Tiny Tiny RSS")."\">
-				</form>";
+			print "<a href='index.php'>".__("Return to Tiny Tiny RSS")."</a>";
 
 		} else if (!$method) {
-			print_notice(__("You will need to provide valid account name and email. A password reset link will be sent to your email address."));
+			print_notice(__("You will need to provide valid account name and email. Password reset link will be sent to your email address."));
 
-			print "<form method='POST' action='public.php'>";
-			print "<input type='hidden' name='method' value='do'>";
-			print "<input type='hidden' name='op' value='forgotpass'>";
+			print "<form method='POST' action='public.php'>
+				<input type='hidden' name='method' value='do'>
+				<input type='hidden' name='op' value='forgotpass'>
+	
+				<fieldset>
+				<label>".__("Login:")."</label>
+				<input dojoType='dijit.form.TextBox' type='text' name='login' value='' required>
+				</fieldset>
+	
+				<fieldset>
+				<label>".__("Email:")."</label>
+				<input dojoType='dijit.form.TextBox' type='email' name='email' value='' required>
+				</fieldset>";
 
-			print "<fieldset>";
-			print "<label>".__("Login:")."</label>";
-			print "<input class='input input-text' type='text' name='login' value='' required>";
-			print "</fieldset>";
+			$_SESSION["pwdreset:testvalue1"] = rand(1,10);
+			$_SESSION["pwdreset:testvalue2"] = rand(1,10);
 
-			print "<fieldset>";
-			print "<label>".__("Email:")."</label>";
-			print "<input class='input input-text' type='email' name='email' value='' required>";
-			print "</fieldset>";
-
-			print "<fieldset>";
-			print "<label>".__("How much is two plus two:")."</label>";
-			print "<input class='input input-text' type='text' name='test' value='' required>";
-			print "</fieldset>";
-
-			print "<p/>";
-			print "<button type='submit'>".__("Reset password")."</button>";
-
-			print "</form>";
+			print "<fieldset>
+				<label>".T_sprintf("How much is %d + %d:", $_SESSION["pwdreset:testvalue1"], $_SESSION["pwdreset:testvalue2"])."</label>
+				<input dojoType='dijit.form.TextBox' type='text' name='test' value='' required>
+				</fieldset>
+	
+				<hr/>
+				<fieldset>
+				<button dojoType='dijit.form.Button' type='submit' class='alt-danger'>".__("Reset password")."</button>
+				<a href='index.php'>".__("Return to Tiny Tiny RSS")."</a>
+				</fieldset>
+	
+				</form>";
 		} else if ($method == 'do') {
 
 			$login = clean($_POST["login"]);
 			$email = clean($_POST["email"]);
 			$test = clean($_POST["test"]);
 
-			if (($test != 4 && $test != 'four') || !$email || !$login) {
+			if ($test != ($_SESSION["pwdreset:testvalue1"] + $_SESSION["pwdreset:testvalue2"]) || !$email || !$login) {
 				print_error(__('Some of the required form parameters are missing or incorrect.'));
 
-				print "<form method=\"GET\" action=\"public.php\">
-					<input type=\"hidden\" name=\"op\" value=\"forgotpass\">
-					<input type=\"submit\" value=\"".__("Go back")."\">
+				print "<form method='GET' action='public.php'>
+					<input type='hidden' name='op' value='forgotpass'>
+					<button dojoType='dijit.form.Button' type='submit' class='alt-primary'>".__("Go back")."</button>
 					</form>";
 
 			} else {
 
-				print_notice("Password reset instructions are being sent to your email address.");
+				// prevent submitting this form multiple times
+				$_SESSION["pwdreset:testvalue1"] = rand(1, 1000);
+				$_SESSION["pwdreset:testvalue2"] = rand(1, 1000);
 
 				$sth = $this->pdo->prepare("SELECT id FROM ttrss_users
 					WHERE login = ? AND email = ?");
 				$sth->execute([$login, $email]);
 
 				if ($row = $sth->fetch()) {
+					print_notice("Password reset instructions are being sent to your email address.");
+
 					$id = $row["id"];
 
 					if ($id) {
@@ -1022,23 +1037,18 @@ class Handler_Public extends Handler {
 
 						//Pref_Users::resetUserPassword($id, false);
 
-						print "<p>";
-
-						print "<p>"."Completed."."</p>";
 					} else {
 						print_error("User ID not found.");
 					}
 
-					print "<form method=\"GET\" action=\"index.php\">
-						<input type=\"submit\" value=\"".__("Return to Tiny Tiny RSS")."\">
-						</form>";
+					print "<a href='index.php'>".__("Return to Tiny Tiny RSS")."</a>";
 
 				} else {
 					print_error(__("Sorry, login and email combination not found."));
 
-					print "<form method=\"GET\" action=\"public.php\">
-						<input type=\"hidden\" name=\"op\" value=\"forgotpass\">
-						<input type=\"submit\" value=\"".__("Go back")."\">
+					print "<form method='GET' action='public.php'>
+						<input type='hidden' name='op' value='forgotpass'>
+						<button dojoType='dijit.form.Button' type='submit'>".__("Go back")."</button>
 						</form>";
 
 				}
@@ -1046,6 +1056,7 @@ class Handler_Public extends Handler {
 
 		}
 
+		print "</div>";
 		print "</div>";
 		print "</body>";
 		print "</html>";
@@ -1061,27 +1072,42 @@ class Handler_Public extends Handler {
 			exit;
 		}
 
-		?><html>
+		?>
+		<!DOCTYPE html>
+		<html>
 			<head>
 			<title>Database Updater</title>
 			<meta http-equiv="Content-Type" content="text/html; charset=utf-8"/>
-			<link rel="stylesheet" type="text/css" href="css/default.css"/>
-			<link rel=\"shortcut icon\" type=\"image/png\" href=\"images/favicon.png\">
-			<link rel=\"icon\" type=\"image/png\" sizes=\"72x72\" href=\"images/favicon-72px.png\">
-			</head>
+			<?php echo stylesheet_tag("css/default.css") ?>
+			<link rel="shortcut icon" type="image/png" href="images/favicon.png">
+			<link rel="icon" type="image/png" sizes="72x72" href="images/favicon-72px.png">
+			<?php
+				echo stylesheet_tag("css/default.css");
+				echo javascript_tag("lib/prototype.js");
+				echo javascript_tag("lib/dojo/dojo.js");
+				echo javascript_tag("lib/dojo/tt-rss-layer.js");
+			?>
 			<style type="text/css">
 				span.ok { color : #009000; font-weight : bold; }
 				span.err { color : #ff0000; font-weight : bold; }
 			</style>
-		<body class="claro ttrss_utility">
-			<script type='text/javascript'>
-			function confirmOP() {
-				return confirm("Update the database?");
-			}
+		</head>
+		<body class="flat ttrss_utility">
+
+			<script type="text/javascript">
+				require(['dojo/parser', "dojo/ready", 'dijit/form/Button','dijit/form/CheckBox', 'dijit/form/Form',
+					'dijit/form/Select','dijit/form/TextBox','dijit/form/ValidationTextBox'],function(parser, ready){
+					ready(function() {
+						parser.parse();
+					});
+				});
+
+				function confirmOP() {
+					return confirm("Update the database?");
+				}
 			</script>
 
-			<div class="floatingLogo"><img src="images/logo_small.png"></div>
-
+			<div class="container">
 			<h1><?php echo __("Database Updater") ?></h1>
 
 			<div class="content">
@@ -1093,28 +1119,27 @@ class Handler_Public extends Handler {
 				if ($op == "performupdate") {
 					if ($updater->isUpdateRequired()) {
 
-						print "<h2>Performing updates</h2>";
+						print "<h2>" . __("Performing updates") . "</h2>";
 
-						print "<h3>Updating to schema version " . SCHEMA_VERSION . "</h3>";
+						print "<h3>" . T_sprintf("Updating to schema version %d", SCHEMA_VERSION) . "</h3>";
 
 						print "<ul>";
 
 						for ($i = $updater->getSchemaVersion() + 1; $i <= SCHEMA_VERSION; $i++) {
-							print "<li>Performing update up to version $i...";
+							print "<li>" . T_sprintf("Performing update up to version %d...", $i);
 
 							$result = $updater->performUpdateTo($i, true);
 
 							if (!$result) {
-								print "<span class='err'>FAILED!</span></li></ul>";
+								print "<span class='err'>".__("FAILED!")."</span></li></ul>";
 
 								print_warning("One of the updates failed. Either retry the process or perform updates manually.");
-								print "<p><form method=\"GET\" action=\"index.php\">
-								<input type=\"submit\" value=\"".__("Return to Tiny Tiny RSS")."\">
-								</form>";
+
+								print "<a href='index.php'>".__("Return to Tiny Tiny RSS")."</a>";
 
 								return;
 							} else {
-								print "<span class='ok'>OK!</span></li>";
+								print "<span class='ok'>".__("OK!")."</span></li>";
 							}
 						}
 
@@ -1122,21 +1147,17 @@ class Handler_Public extends Handler {
 
 						print_notice("Your Tiny Tiny RSS database is now updated to the latest version.");
 
-						print "<p><form method=\"GET\" action=\"index.php\">
-						<input type=\"submit\" value=\"".__("Return to Tiny Tiny RSS")."\">
-						</form>";
+						print "<a href='index.php'>".__("Return to Tiny Tiny RSS")."</a>";
 
 					} else {
-						print "<h2>Your database is up to date.</h2>";
+						print_notice("Tiny Tiny RSS database is up to date.");
 
-						print "<p><form method=\"GET\" action=\"index.php\">
-						<input type=\"submit\" value=\"".__("Return to Tiny Tiny RSS")."\">
-						</form>";
+						print "<a href='index.php'>".__("Return to Tiny Tiny RSS")."</a>";
 					}
 				} else {
 					if ($updater->isUpdateRequired()) {
 
-						print "<h2>Database update required</h2>";
+						print "<h2>" . __("Database update required") . "</h2>";
 
 						print_notice("<h4>".
 						sprintf("Your Tiny Tiny RSS database needs update to the latest version: %d to %d.",
@@ -1147,21 +1168,19 @@ class Handler_Public extends Handler {
 
 						print "<form method='POST'>
 							<input type='hidden' name='subop' value='performupdate'>
-							<input type='submit' onclick='return confirmOP()' value='".__("Perform updates")."'>
+							<button type='submit' dojoType='dijit.form.Button' class='alt-danger' onclick='return confirmOP()'>".__("Perform updates")."</button>
 						</form>";
 
 					} else {
 
 						print_notice("Tiny Tiny RSS database is up to date.");
 
-						print "<p><form method=\"GET\" action=\"index.php\">
-							<input type=\"submit\" value=\"".__("Return to Tiny Tiny RSS")."\">
-						</form>";
-
+						print "<a href='index.php'>".__("Return to Tiny Tiny RSS")."</a>";
 					}
 				}
 			?>
 
+			</div>
 			</div>
 			</body>
 			</html>

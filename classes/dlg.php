@@ -14,7 +14,7 @@ class Dlg extends Handler_Protected {
 	}
 
 	function importOpml() {
-		print __("If you have imported labels and/or filters, you might need to reload preferences to see your new data.") . "</p>";
+		print_notice("If you have imported labels and/or filters, you might need to reload preferences to see your new data.");
 
 		print "<div class='panel panel-scrollable'>";
 
@@ -24,11 +24,11 @@ class Dlg extends Handler_Protected {
 
 		print "</div>";
 
-		print "<div align='center'>";
-		print "<button dojoType=\"dijit.form.Button\"
+		print "<footer class='text-center'>";
+		print "<button dojoType='dijit.form.Button'
 			onclick=\"dijit.byId('opmlImportDlg').execute()\">".
 			__('Close this window')."</button>";
-		print "</div>";
+		print "</footer>";
 
 		print "</div>";
 
@@ -38,21 +38,25 @@ class Dlg extends Handler_Protected {
 	function pubOPMLUrl() {
 		$url_path = Opml::opml_publish_url();
 
-		print __("Your Public OPML URL is:");
+		print "<header>" . __("Your Public OPML URL is:") . "</header>";
+
+		print "<section>";
 
 		print "<div class='panel text-center'>";
 		print "<a id='pub_opml_url' href='$url_path' target='_blank'>$url_path</a>";
 		print "</div>";
 
-		print "<div align='center'>";
+		print "</section>";
 
-		print "<button dojoType=\"dijit.form.Button\" onclick=\"return Helpers.OPML.changeKey()\">".
+		print "<footer class='text-center'>";
+
+		print "<button dojoType='dijit.form.Button' onclick=\"return Helpers.OPML.changeKey()\">".
 			__('Generate new URL')."</button> ";
 
-		print "<button dojoType=\"dijit.form.Button\" onclick=\"return CommonDialogs.closeInfoBox()\">".
+		print "<button dojoType='dijit.form.Button' onclick=\"return CommonDialogs.closeInfoBox()\">".
 			__('Close this window')."</button>";
 
-		print "</div>";
+		print "</footer>";
 
 		//return;
 	}
@@ -80,12 +84,10 @@ class Dlg extends Handler_Protected {
 
 		print "</div>";
 
-		print "<div align='center'>";
-
+		print "<footer class='text-center'>";
 		print "<button onclick=\"return CommonDialogs.closeInfoBox()\">".
 			__('Close this window')."</button>";
-
-		print "</div>";
+		print "</footer>";
 
 		//return;
 	}
@@ -145,11 +147,11 @@ class Dlg extends Handler_Protected {
 
 		print "</div>";
 
-		print "<div align='center'>";
-		print "<button dojoType=\"dijit.form.Button\"
+		print "<footer class='text-center'>";
+		print "<button dojoType='dijit.form.Button'
 			onclick=\"return CommonDialogs.closeInfoBox()\">".
 			__('Close this window')."</button>";
-		print "</div>";
+		print "</footer>";
 
 	}
 
@@ -165,21 +167,26 @@ class Dlg extends Handler_Protected {
 
 		$feed_title = Feeds::getFeedTitle($feed_id, $is_cat);
 
-		print "<div>".T_sprintf("%s can be accessed via the following secret URL:", $feed_title)."</div>";
+		print "<header>".T_sprintf("%s can be accessed via the following secret URL:", $feed_title)."</header>";
 
+		print "<section>";
 		print "<div class='panel text-center'>";
 		print "<a id='gen_feed_url' href='$url_path' target='_blank'>$url_path</a>";
 		print "</div>";
+		print "</section>";
 
-		print "<div align='center'>";
+		print "<footer>";
 
-		print "<button dojoType=\"dijit.form.Button\" onclick=\"return CommonDialogs.genUrlChangeKey('$feed_id', '$is_cat')\">".
+		print "<button dojoType='dijit.form.Button' style='float : left' class='alt-info' onclick='window.open(\"https://tt-rss.org/wiki/GeneratedFeeds\")'>
+			<i class='material-icons'>help</i> ".__("More info...")."</button>";
+
+		print "<button dojoType='dijit.form.Button' onclick=\"return CommonDialogs.genUrlChangeKey('$feed_id', '$is_cat')\">".
 			__('Generate new URL')."</button> ";
 
-		print "<button dojoType=\"dijit.form.Button\" onclick=\"return CommonDialogs.closeInfoBox()\">".
+		print "<button dojoType='dijit.form.Button' onclick=\"return CommonDialogs.closeInfoBox()\">".
 			__('Close this window')."</button>";
 
-		print "</div>";
+		print "</footer>";
 
 		//return;
 	}
@@ -188,12 +195,12 @@ class Dlg extends Handler_Protected {
 
     	print_warning(__("You are using default tt-rss password. Please change it in the Preferences (Personal data / Authentication)."));
 
-		print "<div align='center'>";
-		print "<button dojoType=\"dijit.form.Button\" onclick=\"document.location.href = 'prefs.php'\">".
+		print "<footer class='text-center'>";
+		print "<button dojoType='dijit.form.Button' onclick=\"document.location.href = 'prefs.php'\">".
 			__('Open Preferences')."</button> ";
-		print "<button dojoType=\"dijit.form.Button\"
+		print "<button dojoType='dijit.form.Button'
 			onclick=\"return CommonDialogs.closeInfoBox()\">".
 			__('Close this window')."</button>";
-		print "</div>";
+		print "</footeer>";
 	}
 }

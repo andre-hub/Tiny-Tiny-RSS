@@ -275,20 +275,6 @@ define(["dojo/_base/declare"], function (declare) {
 							break;
 						}
 					}
-
-					if (Feeds.infscroll_disabled) {
-						const row = $$("#headlines-frame div[id*=RROW]").last();
-
-						if (row && $("headlines-frame").scrollTop >
-							(row.offsetTop + row.offsetHeight - 50)) {
-
-							console.log("we seem to be at an end");
-
-							if (App.getInitParam("on_catchup_show_next_feed") == "1") {
-								Feeds.openNextUnread();
-							}
-						}
-					}
 				}
 			} catch (e) {
 				console.warn("scrollHandler", e);
@@ -442,7 +428,7 @@ define(["dojo/_base/declare"], function (declare) {
 									<a class="title" title="${hl.title}" target="_blank" rel="noopener noreferrer" href="${hl.link}">
 										${hl.title}</a>
 									<span class="author">${hl.author}</span>
-									<span class="HLLCTR-${hl.id}">${hl.labels}</span>
+									${hl.labels}
 									${hl.cdm_excerpt ? hl.cdm_excerpt : ""}
 								</span>
 								
@@ -502,7 +488,7 @@ define(["dojo/_base/declare"], function (declare) {
 					<span data-article-id="${hl.id}" class="hl-content hlMenuAttach">
 						<a class="title" href="${hl.link}">${hl.title} <span class="preview">${hl.content_preview}</span></a>
 						<span class="author">${hl.author}</span>
-						<span class="HLLCTR-${hl.id}">${hl.labels}</span>
+						${hl.labels}
 					</span>
 				</div>
                 <span class="feed">
@@ -556,6 +542,9 @@ define(["dojo/_base/declare"], function (declare) {
 
 				if (!append) {
 
+					// TODO: the below needs to be applied again when switching expanded/expandable on the fly
+					// via hotkeys, not just on feed load
+
 					$("headlines-frame").removeClassName("cdm");
 					$("headlines-frame").removeClassName("normal");
 
@@ -563,6 +552,13 @@ define(["dojo/_base/declare"], function (declare) {
 
 					$("headlines-frame").setAttribute("is-vfeed",
 						reply['headlines']['is_vfeed'] ? 1 : 0);
+
+					// for floating title because it's placed outside of headlines-frame
+					$("main").removeClassName("expandable");
+					$("main").removeClassName("expanded");
+
+					if (App.isCombinedMode())
+						$("main").addClassName(App.getInitParam("cdm_expanded") ? " expanded" : " expandable");
 
 					Article.setActive(0);
 
