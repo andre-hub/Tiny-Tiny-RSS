@@ -80,29 +80,29 @@ body.ttrss_prefs {
 		width : 575px;
 	}
 
-	fieldset.prefs-set {
+	fieldset.prefs {
+		min-height : 30px;
+
+		label:first-of-type {
+			min-width : 300px;
+		}
+
 		.help-text {
 			display : inline-block;
 			margin-left : 10px;
 		}
 	}
 
-	table.prefPluginsList td label, table.prefUserList td {
-		cursor : pointer;
-	}
+	fieldset.plugin {
+		label.description {
+			width : 600px;
+			margin-right : 150px;
+			display : inline-block;
 
-	table.prefPluginsList{
-		label {
-			white-space : nowrap;
+			.dijitCheckBox {
+				margin-right : 10px;
+			}
 		}
-
-		i.plugin-enabled {
-			color : @color-checked;
-		}
-	}
-
-	table.prefPluginsList label img {
-		vertical-align : middle;
 	}
 
 	table.prefErrorLog tr.errrow td {
@@ -139,13 +139,6 @@ body.ttrss_prefs {
 
 		td.v {
 			font-family : monospace;
-		}
-	}
-
-	#feedTree {
-		.icon {
-			position : relative;
-			top : -4px;
 		}
 	}
 }
