@@ -685,21 +685,6 @@ class Pref_Feeds extends Handler_Protected {
 
 			print "<section class='narrow'>";
 
-			$private = $row["private"];
-
-			if ($private) {
-				$checked = "checked=\"1\"";
-			} else {
-				$checked = "";
-			}
-
-			print "<fieldset class='narrow'>";
-
-			print "<label class='checkbox'><input dojoType=\"dijit.form.CheckBox\" type=\"checkbox\" name=\"private\" id=\"private\"
-				$checked> ".__('Hide from Popular feeds')."</label>";
-
-			print "</fieldset>";
-
 			$include_in_digest = $row["include_in_digest"];
 
 			if ($include_in_digest) {
@@ -815,7 +800,7 @@ class Pref_Feeds extends Handler_Protected {
 			print "<footer>
 				<button style='float : left' class='alt-danger' dojoType='dijit.form.Button' onclick='return CommonDialogs.unsubscribeFeed($feed_id, \"$title\")'>".
 					__('Unsubscribe')."</button>
-				<button dojoType='dijit.form.Button' onclick=\"return dijit.byId('feedEditDlg').execute()\">".__('Save')."</button>
+				<button dojoType='dijit.form.Button' class='alt-primary' onclick=\"return dijit.byId('feedEditDlg').execute()\">".__('Save')."</button>
 				<button dojoType='dijit.form.Button' onclick=\"return dijit.byId('feedEditDlg').hide()\">".__('Cancel')."</button>
 				</footer>";
 		}
@@ -929,13 +914,6 @@ class Pref_Feeds extends Handler_Protected {
 		print "<section>";
 
 		print "<fieldset class='narrow'>";
-		print "<label class='checkbox'><input disabled='1' type='checkbox' name='private' id='private'
-			dojoType='dijit.form.CheckBox'>&nbsp;".__('Hide from Popular feeds')."</label>";
-
-		print "&nbsp;"; $this->batch_edit_cbox("private", "private_l");
-
-		print "</fieldset><fieldset class='narrow'>";
-
 		print "<label class='checkbox'><input disabled='1' type='checkbox' id='include_in_digest'
 			name='include_in_digest' dojoType='dijit.form.CheckBox'>&nbsp;".__('Include in e-mail digest')."</label>";
 
@@ -1509,7 +1487,7 @@ class Pref_Feeds extends Handler_Protected {
 				"onclick=\"CommonDialogs.editFeed(".$line["id"].")\">".
 				htmlspecialchars($line["title"])."</a>";
 
-			print "</td><td class='insensitive' align='right'>";
+			print "</td><td class='text-muted' align='right'>";
 			print make_local_datetime($line['last_article'], false);
 			print "</td>";
 			print "</tr>";
@@ -1566,7 +1544,7 @@ class Pref_Feeds extends Handler_Protected {
 				"onclick=\"CommonDialogs.editFeed(".$line["id"].")\">".
 				htmlspecialchars($line["title"])."</a>: ";
 
-			print "<span class=\"insensitive\">";
+			print "<span class=\"text-muted\">";
 			print htmlspecialchars($line["last_error"]);
 			print "</span>";
 
@@ -1635,8 +1613,8 @@ class Pref_Feeds extends Handler_Protected {
 					$new_feed_id = (int)$row['id'] + 1;
 
 					$sth = $pdo->prepare("INSERT INTO ttrss_archived_feeds
-						(id, owner_uid, title, feed_url, site_url)
-							SELECT ?, owner_uid, title, feed_url, site_url from ttrss_feeds
+						(id, owner_uid, title, feed_url, site_url, created)
+							SELECT ?, owner_uid, title, feed_url, site_url, NOW() from ttrss_feeds
 							WHERE id = ?");
 					$sth->execute([$new_feed_id, $id]);
 
@@ -1715,7 +1693,7 @@ class Pref_Feeds extends Handler_Protected {
 		print "</fieldset>";
 
 		print "<footer>
-			<button dojoType='dijit.form.Button' type='submit' class='alt-primary' onclick=\"return dijit.byId('batchSubDlg').execute()\">".__('Subscribe')."</button>
+			<button dojoType='dijit.form.Button' type='submit' class='alt-primary'>".__('Subscribe')."</button>
 			<button dojoType='dijit.form.Button' onclick=\"return dijit.byId('batchSubDlg').hide()\">".__('Cancel')."</button>
 			</footer>";
 	}
@@ -1726,6 +1704,13 @@ class Pref_Feeds extends Handler_Protected {
 		$login = clean($_REQUEST['login']);
 		$pass = trim(clean($_REQUEST['pass']));
 
+		$csth = $this->pdo->prepare("SELECT id FROM ttrss_feeds
+						WHERE feed_url = ? AND owner_uid = ?");
+
+		$isth = $this->pdo->prepare("INSERT INTO ttrss_feeds
+							(owner_uid,feed_url,title,cat_id,auth_login,auth_pass,update_method,auth_pass_encrypted)
+						VALUES (?, ?, '[Unknown]', ?, ?, ?, 0, false)");
+
 		foreach ($feeds as $feed) {
 			$feed = trim($feed);
 
@@ -1733,16 +1718,10 @@ class Pref_Feeds extends Handler_Protected {
 
 				$this->pdo->beginTransaction();
 
-				$sth = $this->pdo->prepare("SELECT id FROM ttrss_feeds
-						WHERE feed_url = ? AND owner_uid = ?");
-				$sth->execute([$feed, $_SESSION['uid']]);
+				$csth->execute([$feed, $_SESSION['uid']]);
 
-				if (!$sth->fetch()) {
-					$sth = $this->pdo->prepare("INSERT INTO ttrss_feeds
-							(owner_uid,feed_url,title,cat_id,auth_login,auth_pass,update_method,auth_pass_encrypted)
-						VALUES (?, ?, '[Unknown]', ?, ?, ?, 0, false)");
-
-					$sth->execute([$_SESSION['uid'], $feed, $cat_id ? $cat_id : null, $login, $pass]);
+				if (!$csth->fetch()) {
+					$isth->execute([$_SESSION['uid'], $feed, $cat_id ? $cat_id : null, $login, $pass]);
 				}
 
 				$this->pdo->commit();

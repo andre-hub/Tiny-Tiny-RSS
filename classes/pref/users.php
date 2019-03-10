@@ -231,7 +231,7 @@ class Pref_Users extends Handler_Protected {
 
 		function add() {
 			$login = trim(clean($_REQUEST["login"]));
-			$tmp_user_pwd = make_password(8);
+			$tmp_user_pwd = make_password();
 			$salt = substr(bin2hex(get_random_bytes(125)), 0, 250);
 			$pwd_hash = encrypt_password($tmp_user_pwd, $salt, true);
 
@@ -271,21 +271,19 @@ class Pref_Users extends Handler_Protected {
 			}
 		}
 
-		static function resetUserPassword($uid, $show_password) {
+		static function resetUserPassword($uid, $format_output = false) {
 
 			$pdo = Db::pdo();
 
-			$sth = $pdo->prepare("SELECT login, email
-				FROM ttrss_users WHERE id = ?");
+			$sth = $pdo->prepare("SELECT login FROM ttrss_users WHERE id = ?");
 			$sth->execute([$uid]);
 
 			if ($row = $sth->fetch()) {
 
 				$login = $row["login"];
-				$email = $row["email"];
 
 				$new_salt = substr(bin2hex(get_random_bytes(125)), 0, 250);
-				$tmp_user_pwd = make_password(8);
+				$tmp_user_pwd = make_password();
 
 				$pwd_hash = encrypt_password($tmp_user_pwd, $new_salt, true);
 
@@ -294,44 +292,19 @@ class Pref_Users extends Handler_Protected {
 					WHERE id = ?");
 				$sth->execute([$pwd_hash, $new_salt, $uid]);
 
-				if ($show_password) {
-					print_notice(T_sprintf("Changed password of user %s to %s", $login, $tmp_user_pwd));
-				} else {
-					print_notice(T_sprintf("Sending new password of user %s to %s", $login, $email));
+				$message = T_sprintf("Changed password of user %s to %s", "<strong>$login</strong>", "<strong>$tmp_user_pwd</strong>");
 
-					if ($email) {
-						require_once "lib/MiniTemplator.class.php";
-
-						$tpl = new MiniTemplator;
-
-						$tpl->readTemplateFromFile("templates/resetpass_template.txt");
-
-						$tpl->setVariable('LOGIN', $login);
-						$tpl->setVariable('NEWPASS', $tmp_user_pwd);
-
-						$tpl->addBlock('message');
-
-						$message = "";
-
-						$tpl->generateOutputToString($message);
-
-						$mailer = new Mailer();
-
-						$rc = $mailer->mail(["to_name" => $login,
-							"to_address" => $email,
-							"subject" => __("[tt-rss] Password change notification"),
-							"message" => $message]);
-
-						if (!$rc) print_error($mailer->error());
-					}
-				}
+				if ($format_output)
+					print_notice($message);
+				else
+					print $message;
 
 			}
 		}
 
 		function resetPass() {
 			$uid = clean($_REQUEST["id"]);
-			Pref_Users::resetUserPassword($uid, true);
+			Pref_Users::resetUserPassword($uid);
 		}
 
 		function index() {

@@ -240,8 +240,8 @@ class RPC extends Handler_Protected {
 					$new_feed_id = (int)$row['id'] + 1;
 
 					$sth = $this->pdo->prepare("INSERT INTO ttrss_archived_feeds
-						(id, owner_uid, title, feed_url, site_url)
-							SELECT ?, owner_uid, title, feed_url, site_url from ttrss_feeds
+						(id, owner_uid, title, feed_url, site_url, created)
+							SELECT ?, owner_uid, title, feed_url, site_url, NOW() from ttrss_feeds
 							  	WHERE id = ?");
 
 					$sth->execute([$new_feed_id, $feed_id]);
@@ -345,20 +345,6 @@ class RPC extends Handler_Protected {
 			print "<li>" . $line["caption"] . "</li>";
 		}
 		print "</ul>";
-	}
-
-	function updateFeedBrowser() {
-		if (defined('_DISABLE_FEED_BROWSER') && _DISABLE_FEED_BROWSER) return;
-
-		$search = clean($_REQUEST["search"]);
-		$limit = clean($_REQUEST["limit"]);
-		$mode = (int) clean($_REQUEST["mode"]);
-
-		require_once "feedbrowser.php";
-
-		print json_encode(array("content" =>
-			make_feed_browser($search, $limit, $mode),
-				"mode" => $mode));
 	}
 
 	// Silent

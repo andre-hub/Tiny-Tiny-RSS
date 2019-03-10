@@ -142,26 +142,25 @@ body.ttrss_main {
 	}
 
 	#notify.visible {
-		transform: translate(0, -45px);
+		opacity: 100;
 	}
 
 	#notify {
-		bottom : -45px;
-		right : 0px;
-		height : 30px;
-		left : 0px;
-		border-width : 1px 0px 0px 0px;
+		bottom : 20px;
+		right : 20px;
+		min-width : 200px;
+		max-width : 350px;
+		border-width : 1px;
 		border-style : solid;
 		position : fixed;
-		font-size : 13px;
+		font-size : 14px;
 		z-index : 99;
 		display : flex;
+		opacity: 0;
 		align-items : center;
-		transition: all 0.5s ease-in-out;
-
-		> * {
-			padding : 4px;
-		}
+		padding : 10px;
+		transition: opacity 0.2s linear;
+		box-shadow : 0px 0px 8px rgba(0,0,0,0.1);
 
 		img {
 			vertical-align : middle;
@@ -169,6 +168,8 @@ body.ttrss_main {
 
 		.msg {
 			flex-grow : 2;
+			padding : 0 10px;
+			line-height : 20px;
 		}
 
 		.icon-close {
@@ -205,6 +206,17 @@ body.ttrss_main {
 		}
 	}
 
+	.action-chooser {
+		.action-button {
+			.dijitButtonText {
+				vertical-align : unset;
+			}
+			.dijitArrowButtonInner {
+				display : none;
+			}
+		}
+	}
+
 	.hl {
 		border: 0px solid @border-default;
 		border-bottom-width: 1px;
@@ -214,6 +226,7 @@ body.ttrss_main {
 		flex-wrap : nowrap;
 		background : @color-panel-bg;
 		align-items : center;
+		user-select : none;
 
 		> * {
 			white-space : nowrap;
@@ -1129,6 +1142,10 @@ body.ttrss_main, body.ttrss_utility {
 		color: #468847;
 	}
 
+	.text-warning {
+		color: darken(#c09853, 10%);
+	}
+
 	.alert,
 	.alert h4 {
 		color: #c09853;
@@ -1175,7 +1192,7 @@ body.ttrss_main, body.ttrss_utility {
 		border-bottom-width: 1px;
 	}
 
-	.insensitive {
+	.text-muted {
 		color : @default-text;
 	}
 

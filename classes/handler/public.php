@@ -613,7 +613,7 @@ class Handler_Public extends Handler {
 					<fieldset>
 						<button dojoType='dijit.form.Button' class="alt-primary" type="submit"><?php echo __('Share') ?></button>
 						<button dojoType='dijit.form.Button' onclick="return window.close()"><?php echo __('Cancel') ?></button>
-						<span class="insensitive small"><?php echo __("Shared article will appear in the Published feed.") ?></span>
+						<span class="text-muted small"><?php echo __("Shared article will appear in the Published feed.") ?></span>
 					</fieldset>
 
 				</form>
@@ -623,7 +623,7 @@ class Handler_Public extends Handler {
 
 		} else {
 
-			$return = urlencode($_SERVER["REQUEST_URI"])
+			$return = urlencode(make_self_url());
 
 			?>
 
@@ -712,7 +712,9 @@ class Handler_Public extends Handler {
 				user_error("Failed login attempt for $login from {$_SERVER['REMOTE_ADDR']}", E_USER_WARNING);
 			}
 
-			if (clean($_REQUEST['return'])) {
+			$return = clean($_REQUEST['return']);
+
+			if ($_REQUEST['return'] && mb_strpos($return, SELF_URL_PATH) === 0) {
 				header("Location: " . clean($_REQUEST['return']));
 			} else {
 				header("Location: " . get_self_url_prefix());
@@ -957,12 +959,12 @@ class Handler_Public extends Handler {
 			print "<form method='POST' action='public.php'>
 				<input type='hidden' name='method' value='do'>
 				<input type='hidden' name='op' value='forgotpass'>
-	
+
 				<fieldset>
 				<label>".__("Login:")."</label>
 				<input dojoType='dijit.form.TextBox' type='text' name='login' value='' required>
 				</fieldset>
-	
+
 				<fieldset>
 				<label>".__("Email:")."</label>
 				<input dojoType='dijit.form.TextBox' type='email' name='email' value='' required>
@@ -975,13 +977,13 @@ class Handler_Public extends Handler {
 				<label>".T_sprintf("How much is %d + %d:", $_SESSION["pwdreset:testvalue1"], $_SESSION["pwdreset:testvalue2"])."</label>
 				<input dojoType='dijit.form.TextBox' type='text' name='test' value='' required>
 				</fieldset>
-	
+
 				<hr/>
 				<fieldset>
 				<button dojoType='dijit.form.Button' type='submit' class='alt-danger'>".__("Reset password")."</button>
 				<a href='index.php'>".__("Return to Tiny Tiny RSS")."</a>
 				</fieldset>
-	
+
 				</form>";
 		} else if ($method == 'do') {
 
@@ -1034,7 +1036,7 @@ class Handler_Public extends Handler {
 
 						$mailer = new Mailer();
 
-						$rc = $mailer->mail(["to_name" => $login, 
+						$rc = $mailer->mail(["to_name" => $login,
 							"to_address" => $email,
 							"subject" => __("[tt-rss] Password reset request"),
 							"message" => $message]);
@@ -1048,8 +1050,6 @@ class Handler_Public extends Handler {
 							WHERE login = ? AND email = ?");
 
 						$sth->execute([$resetpass_token_full, $login, $email]);
-
-						//Pref_Users::resetUserPassword($id, false);
 
 					} else {
 						print_error("User ID not found.");
@@ -1133,31 +1133,34 @@ class Handler_Public extends Handler {
 				if ($op == "performupdate") {
 					if ($updater->isUpdateRequired()) {
 
-						print "<h2>" . __("Performing updates") . "</h2>";
-
-						print "<h3>" . T_sprintf("Updating to schema version %d", SCHEMA_VERSION) . "</h3>";
-
-						print "<ul>";
+						print "<h2>" . T_sprintf("Performing updates to version %d", SCHEMA_VERSION) . "</h2>";
 
 						for ($i = $updater->getSchemaVersion() + 1; $i <= SCHEMA_VERSION; $i++) {
-							print "<li>" . T_sprintf("Performing update up to version %d...", $i);
+							print "<ul>";
 
+							print "<li class='text-info'>" . T_sprintf("Updating to version %d", $i) . "</li>";
+
+							print "<li>";
 							$result = $updater->performUpdateTo($i, true);
+							print "</li>";
 
 							if (!$result) {
-								print "<span class='err'>".__("FAILED!")."</span></li></ul>";
+								print "</ul>";
 
-								print_warning("One of the updates failed. Either retry the process or perform updates manually.");
+								print_error("One of the updates failed. Either retry the process or perform updates manually.");
 
-								print "<a href='index.php'>".__("Return to Tiny Tiny RSS")."</a>";
+								print "<form method='POST'>
+									<input type='hidden' name='subop' value='performupdate'>
+									<button type='submit' dojoType='dijit.form.Button' class='alt-danger' onclick='return confirmOP()'>".__("Try again")."</button>
+									<a href='index.php'>".__("Return to Tiny Tiny RSS")."</a>
+								</form>";
 
 								return;
 							} else {
-								print "<span class='ok'>".__("OK!")."</span></li>";
+								print "<li class='text-success'>" . __("Completed.") . "</li>";
+								print "</ul>";
 							}
 						}
-
-						print "</ul>";
 
 						print_notice("Your Tiny Tiny RSS database is now updated to the latest version.");
 
@@ -1171,14 +1174,15 @@ class Handler_Public extends Handler {
 				} else {
 					if ($updater->isUpdateRequired()) {
 
-						print "<h2>" . __("Database update required") . "</h2>";
+						print "<h2>".T_sprintf("Tiny Tiny RSS database needs update to the latest version (%d to %d).",
+							$updater->getSchemaVersion(), SCHEMA_VERSION)."</h2>";
 
-						print_notice("<h4>".
-						sprintf("Your Tiny Tiny RSS database needs update to the latest version: %d to %d.",
-							$updater->getSchemaVersion(), SCHEMA_VERSION).
-						"</h4>");
-
-						print_warning("Please backup your database before proceeding.");
+						if (DB_TYPE == "mysql") {
+							print_error("<strong>READ THIS:</strong> Due to MySQL limitations, your database is not completely protected while updating. ".
+								"Errors may put it in an inconsistent state requiring manual rollback. <strong>BACKUP YOUR DATABASE BEFORE CONTINUING.</strong>");
+						} else {
+							print_warning("Please backup your database before proceeding.");
+						}
 
 						print "<form method='POST'>
 							<input type='hidden' name='subop' value='performupdate'>
