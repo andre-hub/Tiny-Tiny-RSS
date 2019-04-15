@@ -54,7 +54,11 @@ require(["dojo/_base/kernel",
 	"fox/Headlines",
 	"fox/Article",
 	"fox/FeedStoreModel",
-	"fox/FeedTree"], function (dojo, declare, ready, parser, AppBase) {
+	"fox/FeedTree",
+	"fox/Toolbar",
+	"fox/form/Select",
+	"fox/form/ComboButton",
+	"fox/form/DropDownButton"], function (dojo, declare, ready, parser, AppBase) {
 
 	ready(function () {
 		try {
@@ -203,7 +207,7 @@ require(["dojo/_base/kernel",
 				isCombinedMode: function() {
 					return App.getInitParam("combined_display_mode");
 				},
-				hotkeyHandler(event) {
+				hotkeyHandler: function(event) {
 					if (event.target.nodeName == "INPUT" || event.target.nodeName == "TEXTAREA") return;
 
 					// Arrow buttons and escape are not reported via keypress, handle them via keydown.
@@ -415,6 +419,9 @@ require(["dojo/_base/kernel",
 						if (Feeds.activeIsCat()) {
 							dijit.byId("feedTree").collapseCat(Feeds.getActive());
 						}
+					};
+					this.hotkey_actions["goto_read"] = function () {
+						Feeds.open({feed: -6});
 					};
 					this.hotkey_actions["goto_all"] = function () {
 						Feeds.open({feed: -4});

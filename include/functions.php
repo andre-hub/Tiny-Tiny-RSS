@@ -1,6 +1,6 @@
 <?php
 	define('EXPECTED_CONFIG_VERSION', 26);
-	define('SCHEMA_VERSION', 137);
+	define('SCHEMA_VERSION', 138);
 
 	define('LABEL_BASE_INDEX', -1024);
 	define('PLUGIN_FEED_BASE_INDEX', -128);
@@ -1203,6 +1203,7 @@
 				"goto_fresh" => __("Fresh"),
 				"goto_marked" => __("Starred"),
 				"goto_published" => __("Published"),
+				"goto_read" => __("Recently read"),
 				"goto_tagcloud" => __("Tag cloud"),
 				"goto_prefs" => __("Preferences")),
 			__("Other") => array(
@@ -1269,6 +1270,7 @@
 			"g f" => "goto_fresh",
 			"g s" => "goto_marked",
 			"g p" => "goto_published",
+			"g r" => "goto_read",
 			"g t" => "goto_tagcloud",
 			"g P" => "goto_prefs",
 			"r" => "select_article_cursor",

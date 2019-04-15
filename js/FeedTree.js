@@ -2,7 +2,10 @@
 define(["dojo/_base/declare", "dojo/dom-construct", "dijit/Tree", "dijit/Menu"], function (declare, domConstruct) {
 
 	return declare("fox.FeedTree", dijit.Tree, {
-		_onKeyPress: function(/* Event */ e) {
+		_onContainerKeydown: function(/* Event */ e) {
+			return; // Stop dijit.Tree from interpreting keystrokes
+		},
+		_onContainerKeypress: function(/* Event */ e) {
 			return; // Stop dijit.Tree from interpreting keystrokes
 		},
 		_createTreeNode: function(args) {
@@ -62,6 +65,13 @@ define(["dojo/_base/declare", "dojo/dom-construct", "dijit/Tree", "dijit/Menu"],
 						label: __("Edit feed"),
 						onClick: function() {
 							CommonDialogs.editFeed(this.getParent().row_id, false);
+						}}));
+
+					menu.addChild(new dijit.MenuItem({
+						label: __("Debug feed"),
+						onClick: function() {
+							window.open("backend.php?op=feeds&method=update_debugger&feed_id=" + this.getParent().row_id +
+								"&csrf_token=" + App.getInitParam("csrf_token"));
 						}}));
 
 					/* menu.addChild(new dijit.MenuItem({
