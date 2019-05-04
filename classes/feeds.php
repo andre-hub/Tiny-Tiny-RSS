@@ -210,6 +210,8 @@ class Feeds extends Handler_Protected {
 		$highlight_words = $qfh_ret[5];
 		$reply['first_id'] = $qfh_ret[6];
 		$reply['is_vfeed'] = $qfh_ret[7];
+		$query_error_override = $qfh_ret[8];
+
 		$reply['search_query'] = [$search, $search_language];
 		$reply['vfeed_group_enabled'] = $vfeed_group_enabled;
 
@@ -387,22 +389,26 @@ class Feeds extends Handler_Protected {
 
 			if (is_object($result)) {
 
-				switch ($view_mode) {
-					case "unread":
-						$message = __("No unread articles found to display.");
-						break;
-					case "updated":
-						$message = __("No updated articles found to display.");
-						break;
-					case "marked":
-						$message = __("No starred articles found to display.");
-						break;
-					default:
-						if ($feed < LABEL_BASE_INDEX) {
-							$message = __("No articles found to display. You can assign articles to labels manually from article header context menu (applies to all selected articles) or use a filter.");
-						} else {
-							$message = __("No articles found to display.");
-						}
+				if ($query_error_override) {
+					$message = $query_error_override;
+				} else {
+					switch ($view_mode) {
+						case "unread":
+							$message = __("No unread articles found to display.");
+							break;
+						case "updated":
+							$message = __("No updated articles found to display.");
+							break;
+						case "marked":
+							$message = __("No starred articles found to display.");
+							break;
+						default:
+							if ($feed < LABEL_BASE_INDEX) {
+								$message = __("No articles found to display. You can assign articles to labels manually from article header context menu (applies to all selected articles) or use a filter.");
+							} else {
+								$message = __("No articles found to display.");
+							}
+					}
 				}
 
 				if (!$offset && $message) {
@@ -1421,10 +1427,13 @@ class Feeds extends Handler_Protected {
 
 		$ext_tables_part = "";
 		$limit_query_part = "";
+		$query_error_override = "";
 
-		$search_words = array();
+		$search_words = [];
 
 		if ($search) {
+			$search_query_part = "";
+
 			foreach (PluginHost::getInstance()->get_hooks(PluginHost::HOOK_SEARCH) as $plugin) {
 				list($search_query_part, $search_words) = $plugin->hook_search($search);
 				break;
@@ -1434,6 +1443,19 @@ class Feeds extends Handler_Protected {
 			if (!$search_query_part) {
 				list($search_query_part, $search_words) = search_to_sql($search, $search_language);
 			}
+
+			if (DB_TYPE == "pgsql") {
+				$test_sth = $pdo->prepare("select $search_query_part from ttrss_entries limit 1");
+				try {
+					$test_sth->execute();
+				} catch (PDOException $e) {
+					// looks like tsquery syntax is invalid
+					$search_query_part = "false";
+
+					$query_error_override = T_sprintf("Incorrect search syntax: %s.", implode(" ", $search_words));
+				}
+			}
+
 			$search_query_part .= " AND ";
 		} else {
 			$search_query_part = "";
@@ -1725,7 +1747,7 @@ class Feeds extends Handler_Protected {
 					$first_id = (int)$row["id"];
 
 					if ($offset > 0 && $first_id && $check_first_id && $first_id != $check_first_id) {
-						return array(-1, $feed_title, $feed_site_url, $last_error, $last_updated, $search_words, $first_id, $vfeed_query_part != "");
+						return array(-1, $feed_title, $feed_site_url, $last_error, $last_updated, $search_words, $first_id, $vfeed_query_part != "", $query_error_override);
 					}
 				}
 			}
@@ -1814,7 +1836,7 @@ class Feeds extends Handler_Protected {
 			$res = $pdo->query($query);
 		}
 
-		return array($res, $feed_title, $feed_site_url, $last_error, $last_updated, $search_words, $first_id, $vfeed_query_part != "");
+		return array($res, $feed_title, $feed_site_url, $last_error, $last_updated, $search_words, $first_id, $vfeed_query_part != "", $query_error_override);
 
 	}
 
