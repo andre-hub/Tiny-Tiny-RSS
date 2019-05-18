@@ -13,6 +13,8 @@ PluginHost = {
 	HOOK_FLOATING_TITLE: 10,
 	HOOK_INIT_COMPLETE: 11,
 	HOOK_HEADLINE_RENDERED: 12,
+	HOOK_COUNTERS_RECEIVED: 13,
+	HOOK_COUNTERS_PROCESSED: 14,
 	hooks: [],
 	register: function (name, callback) {
 		if (typeof(this.hooks[name]) == 'undefined')
@@ -27,6 +29,11 @@ PluginHost = {
 			for (let i = 0; i < this.hooks[name].length; i++) {
 				this.hooks[name][i](args);
 			}
+	},
+	unregister: function (name, callback) {
+		for (var i = 0; i < this.hooks[name].length; i++)
+			if (this.hooks[name][i] == callback)
+				this.hooks[name].splice(i, 1);
 	}
 };
 
