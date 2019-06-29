@@ -75,7 +75,7 @@ class Handler_Public extends Handler {
 
 		$feed_self_url = get_self_url_prefix() .
 			"/public.php?op=rss&id=$feed&key=" .
-			get_feed_access_key($feed, false, $owner_uid);
+			Feeds::get_feed_access_key($feed, false, $owner_uid);
 
 		if (!$feed_site_url) $feed_site_url = get_self_url_prefix();
 
@@ -727,18 +727,6 @@ class Handler_Public extends Handler {
 			}
 		}
 	}
-
-	/* function subtest() {
-		header("Content-type: text/plain; charset=utf-8");
-
-		$url = clean($_REQUEST["url"]);
-
-		print "$url\n\n";
-
-
-		print_r(get_feeds_from_html($url, fetch_file_contents($url)));
-
-	} */
 
 	function subscribe() {
 		if (SINGLE_USER_MODE) {

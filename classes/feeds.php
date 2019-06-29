@@ -860,7 +860,7 @@ class Feeds extends Handler_Protected {
 
 			// fall back in case of no plugins
 			if (!$search_qpart) {
-				list($search_qpart, $search_words) = search_to_sql($search[0], $search[1]);
+				list($search_qpart, $search_words) = Feeds::search_to_sql($search[0], $search[1]);
 			}
 		} else {
 			$search_qpart = "true";
@@ -1135,9 +1135,9 @@ class Feeds extends Handler_Protected {
 
 		$pdo = Db::pdo();
 
-		$url = fix_url($url);
+		$url = Feeds::fix_url($url);
 
-		if (!$url || !validate_feed_url($url)) return array("code" => 2);
+		if (!$url || !Feeds::validate_feed_url($url)) return array("code" => 2);
 
 		$contents = @fetch_file_contents($url, false, $auth_login, $auth_pass);
 
@@ -1153,8 +1153,8 @@ class Feeds extends Handler_Protected {
 			return array("code" => 5, "message" => $fetch_last_error);
 		}
 
-		if (mb_strpos($fetch_last_content_type, "html") !== FALSE && is_html($contents)) {
-			$feedUrls = get_feeds_from_html($url, $contents);
+		if (mb_strpos($fetch_last_content_type, "html") !== FALSE && Feeds::is_html($contents)) {
+			$feedUrls = Feeds::get_feeds_from_html($url, $contents);
 
 			if (count($feedUrls) == 0) {
 				return array("code" => 3);
@@ -1456,7 +1456,7 @@ class Feeds extends Handler_Protected {
 
 			// fall back in case of no plugins
 			if (!$search_query_part) {
-				list($search_query_part, $search_words) = search_to_sql($search, $search_language);
+				list($search_query_part, $search_words) = Feeds::search_to_sql($search, $search_language);
 			}
 
 			if (DB_TYPE == "pgsql") {
@@ -1683,6 +1683,13 @@ class Feeds extends Handler_Protected {
 			$offset_query_part = "";
 		}
 
+		if ($start_ts) {
+			$start_ts_formatted = date("Y/m/d H:i:s", strtotime($start_ts));
+			$start_ts_query_part = "date_entered >= '$start_ts_formatted' AND";
+		} else {
+			$start_ts_query_part = "";
+		}
+
 		if (is_numeric($feed)) {
 			// proper override_order applied above
 			if ($vfeed_query_part && !$ignore_vfeed_group && get_pref('VFEED_GROUP_BY_FEED', $owner_uid)) {
@@ -1705,13 +1712,6 @@ class Feeds extends Handler_Protected {
 			}
 
 			if ($vfeed_query_part) $vfeed_query_part .= "favicon_avg_color,";
-
-			if ($start_ts) {
-				$start_ts_formatted = date("Y/m/d H:i:s", strtotime($start_ts));
-				$start_ts_query_part = "date_entered >= '$start_ts_formatted' AND";
-			} else {
-				$start_ts_query_part = "";
-			}
 
 			$first_id = 0;
 			$first_id_query_strategy_part = $query_strategy_part;
@@ -1845,6 +1845,7 @@ class Feeds extends Handler_Protected {
 							tag_name = ".$pdo->quote($feed)." AND
 							$view_query_part
 							$search_query_part
+							$start_ts_query_part
 							$query_strategy_part ORDER BY $order_by
 							$limit_query_part $offset_query_part";
 
@@ -1922,5 +1923,400 @@ class Feeds extends Handler_Protected {
         return $colormap[$sum];
 	}
 
+	static function get_feeds_from_html($url, $content) {
+		$url     = Feeds::fix_url($url);
+		$baseUrl = substr($url, 0, strrpos($url, '/') + 1);
+
+		$feedUrls = [];
+
+		$doc = new DOMDocument();
+		if ($doc->loadHTML($content)) {
+			$xpath = new DOMXPath($doc);
+			$entries = $xpath->query('/html/head/link[@rel="alternate" and '.
+				'(contains(@type,"rss") or contains(@type,"atom"))]|/html/head/link[@rel="feed"]');
+
+			foreach ($entries as $entry) {
+				if ($entry->hasAttribute('href')) {
+					$title = $entry->getAttribute('title');
+					if ($title == '') {
+						$title = $entry->getAttribute('type');
+					}
+					$feedUrl = rewrite_relative_url(
+						$baseUrl, $entry->getAttribute('href')
+					);
+					$feedUrls[$feedUrl] = $title;
+				}
+			}
+		}
+		return $feedUrls;
+	}
+
+	static function is_html($content) {
+		return preg_match("/<html|DOCTYPE html/i", substr($content, 0, 8192)) !== 0;
+	}
+
+	static function validate_feed_url($url) {
+		$parts = parse_url($url);
+
+		return ($parts['scheme'] == 'http' || $parts['scheme'] == 'feed' || $parts['scheme'] == 'https');
+	}
+
+	/**
+	 * Fixes incomplete URLs by prepending "http://".
+	 * Also replaces feed:// with http://, and
+	 * prepends a trailing slash if the url is a domain name only.
+	 *
+	 * @param string $url Possibly incomplete URL
+	 *
+	 * @return string Fixed URL.
+	 */
+	static function fix_url($url) {
+
+		// support schema-less urls
+		if (strpos($url, '//') === 0) {
+			$url = 'https:' . $url;
+		}
+
+		if (strpos($url, '://') === false) {
+			$url = 'http://' . $url;
+		} else if (substr($url, 0, 5) == 'feed:') {
+			$url = 'http:' . substr($url, 5);
+		}
+
+		//prepend slash if the URL has no slash in it
+		// "http://www.example" -> "http://www.example/"
+		if (strpos($url, '/', strpos($url, ':') + 3) === false) {
+			$url .= '/';
+		}
+
+		//convert IDNA hostname to punycode if possible
+		if (function_exists("idn_to_ascii")) {
+			$parts = parse_url($url);
+			if (mb_detect_encoding($parts['host']) != 'ASCII')
+			{
+				$parts['host'] = idn_to_ascii($parts['host']);
+				$url = build_url($parts);
+			}
+		}
+
+		if ($url != "http:///")
+			return $url;
+		else
+			return '';
+	}
+
+	static function add_feed_category($feed_cat, $parent_cat_id = false, $order_id = 0) {
+
+		if (!$feed_cat) return false;
+
+		$feed_cat = mb_substr($feed_cat, 0, 250);
+		if (!$parent_cat_id) $parent_cat_id = null;
+
+		$pdo = Db::pdo();
+		$tr_in_progress = false;
+
+		try {
+			$pdo->beginTransaction();
+		} catch (Exception $e) {
+			$tr_in_progress = true;
+		}
+
+		$sth = $pdo->prepare("SELECT id FROM ttrss_feed_categories
+				WHERE (parent_cat = :parent OR (:parent IS NULL AND parent_cat IS NULL))
+				AND title = :title AND owner_uid = :uid");
+		$sth->execute([':parent' => $parent_cat_id, ':title' => $feed_cat, ':uid' => $_SESSION['uid']]);
+
+		if (!$sth->fetch()) {
+
+			$sth = $pdo->prepare("INSERT INTO ttrss_feed_categories (owner_uid,title,parent_cat,order_id)
+					VALUES (?, ?, ?, ?)");
+			$sth->execute([$_SESSION['uid'], $feed_cat, $parent_cat_id, (int)$order_id]);
+
+			if (!$tr_in_progress) $pdo->commit();
+
+			return true;
+		}
+
+		$pdo->commit();
+
+		return false;
+	}
+
+	static function get_feed_access_key($feed_id, $is_cat, $owner_uid = false) {
+
+		if (!$owner_uid) $owner_uid = $_SESSION["uid"];
+
+		$is_cat = bool_to_sql_bool($is_cat);
+
+		$pdo = Db::pdo();
+
+		$sth = $pdo->prepare("SELECT access_key FROM ttrss_access_keys
+				WHERE feed_id = ? AND is_cat = ?
+				AND owner_uid = ?");
+		$sth->execute([$feed_id, $is_cat, $owner_uid]);
+
+		if ($row = $sth->fetch()) {
+			return $row["access_key"];
+		} else {
+			$key = uniqid_short();
+
+			$sth = $pdo->prepare("INSERT INTO ttrss_access_keys
+					(access_key, feed_id, is_cat, owner_uid)
+					VALUES (?, ?, ?, ?)");
+
+			$sth->execute([$key, $feed_id, $is_cat, $owner_uid]);
+
+			return $key;
+		}
+	}
+
+	/**
+	 * Purge a feed old posts.
+	 *
+	 * @param mixed $link A database connection.
+	 * @param mixed $feed_id The id of the purged feed.
+	 * @param mixed $purge_interval Olderness of purged posts.
+	 * @param boolean $debug Set to True to enable the debug. False by default.
+	 * @access public
+	 * @return void
+	 */
+	static function purge_feed($feed_id, $purge_interval) {
+
+		if (!$purge_interval) $purge_interval = Feeds::feed_purge_interval($feed_id);
+
+		$pdo = Db::pdo();
+
+		$sth = $pdo->prepare("SELECT owner_uid FROM ttrss_feeds WHERE id = ?");
+		$sth->execute([$feed_id]);
+
+		$owner_uid = false;
+
+		if ($row = $sth->fetch()) {
+			$owner_uid = $row["owner_uid"];
+		}
+
+		if ($purge_interval == -1 || !$purge_interval) {
+			if ($owner_uid) {
+				CCache::update($feed_id, $owner_uid);
+			}
+			return;
+		}
+
+		if (!$owner_uid) return;
+
+		if (FORCE_ARTICLE_PURGE == 0) {
+			$purge_unread = get_pref("PURGE_UNREAD_ARTICLES",
+				$owner_uid, false);
+		} else {
+			$purge_unread = true;
+			$purge_interval = FORCE_ARTICLE_PURGE;
+		}
+
+		if (!$purge_unread)
+			$query_limit = " unread = false AND ";
+		else
+			$query_limit = "";
+
+		$purge_interval = (int) $purge_interval;
+
+		if (DB_TYPE == "pgsql") {
+			$sth = $pdo->prepare("DELETE FROM ttrss_user_entries
+				USING ttrss_entries
+				WHERE ttrss_entries.id = ref_id AND
+				marked = false AND
+				feed_id = ? AND
+				$query_limit
+				ttrss_entries.date_updated < NOW() - INTERVAL '$purge_interval days'");
+			$sth->execute([$feed_id]);
+
+		} else {
+			$sth  = $pdo->prepare("DELETE FROM ttrss_user_entries
+				USING ttrss_user_entries, ttrss_entries
+				WHERE ttrss_entries.id = ref_id AND
+				marked = false AND
+				feed_id = ? AND
+				$query_limit
+				ttrss_entries.date_updated < DATE_SUB(NOW(), INTERVAL $purge_interval DAY)");
+			$sth->execute([$feed_id]);
+
+		}
+
+		$rows = $sth->rowCount();
+
+		CCache::update($feed_id, $owner_uid);
+
+		Debug::log("Purged feed $feed_id ($purge_interval): deleted $rows articles");
+
+		return $rows;
+	}
+
+	static function feed_purge_interval($feed_id) {
+
+		$pdo = DB::pdo();
+
+		$sth = $pdo->prepare("SELECT purge_interval, owner_uid FROM ttrss_feeds
+			WHERE id = ?");
+		$sth->execute([$feed_id]);
+
+		if ($row = $sth->fetch()) {
+			$purge_interval = $row["purge_interval"];
+			$owner_uid = $row["owner_uid"];
+
+			if ($purge_interval == 0) $purge_interval = get_pref(
+				'PURGE_OLD_DAYS', $owner_uid);
+
+			return $purge_interval;
+
+		} else {
+			return -1;
+		}
+	}
+
+	static function search_to_sql($search, $search_language) {
+
+		$keywords = str_getcsv(trim($search), " ");
+		$query_keywords = array();
+		$search_words = array();
+		$search_query_leftover = array();
+
+		$pdo = Db::pdo();
+
+		if ($search_language)
+			$search_language = $pdo->quote(mb_strtolower($search_language));
+		else
+			$search_language = $pdo->quote("english");
+
+		foreach ($keywords as $k) {
+			if (strpos($k, "-") === 0) {
+				$k = substr($k, 1);
+				$not = "NOT";
+			} else {
+				$not = "";
+			}
+
+			$commandpair = explode(":", mb_strtolower($k), 2);
+
+			switch ($commandpair[0]) {
+				case "title":
+					if ($commandpair[1]) {
+						array_push($query_keywords, "($not (LOWER(ttrss_entries.title) LIKE ".
+							$pdo->quote('%' . mb_strtolower($commandpair[1]) . '%') ."))");
+					} else {
+						array_push($query_keywords, "(UPPER(ttrss_entries.title) $not LIKE UPPER('%$k%')
+								OR UPPER(ttrss_entries.content) $not LIKE UPPER(".$pdo->quote("%$k%")."))");
+						array_push($search_words, $k);
+					}
+					break;
+				case "author":
+					if ($commandpair[1]) {
+						array_push($query_keywords, "($not (LOWER(author) LIKE ".
+							$pdo->quote('%' . mb_strtolower($commandpair[1]) . '%')."))");
+					} else {
+						array_push($query_keywords, "(UPPER(ttrss_entries.title) $not LIKE UPPER('%$k%')
+								OR UPPER(ttrss_entries.content) $not LIKE UPPER(".$pdo->quote("%$k%")."))");
+						array_push($search_words, $k);
+					}
+					break;
+				case "note":
+					if ($commandpair[1]) {
+						if ($commandpair[1] == "true")
+							array_push($query_keywords, "($not (note IS NOT NULL AND note != ''))");
+						else if ($commandpair[1] == "false")
+							array_push($query_keywords, "($not (note IS NULL OR note = ''))");
+						else
+							array_push($query_keywords, "($not (LOWER(note) LIKE ".
+								$pdo->quote('%' . mb_strtolower($commandpair[1]) . '%')."))");
+					} else {
+						array_push($query_keywords, "(UPPER(ttrss_entries.title) $not LIKE UPPER(".$pdo->quote("%$k%").")
+								OR UPPER(ttrss_entries.content) $not LIKE UPPER(".$pdo->quote("%$k%")."))");
+						if (!$not) array_push($search_words, $k);
+					}
+					break;
+				case "star":
+
+					if ($commandpair[1]) {
+						if ($commandpair[1] == "true")
+							array_push($query_keywords, "($not (marked = true))");
+						else
+							array_push($query_keywords, "($not (marked = false))");
+					} else {
+						array_push($query_keywords, "(UPPER(ttrss_entries.title) $not LIKE UPPER(".$pdo->quote("%$k%").")
+								OR UPPER(ttrss_entries.content) $not LIKE UPPER(".$pdo->quote("%$k%")."))");
+						if (!$not) array_push($search_words, $k);
+					}
+					break;
+				case "pub":
+					if ($commandpair[1]) {
+						if ($commandpair[1] == "true")
+							array_push($query_keywords, "($not (published = true))");
+						else
+							array_push($query_keywords, "($not (published = false))");
+
+					} else {
+						array_push($query_keywords, "(UPPER(ttrss_entries.title) $not LIKE UPPER('%$k%')
+								OR UPPER(ttrss_entries.content) $not LIKE UPPER(".$pdo->quote("%$k%")."))");
+						if (!$not) array_push($search_words, $k);
+					}
+					break;
+				case "unread":
+					if ($commandpair[1]) {
+						if ($commandpair[1] == "true")
+							array_push($query_keywords, "($not (unread = true))");
+						else
+							array_push($query_keywords, "($not (unread = false))");
+
+					} else {
+						array_push($query_keywords, "(UPPER(ttrss_entries.title) $not LIKE UPPER(".$pdo->quote("%$k%").")
+								OR UPPER(ttrss_entries.content) $not LIKE UPPER(".$pdo->quote("%$k%")."))");
+						if (!$not) array_push($search_words, $k);
+					}
+					break;
+				default:
+					if (strpos($k, "@") === 0) {
+
+						$user_tz_string = get_pref('USER_TIMEZONE', $_SESSION['uid']);
+						$orig_ts = strtotime(substr($k, 1));
+						$k = date("Y-m-d", convert_timestamp($orig_ts, $user_tz_string, 'UTC'));
+
+						//$k = date("Y-m-d", strtotime(substr($k, 1)));
+
+						array_push($query_keywords, "(".SUBSTRING_FOR_DATE."(updated,1,LENGTH('$k')) $not = '$k')");
+					} else {
+
+						if (DB_TYPE == "pgsql") {
+							$k = mb_strtolower($k);
+							array_push($search_query_leftover, $not ? "!$k" : $k);
+						} else {
+							array_push($query_keywords, "(UPPER(ttrss_entries.title) $not LIKE UPPER(".$pdo->quote("%$k%").")
+								OR UPPER(ttrss_entries.content) $not LIKE UPPER(".$pdo->quote("%$k%")."))");
+						}
+
+						if (!$not) array_push($search_words, $k);
+					}
+			}
+		}
+
+		if (count($search_query_leftover) > 0) {
+
+			if (DB_TYPE == "pgsql") {
+
+				// if there's no joiners consider this a "simple" search and
+				// concatenate everything with &, otherwise don't try to mess with tsquery syntax
+				if (preg_match("/[&|]/", implode(" " , $search_query_leftover))) {
+					$tsquery = $pdo->quote(implode(" ", $search_query_leftover));
+				} else {
+					$tsquery = $pdo->quote(implode(" & ", $search_query_leftover));
+				}
+
+				array_push($query_keywords,
+					"(tsvector_combined @@ to_tsquery($search_language, $tsquery))");
+			}
+
+		}
+
+		$search_query_part = implode("AND", $query_keywords);
+
+		return array($search_query_part, $search_words);
+	}
 }
 

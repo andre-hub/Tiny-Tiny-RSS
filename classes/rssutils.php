@@ -507,7 +507,7 @@ class RSSUtils {
 
 			Debug::log("loading filters & labels...", Debug::$LOG_VERBOSE);
 
-			$filters = load_filters($feed, $owner_uid);
+			$filters = RSSUtils::load_filters($feed, $owner_uid);
 
 			if (Debug::get_loglevel() >= Debug::$LOG_EXTENDED) {
 				print_r($filters);
@@ -1071,7 +1071,7 @@ class RSSUtils {
 						$manual_tags = trim_array(explode(",", $f["param"]));
 
 						foreach ($manual_tags as $tag) {
-							if (tag_is_valid($tag)) {
+							if (Article::tag_is_valid($tag)) {
 								array_push($entry_tags, $tag);
 							}
 						}
@@ -1115,9 +1115,9 @@ class RSSUtils {
 
 					foreach ($filtered_tags as $tag) {
 
-						$tag = sanitize_tag($tag);
+						$tag = Article::sanitize_tag($tag);
 
-						if (!tag_is_valid($tag)) continue;
+						if (!Article::tag_is_valid($tag)) continue;
 
 						$tsth->execute([$tag, $entry_int_id, $owner_uid]);
 
@@ -1147,7 +1147,7 @@ class RSSUtils {
 
 			Debug::log("purging feed...", Debug::$LOG_VERBOSE);
 
-			purge_feed($feed, 0);
+			Feeds::purge_feed($feed, 0);
 
 			$sth = $pdo->prepare("UPDATE ttrss_feeds
 				SET last_updated = NOW(), last_unconditional = NOW(), last_error = '' WHERE id = ?");
@@ -1205,32 +1205,31 @@ class RSSUtils {
 	}
 
 	static function cache_media($html, $site_url) {
-		libxml_use_internal_errors(true);
-
 		$doc = new DOMDocument();
-		$doc->loadHTML('<?xml encoding="UTF-8">' . $html);
-		$xpath = new DOMXPath($doc);
+		if ($doc->loadHTML($html)) {
+			$xpath = new DOMXPath($doc);
 
-		$entries = $xpath->query('(//img[@src])|(//video/source[@src])|(//audio/source[@src])');
+			$entries = $xpath->query('(//img[@src])|(//video/source[@src])|(//audio/source[@src])');
 
-		foreach ($entries as $entry) {
-			if ($entry->hasAttribute('src') && strpos($entry->getAttribute('src'), "data:") !== 0) {
-				$src = rewrite_relative_url($site_url, $entry->getAttribute('src'));
+			foreach ($entries as $entry) {
+				if ($entry->hasAttribute('src') && strpos($entry->getAttribute('src'), "data:") !== 0) {
+					$src = rewrite_relative_url($site_url, $entry->getAttribute('src'));
 
-				$local_filename = CACHE_DIR . "/images/" . sha1($src);
+					$local_filename = CACHE_DIR . "/images/" . sha1($src);
 
-				Debug::log("cache_media: checking $src", Debug::$LOG_VERBOSE);
+					Debug::log("cache_media: checking $src", Debug::$LOG_VERBOSE);
 
-				if (!file_exists($local_filename)) {
-					Debug::log("cache_media: downloading: $src to $local_filename", Debug::$LOG_VERBOSE);
+					if (!file_exists($local_filename)) {
+						Debug::log("cache_media: downloading: $src to $local_filename", Debug::$LOG_VERBOSE);
 
-					$file_content = fetch_file_contents($src);
+						$file_content = fetch_file_contents($src);
 
-					if ($file_content && strlen($file_content) > MIN_CACHE_FILE_SIZE) {
-						file_put_contents($local_filename, $file_content);
+						if ($file_content && strlen($file_content) > MIN_CACHE_FILE_SIZE) {
+							file_put_contents($local_filename, $file_content);
+						}
+					} else if (is_writable($local_filename)) {
+						touch($local_filename);
 					}
-				} else if (is_writable($local_filename)) {
-					touch($local_filename);
 				}
 			}
 		}
@@ -1517,7 +1516,7 @@ class RSSUtils {
 		$icon_file = ICONS_DIR . "/$feed.ico";
 
 		if (!file_exists($icon_file)) {
-			$favicon_url = get_favicon_url($site_url);
+			$favicon_url = RSSUtils::get_favicon_url($site_url);
 
 			if ($favicon_url) {
 				// Limiting to "image" type misses those served with text/plain
@@ -1568,6 +1567,157 @@ class RSSUtils {
 
 	static function is_gzipped($feed_data) {
 		return mb_strpos($feed_data, "\x1f" . "\x8b" . "\x08", 0, "US-ASCII") === 0;
+	}
+
+	static function load_filters($feed_id, $owner_uid) {
+		$filters = array();
+
+		$feed_id = (int) $feed_id;
+		$cat_id = (int)Feeds::getFeedCategory($feed_id);
+
+		if ($cat_id == 0)
+			$null_cat_qpart = "cat_id IS NULL OR";
+		else
+			$null_cat_qpart = "";
+
+		$pdo = Db::pdo();
+
+		$sth = $pdo->prepare("SELECT * FROM ttrss_filters2 WHERE
+				owner_uid = ? AND enabled = true ORDER BY order_id, title");
+		$sth->execute([$owner_uid]);
+
+		$check_cats = array_merge(
+			Feeds::getParentCategories($cat_id, $owner_uid),
+			[$cat_id]);
+
+		$check_cats_str = join(",", $check_cats);
+		$check_cats_fullids = array_map(function($a) { return "CAT:$a"; }, $check_cats);
+
+		while ($line = $sth->fetch()) {
+			$filter_id = $line["id"];
+
+			$match_any_rule = sql_bool_to_bool($line["match_any_rule"]);
+
+			$sth2 = $pdo->prepare("SELECT
+					r.reg_exp, r.inverse, r.feed_id, r.cat_id, r.cat_filter, r.match_on, t.name AS type_name
+					FROM ttrss_filters2_rules AS r,
+					ttrss_filter_types AS t
+					WHERE
+						(match_on IS NOT NULL OR
+						  (($null_cat_qpart (cat_id IS NULL AND cat_filter = false) OR cat_id IN ($check_cats_str)) AND
+						  (feed_id IS NULL OR feed_id = ?))) AND
+						filter_type = t.id AND filter_id = ?");
+			$sth2->execute([$feed_id, $filter_id]);
+
+			$rules = array();
+			$actions = array();
+
+			while ($rule_line = $sth2->fetch()) {
+				#				print_r($rule_line);
+
+				if ($rule_line["match_on"]) {
+					$match_on = json_decode($rule_line["match_on"], true);
+
+					if (in_array("0", $match_on) || in_array($feed_id, $match_on) || count(array_intersect($check_cats_fullids, $match_on)) > 0) {
+
+						$rule = array();
+						$rule["reg_exp"] = $rule_line["reg_exp"];
+						$rule["type"] = $rule_line["type_name"];
+						$rule["inverse"] = sql_bool_to_bool($rule_line["inverse"]);
+
+						array_push($rules, $rule);
+					} else if (!$match_any_rule) {
+						// this filter contains a rule that doesn't match to this feed/category combination
+						// thus filter has to be rejected
+
+						$rules = [];
+						break;
+					}
+
+				} else {
+
+					$rule = array();
+					$rule["reg_exp"] = $rule_line["reg_exp"];
+					$rule["type"] = $rule_line["type_name"];
+					$rule["inverse"] = sql_bool_to_bool($rule_line["inverse"]);
+
+					array_push($rules, $rule);
+				}
+			}
+
+			if (count($rules) > 0) {
+				$sth2 = $pdo->prepare("SELECT a.action_param,t.name AS type_name
+						FROM ttrss_filters2_actions AS a,
+						ttrss_filter_actions AS t
+						WHERE
+							action_id = t.id AND filter_id = ?");
+				$sth2->execute([$filter_id]);
+
+				while ($action_line = $sth2->fetch()) {
+					#				print_r($action_line);
+
+					$action = array();
+					$action["type"] = $action_line["type_name"];
+					$action["param"] = $action_line["action_param"];
+
+					array_push($actions, $action);
+				}
+			}
+
+			$filter = [];
+			$filter["id"] = $filter_id;
+			$filter["match_any_rule"] = sql_bool_to_bool($line["match_any_rule"]);
+			$filter["inverse"] = sql_bool_to_bool($line["inverse"]);
+			$filter["rules"] = $rules;
+			$filter["actions"] = $actions;
+
+			if (count($rules) > 0 && count($actions) > 0) {
+				array_push($filters, $filter);
+			}
+		}
+
+		return $filters;
+	}
+
+	/**
+	 * Try to determine the favicon URL for a feed.
+	 * adapted from wordpress favicon plugin by Jeff Minard (http://thecodepro.com/)
+	 * http://dev.wp-plugins.org/file/favatars/trunk/favatars.php
+	 *
+	 * @param string $url A feed or page URL
+	 * @access public
+	 * @return mixed The favicon URL, or false if none was found.
+	 */
+	static function get_favicon_url($url) {
+
+		$favicon_url = false;
+
+		if ($html = @fetch_file_contents($url)) {
+
+			$doc = new DOMDocument();
+			if ($doc->loadHTML($html)) {
+				$xpath = new DOMXPath($doc);
+
+				$base = $xpath->query('/html/head/base[@href]');
+				foreach ($base as $b) {
+					$url = rewrite_relative_url($url, $b->getAttribute("href"));
+					break;
+				}
+
+				$entries = $xpath->query('/html/head/link[@rel="shortcut icon" or @rel="icon"]');
+				if (count($entries) > 0) {
+					foreach ($entries as $entry) {
+						$favicon_url = rewrite_relative_url($url, $entry->getAttribute("href"));
+						break;
+					}
+				}
+			}
+		}
+
+		if (!$favicon_url)
+			$favicon_url = rewrite_relative_url($url, "/favicon.ico");
+
+		return $favicon_url;
 	}
 
 }
