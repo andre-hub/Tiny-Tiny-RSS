@@ -572,7 +572,7 @@ class RPC extends Handler_Protected {
 
 	function log() {
 		$msg = clean($_REQUEST['msg']);
-		$file = basename(clean($_REQUEST['file']));
+		$file = clean_filename($_REQUEST['file']);
 		$line = (int) clean($_REQUEST['line']);
 		$context = clean($_REQUEST['context']);
 
@@ -591,7 +591,7 @@ class RPC extends Handler_Protected {
 		$rv = [];
 
 		if (CHECK_FOR_UPDATES && $_SESSION["access_level"] >= 10 && defined("GIT_VERSION_TIMESTAMP")) {
-			$content = @fetch_file_contents(["url" => "https://tt-rss.org/version.json"]);
+			$content = @fetch_file_contents(["url" => "https://srv.tt-rss.org/version.json"]);
 
 			if ($content) {
 				$content = json_decode($content, true);

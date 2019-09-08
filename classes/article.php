@@ -446,7 +446,7 @@ class Article extends Handler_Protected {
 			foreach ($result as $line) {
 
 				foreach (PluginHost::getInstance()->get_hooks(PluginHost::HOOK_ENCLOSURE_ENTRY) as $plugin) {
-					$line = $plugin->hook_enclosure_entry($line);
+					$line = $plugin->hook_enclosure_entry($line, $id);
 				}
 
 				$url = $line["content_url"];
@@ -673,10 +673,12 @@ class Article extends Handler_Protected {
 
 		$rv = array();
 
+		$cache = new DiskCache("images");
+
 		while ($line = $sth->fetch()) {
 
-			if (file_exists(CACHE_DIR . '/images/' . sha1($line["content_url"]))) {
-				$line["content_url"] = get_self_url_prefix() . '/public.php?op=cached_url&hash=' . sha1($line["content_url"]);
+			if ($cache->exists(sha1($line["content_url"]))) {
+				$line["content_url"] = $cache->getUrl(sha1($line["content_url"]));
 			}
 
 			array_push($rv, $line);
@@ -819,6 +821,75 @@ class Article extends Handler_Protected {
 			return false;
 
 		return true;
+	}
+
+	static function get_article_image($enclosures, $content, $site_url) {
+
+		$article_image = "";
+		$article_stream = "";
+
+		foreach (PluginHost::getInstance()->get_hooks(PluginHost::HOOK_ARTICLE_IMAGE) as $p) {
+			list ($article_image, $article_stream, $content) = $p->hook_article_image($enclosures, $content, $site_url);
+		}
+
+		if (!$article_image && !$article_stream) {
+			$tmpdoc = new DOMDocument();
+
+			if (@$tmpdoc->loadHTML('<?xml encoding="UTF-8">' . mb_substr($content, 0, 131070))) {
+				$tmpxpath = new DOMXPath($tmpdoc);
+				$elems = $tmpxpath->query('(//img[@src]|//video[@poster]|//iframe[contains(@src , "youtube.com/embed/")])');
+
+				foreach ($elems as $e) {
+					if ($e->nodeName == "iframe") {
+						$matches = [];
+						if ($rrr = preg_match("/\/embed\/([\w-]+)/", $e->getAttribute("src"), $matches)) {
+							$article_image = "https://img.youtube.com/vi/" . $matches[1] . "/hqdefault.jpg";
+							$article_stream = "https://youtu.be/" . $matches[1];
+							break;
+						}
+					} else if ($e->nodeName == "video") {
+						$article_image = $e->getAttribute("poster");
+
+						$src = $tmpxpath->query("//source[@src]", $e)->item(0);
+
+						if ($src) {
+							$article_stream = $src->getAttribute("src");
+						}
+
+						break;
+					} else if ($e->nodeName == 'img') {
+						if (mb_strpos($e->getAttribute("src"), "data:") !== 0) {
+							$article_image = $e->getAttribute("src");
+						}
+						break;
+					}
+				}
+			}
+
+			if (!$article_image)
+				foreach ($enclosures as $enc) {
+					if (strpos($enc["content_type"], "image/") !== FALSE) {
+						$article_image = $enc["content_url"];
+						break;
+					}
+				}
+
+			if ($article_image)
+				$article_image = rewrite_relative_url($site_url, $article_image);
+
+			if ($article_stream)
+				$article_stream = rewrite_relative_url($site_url, $article_stream);
+		}
+
+		$cache = new DiskCache("images");
+
+		if ($article_image && $cache->exists(sha1($article_image)))
+			$article_image = $cache->getUrl(sha1($article_image));
+
+		if ($article_stream && $cache->exists(sha1($article_stream)))
+			$article_stream = $cache->getUrl(sha1($article_stream));
+
+		return [$article_image, $article_stream];
 	}
 
 }

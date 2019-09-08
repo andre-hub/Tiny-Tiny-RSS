@@ -59,6 +59,7 @@ class PluginHost {
 	const HOOK_SEND_MAIL = 39;
 	const HOOK_FILTER_TRIGGERED = 40;
 	const HOOK_GET_FULL_TEXT = 41;
+	const HOOK_ARTICLE_IMAGE = 42;
 
 	const KIND_ALL = 1;
 	const KIND_SYSTEM = 2;
@@ -127,28 +128,44 @@ class PluginHost {
 		}
 	}
 
-	function add_hook($type, $sender) {
+	function add_hook($type, $sender, $priority = 50) {
+		$priority = (int) $priority;
+
 		if (!is_array($this->hooks[$type])) {
-			$this->hooks[$type] = array();
+			$this->hooks[$type] = [];
 		}
 
-		array_push($this->hooks[$type], $sender);
+		if (!is_array($this->hooks[$type][$priority])) {
+			$this->hooks[$type][$priority] = [];
+		}
+
+		array_push($this->hooks[$type][$priority], $sender);
+		ksort($this->hooks[$type]);
 	}
 
 	function del_hook($type, $sender) {
 		if (is_array($this->hooks[$type])) {
-			$key = array_Search($sender, $this->hooks[$type]);
-			if ($key !== FALSE) {
-				unset($this->hooks[$type][$key]);
+			foreach (array_keys($this->hooks[$type]) as $prio) {
+				$key = array_search($sender, $this->hooks[$type][$prio]);
+
+				if ($key !== FALSE) {
+					unset($this->hooks[$type][$prio][$key]);
+				}
 			}
 		}
 	}
 
 	function get_hooks($type) {
 		if (isset($this->hooks[$type])) {
-			return $this->hooks[$type];
+			$tmp = [];
+
+			foreach (array_keys($this->hooks[$type]) as $prio) {
+				$tmp = array_merge($tmp, $this->hooks[$type][$prio]);
+			}
+
+			return $tmp;
 		} else {
-			return array();
+			return [];
 		}
 	}
 	function load_all($kind, $owner_uid = false, $skip_init = false) {
@@ -169,7 +186,7 @@ class PluginHost {
 
 		foreach ($plugins as $class) {
 			$class = trim($class);
-			$class_file = strtolower(basename($class));
+			$class_file = strtolower(clean_filename($class));
 
 			if (!is_dir(__DIR__."/../plugins/$class_file") &&
 					!is_dir(__DIR__."/../plugins.local/$class_file")) continue;
@@ -469,5 +486,39 @@ class PluginHost {
 
 	function get_filter_actions() {
 		return $this->plugin_actions;
+	}
+
+	function get_owner_uid() {
+		return $this->owner_uid;
+	}
+
+	// handled by classes/pluginhandler.php, requires valid session
+	function get_method_url($sender, $method, $params)  {
+		return get_self_url_prefix() . "/backend.php?" .
+			http_build_query(
+				array_merge(
+					[
+						"op" => "pluginhandler",
+						"plugin" => strtolower(get_class($sender)),
+						"method" => $method
+					],
+					$params));
+	}
+
+	// WARNING: endpoint in public.php, exposed to unauthenticated users
+	function get_public_method_url($sender, $method, $params)  {
+		if ($sender->is_public_method($method)) {
+			return get_self_url_prefix() . "/public.php?" .
+				http_build_query(
+					array_merge(
+						[
+							"op" => "pluginhandler",
+							"plugin" => strtolower(get_class($sender)),
+							"pmethod" => $method
+						],
+						$params));
+		} else {
+			user_error("get_public_method_url: requested method '$method' of '" . get_class($sender) . "' is private.");
+		}
 	}
 }

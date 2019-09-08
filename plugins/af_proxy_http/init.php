@@ -1,12 +1,15 @@
 <?php
-class Af_Zz_ImgProxy extends Plugin {
+class Af_Proxy_Http extends Plugin {
 
 	/* @var PluginHost $host */
 	private $host;
 
+	/* @var DiskCache $cache */
+	private $cache;
+
 	function about() {
 		return array(1.0,
-			"Load insecure images via built-in proxy",
+			"Loads media served over plain HTTP via built-in secure proxy",
 			"fox");
 	}
 
@@ -18,9 +21,10 @@ class Af_Zz_ImgProxy extends Plugin {
 
 	function init($host) {
 		$this->host = $host;
+		$this->cache = new DiskCache("images");
 
-		$host->add_hook($host::HOOK_RENDER_ARTICLE, $this);
-		$host->add_hook($host::HOOK_RENDER_ARTICLE_CDM, $this);
+		$host->add_hook($host::HOOK_RENDER_ARTICLE, $this, 150);
+		$host->add_hook($host::HOOK_RENDER_ARTICLE_CDM, $this, 150);
 		$host->add_hook($host::HOOK_ENCLOSURE_ENTRY, $this);
 
 		$host->add_hook($host::HOOK_PREFS_TAB, $this);
@@ -50,16 +54,12 @@ class Af_Zz_ImgProxy extends Plugin {
 			return;
 		}
 
-		$local_filename = CACHE_DIR . "/images/" . sha1($url);
+		$local_filename = sha1($url);
 
-		if ($_REQUEST["debug"] == "1") { print $url . "\n" . $local_filename; die; }
-
-		header("Content-Disposition: inline; filename=\"".basename($local_filename)."\"");
-
-		if (file_exists($local_filename)) {
-
-			send_local_file($local_filename);
-
+		if ($this->cache->exists($local_filename)) {
+			header("Location: " . $this->cache->getUrl($local_filename));
+			return;
+			//$this->cache->send($local_filename);
 		} else {
 			$data = fetch_file_contents(["url" => $url, "max_size" => MAX_CACHE_FILE_SIZE]);
 
@@ -67,10 +67,10 @@ class Af_Zz_ImgProxy extends Plugin {
 
 				$disable_cache = $this->host->get($this, "disable_cache");
 
-				if (!$disable_cache && strlen($data) > MIN_CACHE_FILE_SIZE) {
-					if (file_put_contents($local_filename, $data)) {
-						$mimetype = mime_content_type($local_filename);
-						header("Content-type: $mimetype");
+				if (!$disable_cache) {
+					if ($this->cache->put($local_filename, $data)) {
+						header("Location: " . $this->cache->getUrl($local_filename));
+						return;
 					}
 				}
 
@@ -110,36 +110,39 @@ class Af_Zz_ImgProxy extends Plugin {
 		}
 	}
 
-	function rewrite_url_if_needed($url, $all_remote = false) {
-		$scheme = parse_url($url, PHP_URL_SCHEME);
+	private function rewrite_url_if_needed($url, $all_remote = false) {
+		/* we don't need to handle URLs where local cache already exists, tt-rss rewrites those automatically */
+		if (!$this->cache->exists(sha1($url))) {
 
-		if ($all_remote) {
-			$host = parse_url($url, PHP_URL_HOST);
-			$self_host = parse_url(get_self_url_prefix(), PHP_URL_HOST);
+			$scheme = parse_url($url, PHP_URL_SCHEME);
 
-			$is_remote = $host != $self_host;
-		} else {
-			$is_remote = false;
-		}
+			if ($all_remote) {
+				$host = parse_url($url, PHP_URL_HOST);
+				$self_host = parse_url(get_self_url_prefix(), PHP_URL_HOST);
 
-		if (($scheme != 'https' && $scheme != "") || $is_remote) {
-			if (strpos($url, "data:") !== 0) {
-				$parts = parse_url($url);
+				$is_remote = $host != $self_host;
+			} else {
+				$is_remote = false;
+			}
 
-				foreach (explode(" " , $this->ssl_known_whitelist) as $host) {
-					if (substr(strtolower($parts['host']), -strlen($host)) === strtolower($host)) {
-						$parts['scheme'] = 'https';
-						$url = build_url($parts);
-						if ($all_remote && $is_remote) {
-							break;
-						} else {
-							return $url;
+			if (($scheme != 'https' && $scheme != "") || $is_remote) {
+				if (strpos($url, "data:") !== 0) {
+					$parts = parse_url($url);
+
+					foreach (explode(" " , $this->ssl_known_whitelist) as $host) {
+						if (substr(strtolower($parts['host']), -strlen($host)) === strtolower($host)) {
+							$parts['scheme'] = 'https';
+							$url = build_url($parts);
+							if ($all_remote && $is_remote) {
+								break;
+							} else {
+								return $url;
+							}
 						}
 					}
-				}
 
-				return get_self_url_prefix() . "/public.php?op=pluginhandler&plugin=af_zz_imgproxy&pmethod=imgproxy&url=" .
-					urlencode($url);
+					return $this->host->get_public_method_url($this, "imgproxy", ["url" => $url]);
+				}
 			}
 		}
 
@@ -206,7 +209,7 @@ class Af_Zz_ImgProxy extends Plugin {
 		if ($args != "prefFeeds") return;
 
 		print "<div dojoType=\"dijit.layout.AccordionPane\" 
-			title=\"<i class='material-icons'>extension</i> ".__('Image proxy settings (af_zz_imgproxy)')."\">";
+			title=\"<i class='material-icons'>extension</i> ".__('Image proxy settings (af_proxy_http)')."\">";
 
 		print "<form dojoType=\"dijit.form.Form\">";
 
@@ -226,7 +229,7 @@ class Af_Zz_ImgProxy extends Plugin {
 
 		print_hidden("op", "pluginhandler");
 		print_hidden("method", "save");
-		print_hidden("plugin", "af_zz_imgproxy");
+		print_hidden("plugin", "af_proxy_http");
 
 		$proxy_all = $this->host->get($this, "proxy_all");
 		print_checkbox("proxy_all", $proxy_all);

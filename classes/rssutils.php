@@ -808,7 +808,7 @@ class RSSUtils {
 
 				Debug::log("force catchup: $entry_force_catchup", Debug::$LOG_VERBOSE);
 
-				if ($cache_images && is_writable(CACHE_DIR . '/images'))
+				if ($cache_images)
 					RSSUtils::cache_media($entry_content, $site_url);
 
 				$csth = $pdo->prepare("SELECT id FROM ttrss_entries
@@ -871,7 +871,7 @@ class RSSUtils {
 					$entry_ref_id = $ref_id;
 
 					if (RSSUtils::find_article_filter($article_filters, "filter")) {
-						Debug::log("article is filtered out, nothing to do.");
+						Debug::log("article is filtered out, nothing to do.", Debug::$LOG_VERBOSE);
 						$pdo->commit();
 						continue;
 					}
@@ -1033,7 +1033,7 @@ class RSSUtils {
 					}
 				}
 
-				if ($cache_images && is_writable(CACHE_DIR . '/images'))
+				if ($cache_images)
 					RSSUtils::cache_enclosures($enclosures, $site_url);
 
 				if (Debug::get_loglevel() >= Debug::$LOG_EXTENDED) {
@@ -1181,54 +1181,61 @@ class RSSUtils {
 	}
 
 	static function cache_enclosures($enclosures, $site_url) {
-		foreach ($enclosures as $enc) {
+		$cache = new DiskCache("images");
 
-			if (preg_match("/(image|audio|video)/", $enc[1])) {
+		if ($cache->isWritable()) {
+			foreach ($enclosures as $enc) {
 
-				$src = rewrite_relative_url($site_url, $enc[0]);
+				if (preg_match("/(image|audio|video)/", $enc[1])) {
+					$src = rewrite_relative_url($site_url, $enc[0]);
 
-				$local_filename = CACHE_DIR . "/images/" . sha1($src);
+					$local_filename = sha1($src);
 
-				Debug::log("cache_enclosures: downloading: $src to $local_filename", Debug::$LOG_VERBOSE);
+					Debug::log("cache_enclosures: downloading: $src to $local_filename", Debug::$LOG_VERBOSE);
 
-				if (!file_exists($local_filename)) {
-					$file_content = fetch_file_contents($src);
+					if (!$cache->exists($local_filename)) {
+						$file_content = fetch_file_contents(array("url" => $src, "max_size" => MAX_CACHE_FILE_SIZE));
 
-					if ($file_content && strlen($file_content) > MIN_CACHE_FILE_SIZE) {
-						file_put_contents($local_filename, $file_content);
+						if ($file_content) {
+							$cache->put($local_filename, $file_content);
+						}
+					} else if (is_writable($local_filename)) {
+						$cache->touch($local_filename);
 					}
-				} else if (is_writable($local_filename)) {
-					touch($local_filename);
 				}
 			}
 		}
 	}
 
 	static function cache_media($html, $site_url) {
-		$doc = new DOMDocument();
-		if ($doc->loadHTML($html)) {
-			$xpath = new DOMXPath($doc);
+		$cache = new DiskCache("images");
 
-			$entries = $xpath->query('(//img[@src])|(//video/source[@src])|(//audio/source[@src])');
+		if ($cache->isWritable()) {
+			$doc = new DOMDocument();
+			if ($doc->loadHTML($html)) {
+				$xpath = new DOMXPath($doc);
 
-			foreach ($entries as $entry) {
-				if ($entry->hasAttribute('src') && strpos($entry->getAttribute('src'), "data:") !== 0) {
-					$src = rewrite_relative_url($site_url, $entry->getAttribute('src'));
+				$entries = $xpath->query('(//img[@src])|(//video/source[@src])|(//audio/source[@src])');
 
-					$local_filename = CACHE_DIR . "/images/" . sha1($src);
+				foreach ($entries as $entry) {
+					if ($entry->hasAttribute('src') && strpos($entry->getAttribute('src'), "data:") !== 0) {
+						$src = rewrite_relative_url($site_url, $entry->getAttribute('src'));
 
-					Debug::log("cache_media: checking $src", Debug::$LOG_VERBOSE);
+						$local_filename = sha1($src);
 
-					if (!file_exists($local_filename)) {
-						Debug::log("cache_media: downloading: $src to $local_filename", Debug::$LOG_VERBOSE);
+						Debug::log("cache_media: checking $src", Debug::$LOG_VERBOSE);
 
-						$file_content = fetch_file_contents($src);
+						if (!$cache->exists($local_filename)) {
+							Debug::log("cache_media: downloading: $src to $local_filename", Debug::$LOG_VERBOSE);
 
-						if ($file_content && strlen($file_content) > MIN_CACHE_FILE_SIZE) {
-							file_put_contents($local_filename, $file_content);
+							$file_content = fetch_file_contents(array("url" => $src, "max_size" => MAX_CACHE_FILE_SIZE));
+
+							if ($file_content) {
+								$cache->put($local_filename, $file_content);
+							}
+						} else if ($cache->isWritable($local_filename)) {
+							$cache->touch($local_filename);
 						}
-					} else if (is_writable($local_filename)) {
-						touch($local_filename);
 					}
 				}
 			}
@@ -1282,32 +1289,6 @@ class RSSUtils {
 		}
 
 		Debug::log("Removed $num_deleted old lock files.");
-	}
-
-	static function expire_cached_files() {
-		foreach (array("feeds", "images", "export", "upload") as $dir) {
-			$cache_dir = CACHE_DIR . "/$dir";
-
-			Debug::log("Expiring $cache_dir", Debug::$LOG_VERBOSE);
-
-			$num_deleted = 0;
-
-			if (is_writable($cache_dir)) {
-				$files = glob("$cache_dir/*");
-
-				if ($files) {
-					foreach ($files as $file) {
-						if (time() - filemtime($file) > 86400*CACHE_MAX_DAYS) {
-							unlink($file);
-
-							++$num_deleted;
-						}
-					}
-				}
-			}
-
-			Debug::log("$cache_dir: removed $num_deleted files.");
-		}
 	}
 
 	/**
@@ -1498,7 +1479,8 @@ class RSSUtils {
 	}
 
 	static function housekeeping_common() {
-		RSSUtils::expire_cached_files();
+		DiskCache::expire();
+
 		RSSUtils::expire_lock_files();
 		RSSUtils::expire_error_log();
 		RSSUtils::expire_feed_archive();

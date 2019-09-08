@@ -156,8 +156,9 @@ class Handler_Public extends Handler {
 					$tpl->setVariable('ARTICLE_ENCLOSURE_LENGTH', null, true);
 				}
 
-				$tpl->setVariable('ARTICLE_OG_IMAGE',
-                        $this->get_article_image($enclosures, $line['content'], $feed_site_url), true);
+				list ($og_image, $og_stream) = Article::get_article_image($enclosures, $line['content'], $feed_site_url);
+
+				$tpl->setVariable('ARTICLE_OG_IMAGE', $og_image, true);
 
 				$tpl->addBlock('entry');
 			}
@@ -319,34 +320,6 @@ class Handler_Public extends Handler {
 		print "Article not found.";
 	}
 
-	private function get_article_image($enclosures, $content, $site_url) {
-	    $og_image = false;
-
-		foreach ($enclosures as $enc) {
-			if (strpos($enc["content_type"], "image/") !== FALSE) {
-				return rewrite_relative_url($site_url, $enc["content_url"]);
-			}
-		}
-
-		if (!$og_image) {
-			$tmpdoc = new DOMDocument();
-
-			if (@$tmpdoc->loadHTML('<?xml encoding="UTF-8">' . mb_substr($content, 0, 131070))) {
-				$tmpxpath = new DOMXPath($tmpdoc);
-				$imgs = $tmpxpath->query("//img");
-
-				foreach ($imgs as $img) {
-					$src = $img->getAttribute("src");
-
-					if (mb_strpos($src, "data:") !== 0)
-						return rewrite_relative_url($site_url, $src);
-				}
-			}
-		}
-
-		return false;
-    }
-
 	private function format_article($id, $owner_uid) {
 
 		$pdo = Db::pdo();
@@ -382,7 +355,7 @@ class Handler_Public extends Handler {
 				$line = $p->hook_render_article($line);
 			}
 
-			$line['content'] = rewrite_cached_urls($line['content']);
+			$line['content'] = DiskCache::rewriteUrls($line['content']);
 
 			$enclosures = Article::get_article_enclosures($line["id"]);
 
@@ -409,7 +382,7 @@ class Handler_Public extends Handler {
 
             $rv .= "</head>";
 
-            $og_image = $this->get_article_image($enclosures, $line['content'], $line["site_url"]);
+            list ($og_image, $og_stream) = Article::get_article_image($enclosures, $line['content'], $line["site_url"]);
 
             if ($og_image) {
                 $rv .= "<meta property='og:image' content=\"" . htmlspecialchars($og_image) . "\"/>";
@@ -1202,24 +1175,18 @@ class Handler_Public extends Handler {
 	}
 
 	function cached_url() {
-		@$req_filename = basename($_GET['hash']);
+		list ($cache_dir, $filename) = explode("/", $_GET["file"], 2);
 
-		// we don't need an extension to find the file, hash is a complete URL
-		$hash = preg_replace("/\.[^\.]*$/", "", $req_filename);
+		// we do not allow files with extensions at the moment
+		$filename = str_replace(".", "", $filename);
 
-		if ($hash) {
+		$cache = new DiskCache($cache_dir);
 
-			$filename = CACHE_DIR . '/images/' . $hash;
-
-			if (file_exists($filename)) {
-				header("Content-Disposition: inline; filename=\"$req_filename\"");
-
-				send_local_file($filename);
-
-			} else {
-				header($_SERVER["SERVER_PROTOCOL"]." 404 Not Found");
-				echo "File not found.";
-			}
+		if ($cache->exists($filename)) {
+			$cache->send($filename);
+		} else {
+			header($_SERVER["SERVER_PROTOCOL"]." 404 Not Found");
+			echo "File not found.";
 		}
 	}
 
@@ -1236,27 +1203,30 @@ class Handler_Public extends Handler {
 	public function pluginhandler() {
 		$host = new PluginHost();
 
-		$plugin = basename(clean($_REQUEST["plugin"]));
+		$plugin_name = clean_filename($_REQUEST["plugin"]);
 		$method = clean($_REQUEST["pmethod"]);
 
-		$host->load($plugin, PluginHost::KIND_USER, 0);
+		$host->load($plugin_name, PluginHost::KIND_USER, 0);
 		$host->load_data();
 
-		$pclass = $host->get_plugin($plugin);
+		$plugin = $host->get_plugin($plugin_name);
 
-		if ($pclass) {
-			if (method_exists($pclass, $method)) {
-				if ($pclass->is_public_method($method)) {
-					$pclass->$method();
+		if ($plugin) {
+			if (method_exists($plugin, $method)) {
+				if ($plugin->is_public_method($method)) {
+					$plugin->$method();
 				} else {
+					user_error("PluginHandler[PUBLIC]: Requested private method '$method' of plugin '$plugin_name'.", E_USER_WARNING);
 					header("Content-Type: text/json");
 					print error_json(6);
 				}
 			} else {
+				user_error("PluginHandler[PUBLIC]: Requested unknown method '$method' of plugin '$plugin_name'.", E_USER_WARNING);
 				header("Content-Type: text/json");
 				print error_json(13);
 			}
 		} else {
+			user_error("PluginHandler[PUBLIC]: Requested method '$method' of unknown plugin '$plugin_name'.", E_USER_WARNING);
 			header("Content-Type: text/json");
 			print error_json(14);
 		}
