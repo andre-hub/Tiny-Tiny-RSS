@@ -259,6 +259,8 @@ class RSSUtils {
 	 */
 	static function update_rss_feed($feed, $no_cache = false) {
 
+		reset_fetch_domain_quota();
+
 		Debug::log("start", Debug::$LOG_VERBOSE);
 
 		$pdo = Db::pdo();
@@ -335,8 +337,19 @@ class RSSUtils {
 		$force_refetch = isset($_REQUEST["force_refetch"]);
 		$feed_data = "";
 
+		Debug::log("running HOOK_FETCH_FEED handlers...", Debug::$LOG_VERBOSE);
+
 		foreach ($pluginhost->get_hooks(PluginHost::HOOK_FETCH_FEED) as $plugin) {
+			Debug::log("... " . get_class($plugin), Debug::$LOG_VERBOSE);
+			$start = microtime(true);
 			$feed_data = $plugin->hook_fetch_feed($feed_data, $fetch_url, $owner_uid, $feed, 0, $auth_login, $auth_pass);
+			Debug::log(sprintf("=== %.4f (sec)", microtime(true) - $start), Debug::$LOG_VERBOSE);
+		}
+
+		if ($feed_data) {
+			Debug::log("feed data has been modified by a plugin.", Debug::$LOG_VERBOSE);
+		} else {
+			Debug::log("feed data has not been modified by a plugin.", Debug::$LOG_VERBOSE);
 		}
 
 		// try cache
@@ -428,8 +441,20 @@ class RSSUtils {
 			return;
 		}
 
+		Debug::log("running HOOK_FEED_FETCHED handlers...", Debug::$LOG_VERBOSE);
+		$feed_data_checksum = md5($feed_data);
+
 		foreach ($pluginhost->get_hooks(PluginHost::HOOK_FEED_FETCHED) as $plugin) {
+			Debug::log("... " . get_class($plugin), Debug::$LOG_VERBOSE);
+			$start = microtime(true);
 			$feed_data = $plugin->hook_feed_fetched($feed_data, $fetch_url, $owner_uid, $feed);
+			Debug::log(sprintf("=== %.4f (sec)", microtime(true) - $start), Debug::$LOG_VERBOSE);
+		}
+
+		if (md5($feed_data) != $feed_data_checksum) {
+			Debug::log("feed data has been modified by a plugin.", Debug::$LOG_VERBOSE);
+		} else {
+			Debug::log("feed data has not been modified by a plugin.", Debug::$LOG_VERBOSE);
 		}
 
 		$rss = new FeedParser($feed_data);
@@ -437,8 +462,16 @@ class RSSUtils {
 
 		if (!$rss->error()) {
 
+			Debug::log("running HOOK_FEED_PARSED handlers...", Debug::$LOG_VERBOSE);
+
 			// We use local pluginhost here because we need to load different per-user feed plugins
-			$pluginhost->run_hooks(PluginHost::HOOK_FEED_PARSED, "hook_feed_parsed", $rss);
+
+			foreach ($pluginhost->get_hooks(PluginHost::HOOK_FEED_PARSED) as $plugin) {
+				Debug::log("... " . get_class($plugin), Debug::$LOG_VERBOSE);
+				$start = microtime(true);
+				$plugin->hook_feed_parsed($rss);
+				Debug::log(sprintf("=== %.4f (sec)", microtime(true) - $start), Debug::$LOG_VERBOSE);
+			}
 
 			Debug::log("language: $feed_language", Debug::$LOG_VERBOSE);
 			Debug::log("processing feed data...", Debug::$LOG_VERBOSE);
@@ -591,31 +624,10 @@ class RSSUtils {
 				$entry_guid = mb_substr($entry_guid, 0, 245);
 
 				Debug::log("author $entry_author", Debug::$LOG_VERBOSE);
-				Debug::log("num_comments: $num_comments", Debug::$LOG_VERBOSE);
 				Debug::log("looking for tags...", Debug::$LOG_VERBOSE);
 
-				// parse <category> entries into tags
-
-				$additional_tags = array();
-
-				$additional_tags_src = $item->get_categories();
-
-				if (is_array($additional_tags_src)) {
-					foreach ($additional_tags_src as $tobj) {
-						array_push($additional_tags, $tobj);
-					}
-				}
-
-				$entry_tags = array_unique($additional_tags);
-
-				for ($i = 0; $i < count($entry_tags); $i++) {
-					$entry_tags[$i] = mb_strtolower($entry_tags[$i], 'utf-8');
-
-					// we don't support numeric tags, let's prefix them
-					if (is_numeric($entry_tags[$i])) $entry_tags[$i] = 't:' . $entry_tags[$i];
-				}
-
-				Debug::log("tags found: " . join(",", $entry_tags), Debug::$LOG_VERBOSE);
+				$entry_tags = $item->get_categories();
+				Debug::log("tags found: " . join(", ", $entry_tags), Debug::$LOG_VERBOSE);
 
 				Debug::log("done collecting data.", Debug::$LOG_VERBOSE);
 
@@ -649,7 +661,7 @@ class RSSUtils {
 					"score_modifier" => 0, // no previous value, plugin should recalculate score modifier based on content if needed
 					"language" => $entry_language,
 					"timestamp" => $entry_timestamp,
-					"num_comments" => $num_comments, // read only
+					"num_comments" => $num_comments,
 					"feed" => array("id" => $feed,
 						"fetch_url" => $fetch_url,
 						"site_url" => $site_url,
@@ -727,7 +739,7 @@ class RSSUtils {
 				if (count($matched_filter_ids) > 0) {
 					$filter_ids_qmarks = arr_qmarks($matched_filter_ids);
 
-					$fsth = $pdo->prepare("UPDATE ttrss_filters2 SET last_triggered = NOW() WHERE 
+					$fsth = $pdo->prepare("UPDATE ttrss_filters2 SET last_triggered = NOW() WHERE
 							   id IN ($filter_ids_qmarks) AND owner_uid = ?");
 
 					$fsth->execute(array_merge($matched_filter_ids, [$owner_uid]));
@@ -791,6 +803,7 @@ class RSSUtils {
 				$entry_score_modifier = (int) $article["score_modifier"];
 				$entry_language = $article["language"];
 				$entry_timestamp = $article["timestamp"];
+				$num_comments = $article["num_comments"];
 
 				if ($entry_timestamp == -1 || !$entry_timestamp || $entry_timestamp > time()) {
 					$entry_timestamp = time();
@@ -799,6 +812,7 @@ class RSSUtils {
 				$entry_timestamp_fmt = strftime("%Y/%m/%d %H:%M:%S", $entry_timestamp);
 
 				Debug::log("date $entry_timestamp [$entry_timestamp_fmt]", Debug::$LOG_VERBOSE);
+				Debug::log("num_comments: $num_comments", Debug::$LOG_VERBOSE);
 
 				if (Debug::get_loglevel() >= Debug::$LOG_EXTENDED) {
 					Debug::log("article labels:", Debug::$LOG_VERBOSE);
@@ -1073,9 +1087,7 @@ class RSSUtils {
 						$manual_tags = trim_array(explode(",", $f["param"]));
 
 						foreach ($manual_tags as $tag) {
-							if (Article::tag_is_valid($tag)) {
-								array_push($entry_tags, $tag);
-							}
+							array_push($entry_tags, $tag);
 						}
 					}
 				}
@@ -1088,19 +1100,17 @@ class RSSUtils {
 				$filtered_tags = array();
 				$tags_to_cache = array();
 
-				if ($entry_tags && is_array($entry_tags)) {
-					foreach ($entry_tags as $tag) {
-						if (array_search($tag, $boring_tags) === false) {
-							array_push($filtered_tags, $tag);
-						}
+				foreach ($entry_tags as $tag) {
+					if (array_search($tag, $boring_tags) === false) {
+						array_push($filtered_tags, $tag);
 					}
 				}
 
 				$filtered_tags = array_unique($filtered_tags);
 
-				if (Debug::get_loglevel() >= Debug::$LOG_EXTENDED) {
-					Debug::log("filtered article tags:", Debug::$LOG_VERBOSE);
-					print_r($filtered_tags);
+				if (Debug::get_loglevel() >= Debug::$LOG_VERBOSE) {
+					Debug::log("filtered tags: " . implode(", ", $filtered_tags), Debug::$LOG_VERBOSE);
+
 				}
 
 				// Save article tags in the database
@@ -1115,12 +1125,9 @@ class RSSUtils {
 									(owner_uid,tag_name,post_int_id)
 									VALUES (?, ?, ?)");
 
+					$filtered_tags = FeedItem_Common::normalize_categories($filtered_tags);
+
 					foreach ($filtered_tags as $tag) {
-
-						$tag = Article::sanitize_tag($tag);
-
-						if (!Article::tag_is_valid($tag)) continue;
-
 						$tsth->execute([$tag, $entry_int_id, $owner_uid]);
 
 						if (!$tsth->fetch()) {
@@ -1131,9 +1138,6 @@ class RSSUtils {
 					}
 
 					/* update the cache */
-
-					$tags_to_cache = array_unique($tags_to_cache);
-
 					$tags_str = join(",", $tags_to_cache);
 
 					$tsth = $pdo->prepare("UPDATE ttrss_user_entries
@@ -1196,10 +1200,18 @@ class RSSUtils {
 					Debug::log("cache_enclosures: downloading: $src to $local_filename", Debug::$LOG_VERBOSE);
 
 					if (!$cache->exists($local_filename)) {
-						$file_content = fetch_file_contents(array("url" => $src, "max_size" => MAX_CACHE_FILE_SIZE));
+
+						global $fetch_last_error_code;
+						global $fetch_last_error;
+
+						$file_content = fetch_file_contents(array("url" => $src,
+							"http_referrer" => $src,
+							"max_size" => MAX_CACHE_FILE_SIZE));
 
 						if ($file_content) {
 							$cache->put($local_filename, $file_content);
+						} else {
+							Debug::log("cache_enclosures: failed with $fetch_last_error_code: $fetch_last_error");
 						}
 					} else if (is_writable($local_filename)) {
 						$cache->touch($local_filename);
@@ -1230,10 +1242,17 @@ class RSSUtils {
 						if (!$cache->exists($local_filename)) {
 							Debug::log("cache_media: downloading: $src to $local_filename", Debug::$LOG_VERBOSE);
 
-							$file_content = fetch_file_contents(array("url" => $src, "max_size" => MAX_CACHE_FILE_SIZE));
+							global $fetch_last_error_code;
+							global $fetch_last_error;
+
+							$file_content = fetch_file_contents(array("url" => $src,
+								"http_referrer" => $src,
+								"max_size" => MAX_CACHE_FILE_SIZE));
 
 							if ($file_content) {
 								$cache->put($local_filename, $file_content);
+							} else {
+								Debug::log("cache_media: failed with $fetch_last_error_code: $fetch_last_error");
 							}
 						} else if ($cache->isWritable($local_filename)) {
 							$cache->touch($local_filename);
@@ -1550,7 +1569,8 @@ class RSSUtils {
 	}
 
 	static function is_gzipped($feed_data) {
-		return mb_strpos($feed_data, "\x1f" . "\x8b" . "\x08", 0, "US-ASCII") === 0;
+		return strpos(substr($feed_data, 0, 3),
+				"\x1f" . "\x8b" . "\x08", 0) === 0;
 	}
 
 	static function load_filters($feed_id, $owner_uid) {

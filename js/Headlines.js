@@ -7,6 +7,7 @@ define(["dojo/_base/declare"], function (declare) {
 		_observer_counters_timeout: 0,
 		headlines: [],
 		current_first_id: 0,
+		_scroll_reset_timeout: false,
 		row_observer: new MutationObserver((mutations) => {
 			const modified = [];
 
@@ -212,7 +213,7 @@ define(["dojo/_base/declare"], function (declare) {
 				clearTimeout(this._headlines_scroll_timeout);
 				this._headlines_scroll_timeout = window.setTimeout(function () {
 					//console.log('done scrolling', event);
-					Headlines.scrollHandler();
+					Headlines.scrollHandler(event);
 				}, 50);
 			}
 		},
@@ -244,33 +245,35 @@ define(["dojo/_base/declare"], function (declare) {
 
 			Feeds.open({feed: Feeds.getActive(), is_cat: Feeds.activeIsCat(), offset: offset, append: true});
 		},
-		scrollHandler: function () {
+		isChildVisible: function (elem, ctr) {
+			const ctop = ctr.scrollTop;
+			const cbottom = ctop + ctr.offsetHeight;
+
+			const etop = elem.offsetTop;
+			const ebottom = etop + elem.offsetHeight;
+
+			return etop >= ctop && ebottom <= cbottom ||
+				etop < ctop && ebottom > ctop || ebottom > cbottom && etop < cbottom
+
+		},
+		firstVisible: function() {
+			const rows = $$("#headlines-frame > div[id*=RROW]");
+			const ctr = $("headlines-frame");
+
+			for (let i = 0; i < rows.length; i++) {
+				const row = rows[i];
+
+				if (this.isChildVisible(row, ctr)) {
+					return row.getAttribute("data-article-id");
+				}
+			}
+		},
+		scrollHandler: function (/*event*/) {
 			try {
 				Headlines.unpackVisible();
 
-				if (App.isCombinedMode()) {
+				if (App.isCombinedMode())
 					Headlines.updateFloatingTitle();
-
-					// set topmost child in the buffer as active, but not if we're at the beginning (to prevent auto marking
-					// first article as read all the time)
-					if ($("headlines-frame").scrollTop != 0 &&
-						App.getInitParam("cdm_expanded") && App.getInitParam("cdm_auto_catchup") == 1) {
-
-						const rows = $$("#headlines-frame > div[id*=RROW]");
-
-						for (let i = 0; i < rows.length; i++) {
-							const row = rows[i];
-
-							if ($("headlines-frame").scrollTop <= row.offsetTop &&
-								row.offsetTop - $("headlines-frame").scrollTop < 100 &&
-								row.getAttribute("data-article-id") != Article.getActive()) {
-
-								Article.setActive(row.getAttribute("data-article-id"));
-								break;
-							}
-						}
-					}
-				}
 
 				if (!Feeds.infscroll_disabled && !Feeds.infscroll_in_progress) {
 					const hsp = $("headlines-spacer");
@@ -290,7 +293,7 @@ define(["dojo/_base/declare"], function (declare) {
 					}
 				}
 
-				if (App.getInitParam("cdm_auto_catchup") == 1) {
+				if (App.getInitParam("cdm_auto_catchup")) {
 
 					let rows = $$("#headlines-frame > div[id*=RROW][class*=Unread]");
 
@@ -442,7 +445,7 @@ define(["dojo/_base/declare"], function (declare) {
 				const originally_from = Article.formatOriginallyFrom(hl);
 
 				row = `<div class="cdm ${row_class} ${Article.getScoreClass(hl.score)}" id="RROW-${hl.id}" data-article-id="${hl.id}" data-orig-feed-id="${hl.feed_id}" 
-							data-content="${escapeHtml(hl.content)}" data-score="${hl.score}" 
+							data-content="${escapeHtml(hl.content)}" data-score="${hl.score}"  data-article-title="${hl.title}"
 							onmouseover="Article.mouseIn(${hl.id})" onmouseout="Article.mouseOut(${hl.id})">
 							
 							<div class="header">
@@ -543,6 +546,16 @@ define(["dojo/_base/declare"], function (declare) {
 
 			return tmp.firstChild;
 		},
+		updateCurrentUnread: function() {
+			const feed_unread = Feeds.getUnread(Feeds.getActive(), Feeds.activeIsCat());
+
+			if (feed_unread > 0 && !Element.visible("feeds-holder")) {
+				$("feed_current_unread").innerText = feed_unread;
+				Element.show("feed_current_unread");
+			} else {
+				Element.hide("feed_current_unread");
+			}
+		},
 		onLoaded: function (transport, offset, append) {
 			const reply = App.handleRpcJson(transport);
 
@@ -592,7 +605,9 @@ define(["dojo/_base/declare"], function (declare) {
 					Article.setActive(0);
 
 					try {
+						$("headlines-frame").removeClassName("smooth-scroll");
 						$("headlines-frame").scrollTop = 0;
+						$("headlines-frame").addClassName("smooth-scroll");
 
 						Element.hide("floatingTitle");
 						$("floatingTitle").setAttribute("data-article-id", 0);
@@ -642,6 +657,8 @@ define(["dojo/_base/declare"], function (declare) {
 							" (<a href='#' onclick='Feeds.cancelSearch()'>" + __("Cancel search") + "</a>)" +
 							"</span>";
 					}
+
+					Headlines.updateCurrentUnread();
 
 				} else if (headlines_count > 0 && feed_id == Feeds.getActive() && is_cat == Feeds.activeIsCat()) {
 					const c = dijit.byId("headlines-frame");
@@ -803,19 +820,27 @@ define(["dojo/_base/declare"], function (declare) {
 			if (row)
 				row.toggleClassName("published");
 		},
-		move: function (mode, noscroll, noexpand) {
+		move: function (mode, params) {
+			params = params || {};
+
+			const noscroll = params.noscroll || false;
+			const noexpand = params.noexpand || false;
+			const event = params.event;
+
 			const rows = Headlines.getLoaded();
 
 			let prev_id = false;
 			let next_id = false;
 
-			if (!$('RROW-' + Article.getActive())) {
+			const active_row = $("RROW-" + Article.getActive());
+
+			if (!active_row) {
 				Article.setActive(0);
 			}
 
-			if (!Article.getActive()) {
-				next_id = rows[0];
-				prev_id = rows[rows.length - 1]
+			if (!Article.getActive() || (active_row && !Headlines.isChildVisible(active_row, $("headlines-frame")))) {
+				next_id = Headlines.firstVisible();
+				prev_id = next_id;
 			} else {
 				for (let i = 0; i < rows.length; i++) {
 					if (rows[i] == Article.getActive()) {
@@ -836,21 +861,18 @@ define(["dojo/_base/declare"], function (declare) {
 
 			console.log("cur: " + Article.getActive() + " next: " + next_id);
 
-			if (mode == "next") {
+			if (mode === "next") {
 				if (next_id || Article.getActive()) {
 					if (App.isCombinedMode()) {
 
-						const article = $("RROW-" + Article.getActive());
+						//const row = $("RROW-" + Article.getActive());
 						const ctr = $("headlines-frame");
 
-						if (!noscroll && article && article.offsetTop + article.offsetHeight >
-							ctr.scrollTop + ctr.offsetHeight) {
-
-							Article.scroll(ctr.offsetHeight / 4);
-
+						if (!noscroll) {
+							Article.scroll(ctr.offsetHeight / 2, event);
 						} else if (next_id) {
 							Article.setActive(next_id);
-							Article.cdmScrollToId(next_id, true);
+							Article.cdmScrollToId(next_id, true, event);
 						}
 
 					} else if (next_id) {
@@ -860,22 +882,23 @@ define(["dojo/_base/declare"], function (declare) {
 				}
 			}
 
-			if (mode == "prev") {
+			if (mode === "prev") {
 				if (prev_id || Article.getActive()) {
 					if (App.isCombinedMode()) {
 
-						const article = $("RROW-" + Article.getActive());
-						const prev_article = $("RROW-" + prev_id);
+						const row = $("RROW-" + Article.getActive());
+						//const prev_row = $("RROW-" + prev_id);
 						const ctr = $("headlines-frame");
 
-						if (!noscroll && article && article.offsetTop < ctr.scrollTop) {
-							Article.scroll(-ctr.offsetHeight / 3);
-						} else if (!noscroll && prev_article &&
-							prev_article.offsetTop < ctr.scrollTop) {
-							Article.scroll(-ctr.offsetHeight / 4);
-						} else if (prev_id) {
-							Article.setActive(prev_id);
-							Article.cdmScrollToId(prev_id, noscroll);
+						if (!noscroll) {
+							Article.scroll(-ctr.offsetHeight / 2, event);
+						} else {
+							if (row && row.offsetTop < ctr.scrollTop) {
+								Article.cdmScrollToId(Article.getActive(), noscroll, event);
+							} else if (prev_id) {
+								Article.setActive(prev_id);
+								Article.cdmScrollToId(prev_id, noscroll, event);
+							}
 						}
 
 					} else if (prev_id) {
@@ -900,9 +923,7 @@ define(["dojo/_base/declare"], function (declare) {
 			const row = $("RROW-" + id);
 
 			if (row) {
-				//const origClassName = row.className;
-
-				if (cmode == undefined) cmode = 2;
+				if (typeof cmode == "undefined") cmode = 2;
 
 				switch (cmode) {
 					case 0:
@@ -973,7 +994,7 @@ define(["dojo/_base/declare"], function (declare) {
 			str = str.replace("%d", rows.length);
 			str = str.replace("%s", fn);
 
-			if (App.getInitParam("confirm_feed_catchup") == 1 && !confirm(str)) {
+			if (App.getInitParam("confirm_feed_catchup") && !confirm(str)) {
 				return;
 			}
 
@@ -1119,7 +1140,7 @@ define(["dojo/_base/declare"], function (declare) {
 			str = str.replace("%d", rows.length);
 			str = str.replace("%s", fn);
 
-			if (App.getInitParam("confirm_feed_catchup") == 1 && !confirm(str)) {
+			if (App.getInitParam("confirm_feed_catchup") && !confirm(str)) {
 				return;
 			}
 
@@ -1145,7 +1166,7 @@ define(["dojo/_base/declare"], function (declare) {
 			str = str.replace("%d", rows.length);
 			str = str.replace("%s", fn);
 
-			if (App.getInitParam("confirm_feed_catchup") == 1 && !confirm(str)) {
+			if (App.getInitParam("confirm_feed_catchup") && !confirm(str)) {
 				return;
 			}
 
@@ -1380,6 +1401,22 @@ define(["dojo/_base/declare"], function (declare) {
 				}));
 
 			}
+		},
+		scrollByPages: function (offset, event) {
+			const elem = $("headlines-frame");
+
+			if (event && event.repeat) {
+				elem.addClassName("forbid-smooth-scroll");
+				window.clearTimeout(this._scroll_reset_timeout);
+
+				this._scroll_reset_timeout = window.setTimeout(() => {
+					if (elem) elem.removeClassName("forbid-smooth-scroll");
+				}, 250)
+			} else {
+				elem.removeClassName("forbid-smooth-scroll");
+			}
+
+			elem.scrollTop += elem.offsetHeight * offset * 0.99;
 		},
 		initHeadlinesMenu: function () {
 			if (!dijit.byId("headlinesMenu")) {

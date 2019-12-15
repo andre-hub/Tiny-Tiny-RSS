@@ -33,6 +33,7 @@ drop table if exists ttrss_cat_counters_cache;
 drop table if exists ttrss_feeds;
 drop table if exists ttrss_archived_feeds;
 drop table if exists ttrss_feed_categories;
+drop table if exists ttrss_app_passwords;
 drop table if exists ttrss_users;
 drop table if exists ttrss_themes;
 drop table if exists ttrss_sessions;
@@ -56,6 +57,14 @@ create table ttrss_users (id integer primary key not null auto_increment,
 
 insert into ttrss_users (login,pwd_hash,access_level) values ('admin',
 	'SHA1:5baa61e4c9b93f3f0682250b6cf8331b7ee68fd8', 10);
+
+create table ttrss_app_passwords (id integer not null primary key auto_increment,
+    title varchar(250) not null,
+    pwd_hash text not null,
+    service varchar(100) not null,
+    created datetime not null,
+    last_used datetime default null,
+    owner_uid integer not null references ttrss_users(id) on delete cascade) ENGINE=InnoDB DEFAULT CHARSET=UTF8;
 
 create table ttrss_feed_categories(id integer not null primary key auto_increment,
 	owner_uid integer not null,
@@ -137,7 +146,7 @@ create table ttrss_feeds (id integer not null auto_increment primary key,
 	unique(feed_url(255), owner_uid)) ENGINE=InnoDB DEFAULT CHARSET=UTF8;
 
 insert into ttrss_feeds (owner_uid, title, feed_url) values
-	(1, 'Tiny Tiny RSS: Forum', 'http://tt-rss.org/forum/rss.php');
+	((select id from ttrss_users where login = 'admin'), 'Tiny Tiny RSS: Forum', 'https://tt-rss.org/forum/rss.php');
 
 create table ttrss_entries (id integer not null primary key auto_increment,
 	title text not null,
@@ -287,7 +296,7 @@ create table ttrss_tags (id integer primary key auto_increment,
 
 create table ttrss_version (schema_version int not null) ENGINE=InnoDB DEFAULT CHARSET=UTF8;
 
-insert into ttrss_version values (138);
+insert into ttrss_version values (139);
 
 create table ttrss_enclosures (id integer primary key auto_increment,
 	content_url text not null,

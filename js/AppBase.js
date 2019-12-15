@@ -16,6 +16,49 @@ define(["dojo/_base/declare"], function (declare) {
 		setInitParam: function(k, v) {
 			this._initParams[k] = v;
 		},
+		nightModeChanged: function(is_night, link) {
+			console.log("night mode changed to", is_night);
+
+			if (link) {
+				const css_override = is_night ? "themes/night.css" : "css/default.css";
+				link.setAttribute("href", css_override + "?" + Date.now());
+			}
+		},
+		setupNightModeDetection: function(callback) {
+			if (!$("theme_css")) {
+				const mql = window.matchMedia('(prefers-color-scheme: dark)');
+
+				try {
+					mql.addEventListener("change", () => {
+						this.nightModeChanged(mql.matches, $("theme_auto_css"));
+					});
+				} catch (e) {
+					console.warn("exception while trying to set MQL event listener");
+				}
+
+				const link = new Element("link", {
+					rel: "stylesheet",
+					id: "theme_auto_css"
+				});
+
+				if (callback) {
+                    link.onload = function () {
+                        document.querySelector("body").removeClassName("css_loading");
+                        callback();
+                    };
+
+                    link.onerror = function(event) {
+                        alert("Fatal error while loading application stylesheet: " + link.getAttribute("href"));
+                    }
+                }
+
+				this.nightModeChanged(mql.matches, link);
+
+				document.querySelector("head").appendChild(link);
+			} else {
+				if (callback) callback();
+			}
+		},
 		enableCsrfSupport: function() {
 			Ajax.Base.prototype.initialize = Ajax.Base.prototype.initialize.wrap(
 				function (callOriginal, options) {
@@ -357,30 +400,6 @@ define(["dojo/_base/declare"], function (declare) {
 			}
 
 			this.initSecondStage();
-		},
-		toggleNightMode: function() {
-			const link = $("theme_css");
-
-			if (link) {
-
-				let user_theme = "";
-				let user_css = "";
-
-				if (link.getAttribute("href").indexOf("themes/night.css") == -1) {
-					user_css = "themes/night.css?" + Date.now();
-					user_theme = "night.css";
-				} else {
-					user_theme = "default.php";
-					user_css = "css/default.css?" + Date.now();
-				}
-
-				$("main").fade({duration: 0.5, afterFinish: () => {
-					link.setAttribute("href", user_css);
-					$("main").appear({duration: 0.5});
-					xhrPost("backend.php", {op: "rpc", method: "setpref", key: "USER_CSS_THEME", value: user_theme});
-				}});
-
-			}
 		},
 		explainError: function(code) {
 			return this.displayDlg(__("Error explained"), "explainError", code);

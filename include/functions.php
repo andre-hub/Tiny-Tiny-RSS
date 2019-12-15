@@ -1,6 +1,6 @@
 <?php
 	define('EXPECTED_CONFIG_VERSION', 26);
-	define('SCHEMA_VERSION', 138);
+	define('SCHEMA_VERSION', 139);
 
 	define('LABEL_BASE_INDEX', -1024);
 	define('PLUGIN_FEED_BASE_INDEX', -128);
@@ -63,6 +63,11 @@
 	define_default('MAX_CONDITIONAL_INTERVAL', 3600*12);
 	// max interval between forced unconditional updates for servers
 	// not complying with http if-modified-since (seconds)
+	define_default('MAX_FETCH_REQUESTS_PER_HOST', 25);
+	// a maximum amount of allowed HTTP requests per destination host
+	// during a single update (i.e. within PHP process lifetime)
+	// this is used to not cause excessive load on the origin server on
+	// e.g. feed subscription when all articles are being processes
 
 	/* tunables end here */
 
@@ -159,6 +164,12 @@
 	    Debug::log($msg);
 	}
 
+	function reset_fetch_domain_quota() {
+		global $fetch_domain_hits;
+
+		$fetch_domain_hits = [];
+	}
+
 	// TODO: max_size currently only works for CURL transfers
 	// TODO: multiple-argument way is deprecated, first parameter is a hash now
 	function fetch_file_contents($options /* previously: 0: $url , 1: $type = false, 2: $login = false, 3: $pass = false,
@@ -171,6 +182,7 @@
 		global $fetch_last_modified;
 		global $fetch_effective_url;
 		global $fetch_curl_used;
+		global $fetch_domain_hits;
 
 		$fetch_last_error = false;
 		$fetch_last_error_code = -1;
@@ -179,6 +191,9 @@
 		$fetch_curl_used = false;
 		$fetch_last_modified = "";
 		$fetch_effective_url = "";
+
+		if (!is_array($fetch_domain_hits))
+			$fetch_domain_hits = [];
 
 		if (!is_array($options)) {
 
@@ -215,12 +230,21 @@
 		$followlocation = isset($options["followlocation"]) ? $options["followlocation"] : true;
 		$max_size = isset($options["max_size"]) ? $options["max_size"] : MAX_DOWNLOAD_FILE_SIZE; // in bytes
 		$http_accept = isset($options["http_accept"]) ? $options["http_accept"] : false;
+		$http_referrer = isset($options["http_referrer"]) ? $options["http_referrer"] : false;
 
 		$url = ltrim($url, ' ');
 		$url = str_replace(' ', '%20', $url);
 
 		if (strpos($url, "//") === 0)
 			$url = 'http:' . $url;
+
+		$url_host = parse_url($url, PHP_URL_HOST);
+		$fetch_domain_hits[$url_host] += 1;
+
+		if ($fetch_domain_hits[$url_host] > MAX_FETCH_REQUESTS_PER_HOST) {
+			user_error("Exceeded fetch request quota for $url_host: " . $fetch_domain_hits[$url_host], E_USER_WARNING);
+			#return false;
+		}
 
 		if (!defined('NO_CURL') && function_exists('curl_init') && !ini_get("open_basedir")) {
 
@@ -250,7 +274,9 @@
 			curl_setopt($ch, CURLOPT_USERAGENT, $useragent ? $useragent :
 				SELF_USER_AGENT);
 			curl_setopt($ch, CURLOPT_ENCODING, "");
-			//curl_setopt($ch, CURLOPT_REFERER, $url);
+
+			if  ($http_referrer)
+				curl_setopt($ch, CURLOPT_REFERER, $http_referrer);
 
 			if ($max_size) {
 				curl_setopt($ch, CURLOPT_NOPROGRESS, false);
@@ -377,6 +403,9 @@
 
 			if ($http_accept)
 				array_push($context_options['http']['header'], "Accept: $http_accept");
+
+			if ($http_referrer)
+				array_push($context_options['http']['header'], "Referer: $http_referrer");
 
 			if (defined('_HTTP_PROXY')) {
 				$context_options['http']['request_fulluri'] = true;
@@ -509,7 +538,7 @@
 		return "";
 	}
 
-	function authenticate_user($login, $password, $check_only = false) {
+	function authenticate_user($login, $password, $check_only = false, $service = false) {
 
 		if (!SINGLE_USER_MODE) {
 			$user_id = false;
@@ -517,7 +546,7 @@
 
 			foreach (PluginHost::getInstance()->get_hooks(PluginHost::HOOK_AUTH_USER) as $plugin) {
 
-				$user_id = (int) $plugin->authenticate($login, $password);
+				$user_id = (int) $plugin->authenticate($login, $password, $service);
 
 				if ($user_id) {
 					$auth_module = strtolower(get_class($plugin));
@@ -531,7 +560,6 @@
 				session_regenerate_id(true);
 
 				$_SESSION["uid"] = $user_id;
-				$_SESSION["version"] = VERSION_STATIC;
 				$_SESSION["auth_module"] = $auth_module;
 
 				$pdo = DB::pdo();
@@ -1013,8 +1041,10 @@
 			__("Navigation") => array(
 				"next_feed" => __("Open next feed"),
 				"prev_feed" => __("Open previous feed"),
-				"next_article" => __("Open next article (scroll long articles)"),
-				"prev_article" => __("Open previous article (scroll long articles)"),
+				"next_article_or_scroll" => __("Open next article (in combined mode, scroll down)"),
+				"prev_article_or_scroll" => __("Open previous article (in combined mode, scroll up)"),
+				"next_article_page" => __("Scroll article by one page down"),
+				"prev_article_page" => __("Scroll article by one page up"),
 				"next_article_noscroll" => __("Open next article"),
 				"prev_article_noscroll" => __("Open previous article"),
 				"next_article_noexpand" => __("Move to next article (don't expand or mark read)"),
@@ -1030,6 +1060,8 @@
 				"catchup_above" => __("Mark above as read"),
 				"article_scroll_down" => __("Scroll down"),
 				"article_scroll_up" => __("Scroll up"),
+				"article_page_down" => __("Scroll down page"),
+				"article_page_up" => __("Scroll up page"),
 				"select_article_cursor" => __("Select article under cursor"),
 				"email_article" => __("Email article"),
 				"close_article" => __("Close/collapse article"),
@@ -1069,7 +1101,6 @@
 				"create_label" => __("Create label"),
 				"create_filter" => __("Create filter"),
 				"collapse_sidebar" => __("Un/collapse sidebar"),
-				"toggle_night_mode" => __("Toggle night mode"),
 				"help_dialog" => __("Show help dialog"))
 		);
 
@@ -1084,10 +1115,14 @@
 		$hotkeys = array(
 			"k" => "next_feed",
 			"j" => "prev_feed",
-			"n" => "next_article",
-			"p" => "prev_article",
-			"(38)|Up" => "prev_article",
-			"(40)|Down" => "next_article",
+			"n" => "next_article_noscroll",
+			"p" => "prev_article_noscroll",
+			//"(33)|PageUp" => "prev_article_page",
+			//"(34)|PageDown" => "next_article_page",
+			"*(33)|Shift+PgUp" => "article_page_up",
+			"*(34)|Shift+PgDn" => "article_page_down",
+			"(38)|Up" => "prev_article_or_scroll",
+			"(40)|Down" => "next_article_or_scroll",
 			"*(38)|Shift+Up" => "article_scroll_up",
 			"*(40)|Shift+Down" => "article_scroll_down",
 			"^(38)|Ctrl+Up" => "prev_article_noscroll",
@@ -1136,7 +1171,6 @@
 			"c l" => "create_label",
 			"c f" => "create_filter",
 			"c s" => "collapse_sidebar",
-			"a N" => "toggle_night_mode",
 			"?" => "help_dialog",
 		);
 
@@ -1221,13 +1255,11 @@
 	}
 
 	function iframe_whitelisted($entry) {
-		$whitelist = array("youtube.com", "youtu.be", "vimeo.com", "player.vimeo.com");
-
 		@$src = parse_url($entry->getAttribute("src"), PHP_URL_HOST);
 
 		if ($src) {
-			foreach ($whitelist as $w) {
-				if ($src == $w || $src == "www.$w")
+			foreach (PluginHost::getInstance()->get_hooks(PluginHost::HOOK_IFRAME_WHITELISTED) as $plugin) {
+				if ($plugin->hook_iframe_whitelisted($src))
 					return true;
 			}
 		}
@@ -1554,7 +1586,7 @@
 		$value = get_pref('USER_STYLESHEET');
 
 		if ($value) {
-			print "<style type=\"text/css\">";
+			print "<style type='text/css' id='user_css_style'>";
 			print str_replace("<br/>", "\n", $value);
 			print "</style>";
 		}

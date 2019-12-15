@@ -2,6 +2,7 @@
 /* global __, ngettext */
 define(["dojo/_base/declare"], function (declare) {
 	Article = {
+		_scroll_reset_timeout: false,
 		getScoreClass: function (score) {
 			if (score > 500) {
 				return "score-high";
@@ -274,14 +275,27 @@ define(["dojo/_base/declare"], function (declare) {
 
 			dialog.show();
 		},
-		cdmScrollToId: function (id, force) {
+		cdmScrollToId: function (id, force, event) {
 			const ctr = $("headlines-frame");
 			const e = $("RROW-" + id);
+			const is_expanded = App.getInitParam("cdm_expanded");
 
 			if (!e || !ctr) return;
 
-			if (force || e.offsetTop + e.offsetHeight > (ctr.scrollTop + ctr.offsetHeight) ||
+			if (force || is_expanded || e.offsetTop + e.offsetHeight > (ctr.scrollTop + ctr.offsetHeight) ||
 				e.offsetTop < ctr.scrollTop) {
+
+				if (event && event.repeat || !is_expanded) {
+					ctr.addClassName("forbid-smooth-scroll");
+					window.clearTimeout(this._scroll_reset_timeout);
+
+					this._scroll_reset_timeout = window.setTimeout(() => {
+						if (ctr) ctr.removeClassName("forbid-smooth-scroll");
+					}, 250)
+
+				} else {
+					ctr.removeClassName("forbid-smooth-scroll");
+				}
 
 				ctr.scrollTop = e.offsetTop;
 
@@ -314,19 +328,30 @@ define(["dojo/_base/declare"], function (declare) {
 			else
 				return 0;
 		},
-		scroll: function (offset) {
-			if (!App.isCombinedMode()) {
-				const ci = $("content-insert");
-				if (ci) {
-					ci.scrollTop += offset;
-				}
-			} else {
-				const hi = $("headlines-frame");
-				if (hi) {
-					hi.scrollTop += offset;
-				}
+		scrollByPages: function (page_offset, event) {
+			const elem = App.isCombinedMode() ? $("headlines-frame") : $("content-insert");
 
+			const offset = elem.offsetHeight * page_offset * 0.99;
+
+			this.scroll(offset, event);
+		},
+		scroll: function (offset, event) {
+
+			const elem = App.isCombinedMode() ? $("headlines-frame") : $("content-insert");
+
+			if (event && event.repeat) {
+				elem.addClassName("forbid-smooth-scroll");
+				window.clearTimeout(this._scroll_reset_timeout);
+
+				this._scroll_reset_timeout = window.setTimeout(() => {
+					if (elem) elem.removeClassName("forbid-smooth-scroll");
+				}, 250)
+
+			} else {
+				elem.removeClassName("forbid-smooth-scroll");
 			}
+
+			elem.scrollTop += offset;
 		},
 		mouseIn: function (id) {
 			this.post_under_pointer = id;

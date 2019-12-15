@@ -772,6 +772,15 @@ body.ttrss_main {
 		}
 	}
 
+	#headlines-frame.smooth-scroll {
+		scroll-behavior: smooth;
+	}
+
+	#headlines-frame.forbid-smooth-scroll,
+	#content-insert.forbid-smooth-scroll {
+		scroll-behavior : auto;
+	}
+
 	#toolbar-frame_splitter {
 		display : none;
 	}
@@ -871,6 +880,7 @@ body.ttrss_main {
 		line-height: 1.5;
 		overflow : auto;
 		-webkit-overflow-scrolling : touch;
+		scroll-behavior: smooth;
 	}
 
 	img.feed-icon, img.icon {
@@ -1015,11 +1025,23 @@ body.ttrss_main .dijitDialog {
 }
 
 body.ttrss_main {
-	i.icon-syndicate {
-		color : @color-published;
-		margin-right : 8px;
-		border : 1px solid @color-published;
-		border-radius : 4px;
+	#toolbar-headlines {
+		i.icon-syndicate {
+			color: @color-published;
+			margin-right: 8px;
+			border: 1px solid @color-published;
+			border-radius: 4px;
+		}
+		#feed_current_unread {
+			margin-left : 8px;
+			font-weight : bold;
+			text-align : center;
+			border : 1px solid lighten(@color-accent, 5%);;
+			color : white;
+			background : lighten(@color-accent, 5%);
+			border-radius : 4px;
+			min-width : 23px;
+		}
 	}
 
 	i.icon-no-feed {

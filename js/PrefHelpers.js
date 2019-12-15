@@ -1,5 +1,43 @@
 define(["dojo/_base/declare"], function (declare) {
 	Helpers = {
+		AppPasswords: {
+			getSelected: function() {
+				return Tables.getSelected("app-password-list");
+			},
+			updateContent: function(data) {
+				$("app_passwords_holder").innerHTML = data;
+				dojo.parser.parse("app_passwords_holder");
+			},
+			removeSelected: function() {
+				const rows = this.getSelected();
+
+				if (rows.length == 0) {
+					alert("No passwords selected.");
+				} else {
+					if (confirm(__("Remove selected app passwords?"))) {
+
+						xhrPost("backend.php", {op: "pref-prefs", method: "deleteAppPassword", ids: rows.toString()}, (transport) => {
+							this.updateContent(transport.responseText);
+							Notify.close();
+						});
+
+						Notify.progress("Loading, please wait...");
+					}
+				}
+			},
+			generate: function() {
+				const title = prompt("Password description:")
+
+				if (title) {
+					xhrPost("backend.php", {op: "pref-prefs", method: "generateAppPassword", title: title}, (transport) => {
+						this.updateContent(transport.responseText);
+						Notify.close();
+					});
+
+					Notify.progress("Loading, please wait...");
+				}
+			},
+		},
 		clearFeedAccessKeys: function() {
 			if (confirm(__("This will invalidate all previously generated feed URLs. Continue?"))) {
 				Notify.progress("Clearing URLs...");
@@ -112,6 +150,12 @@ define(["dojo/_base/declare"], function (declare) {
 				id: "cssEditDlg",
 				title: __("Customize stylesheet"),
 				style: "width: 600px",
+				apply: function() {
+					xhrPost("backend.php", this.attr('value'), () => {
+						new Effect.Appear("css_edit_apply_msg");
+						$("user_css_style").innerText = this.attr('value');
+					});
+				},
 				execute: function () {
 					Notify.progress('Saving data...', true);
 

@@ -48,8 +48,6 @@
 		$theme = get_pref("USER_CSS_THEME", false, false);
 		if ($theme && theme_exists("$theme")) {
 			echo stylesheet_tag(get_theme_path($theme), 'theme_css');
-		} else {
-			echo stylesheet_tag("css/default.css", 'theme_css');
 		}
 	}
 	?>
@@ -116,11 +114,23 @@
 	?>
 	</script>
 
+	<style type="text/css">
+		@media (prefers-color-scheme: dark) {
+			body {
+				background : #303030;
+			}
+		}
+
+		body.css_loading * {
+			display : none;
+		}
+	</style>
+
 	<meta http-equiv="Content-Type" content="text/html; charset=utf-8"/>
 	<meta name="referrer" content="no-referrer"/>
 </head>
 
-<body class="flat ttrss_main ttrss_index">
+<body class="flat ttrss_main ttrss_index css_loading">
 
 <div id="overlay" style="display : block">
 	<div id="overlay_inner">
@@ -140,6 +150,11 @@
         <div id="feedlistLoading">
             <img src='images/indicator_tiny.gif'/>
             <?php echo  __("Loading, please wait..."); ?></div>
+        <?php
+          foreach (PluginHost::getInstance()->get_hooks(PluginHost::HOOK_FEED_TREE) as $p) {
+            echo $p->hook_feed_tree();
+          }
+        ?>
         <div id="feedTree"></div>
     </div>
 
@@ -229,7 +244,6 @@
                         <div dojoType="dijit.MenuItem" onclick="App.onActionSelected('qmcShowOnlyUnread')"><?php echo __('(Un)hide read feeds') ?></div>
                         <div dojoType="dijit.MenuItem" disabled="1"><?php echo __('Other actions:') ?></div>
                         <div dojoType="dijit.MenuItem" onclick="App.onActionSelected('qmcToggleWidescreen')"><?php echo __('Toggle widescreen mode') ?></div>
-                        <div dojoType="dijit.MenuItem" onclick="App.onActionSelected('qmcToggleNightMode')"><?php echo __('Toggle night mode') ?></div>
                         <div dojoType="dijit.MenuItem" onclick="App.onActionSelected('qmcHKhelp')"><?php echo __('Keyboard shortcuts help') ?></div>
 
                         <?php
