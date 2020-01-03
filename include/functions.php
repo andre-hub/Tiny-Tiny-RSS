@@ -27,6 +27,9 @@
 		error_reporting(E_ALL & ~E_NOTICE);
 	}
 
+	ini_set('display_errors', 0);
+	ini_set('display_startup_errors', 0);
+
 	require_once 'config.php';
 
 	/**
@@ -151,10 +154,9 @@
 	}
 
 	require_once 'db-prefs.php';
-	require_once 'version.php';
 	require_once 'controls.php';
 
-	define('SELF_USER_AGENT', 'Tiny Tiny RSS/' . VERSION . ' (http://tt-rss.org/)');
+	define('SELF_USER_AGENT', 'Tiny Tiny RSS/' . get_version() . ' (http://tt-rss.org/)');
 	ini_set('user_agent', SELF_USER_AGENT);
 
 	$schema_version = false;
@@ -1881,4 +1883,60 @@
 		}
 
 		return $ts;
+	}
+
+	/* for package maintainers who don't use git: if version_static.txt exists in tt-rss root
+		directory, its contents are displayed instead of git commit-based version, this could be generated
+		based on source git tree commit used when creating the package */
+
+	function get_version(&$git_commit = false, &$git_timestamp = false) {
+		global $ttrss_version;
+
+		if (is_array($ttrss_version) && isset($ttrss_version['version'])) {
+			$git_commit = $ttrss_version['commit'];
+			$git_timestamp = $ttrss_version['timestamp'];
+
+			return $ttrss_version['version'];
+		} else {
+			$ttrss_version = [];
+		}
+
+		$ttrss_version['version'] = "UNKNOWN (Unsupported)";
+
+		date_default_timezone_set('UTC');
+		$root_dir = dirname(dirname(__FILE__));
+
+		if ('\\' === DIRECTORY_SEPARATOR) {
+			$ttrss_version['version'] = "UNKNOWN (Unsupported, Windows)";
+		} else if (PHP_OS === "Darwin") {
+			$ttrss_version['version'] = "UNKNOWN (Unsupported, Darwin)";
+		} else if (file_exists("$root_dir/version_static.txt")) {
+			$ttrss_version['version'] = trim(file_get_contents("$root_dir/version_static.txt")) . " (Unsupported)";
+		} else if (is_dir("$root_dir/.git")) {
+			$rc = 0;
+			$output = [];
+
+			$cwd = getcwd();
+
+			chdir($root_dir);
+			exec('git log --pretty='.escapeshellarg('%ct %h').' -n1 HEAD 2>&1', $output, $rc);
+			chdir($cwd);
+
+			if ($rc == 0) {
+				if (is_array($output) && count($output) > 0) {
+					list ($timestamp, $commit) = explode(" ", $output[0], 2);
+
+					$git_commit = $commit;
+					$git_timestamp = $timestamp;
+
+					$ttrss_version['version'] = strftime("%y.%m", $timestamp) . "-$commit";
+					$ttrss_version['commit'] = $commit;
+					$ttrss_version['timestamp'] = $timestamp;
+				}
+			} else {
+				user_error("Unable to determine version (using $root_dir): " . implode("\n", $output), E_USER_WARNING);
+			}
+		}
+
+		return $ttrss_version['version'];
 	}
