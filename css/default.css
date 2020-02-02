@@ -866,6 +866,9 @@ body.ttrss_main .dijitDialog h3:first-of-type,
 body.ttrss_main .dijitDialog h4:first-of-type {
   margin-top: 0px;
 }
+body.ttrss_main[view-mode="marked"] .dijitTreeRow.Has_Marked .dijitTreeLabel {
+  color: #257aa7;
+}
 body.ttrss_main #toolbar-headlines i.icon-syndicate {
   color: #ff7c4b;
   margin-right: 8px;
@@ -1864,7 +1867,7 @@ body.ttrss_zoom div.post .attachments {
 }
 body.ttrss_zoom div.post div.header {
   padding-bottom: 10px;
-  border: 0px solid #eee;
+  border: 0px solid #ddd;
   border-bottom-width: 1px;
   background: white;
   font-size: 12px;
@@ -1897,7 +1900,7 @@ body.ttrss_zoom div.post div.content blockquote {
   margin: 5px 0px 5px 0px;
   color: #555;
   padding-left: 10px;
-  border: 0px solid #ccc;
+  border: 0px solid #ddd;
   border-left-width: 4px;
 }
 body.ttrss_zoom div.post div.content code {
