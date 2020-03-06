@@ -1053,7 +1053,7 @@
 				"close_article" => __("Close/collapse article"),
 				"toggle_expand" => __("Toggle article expansion (combined mode)"),
 				"toggle_widescreen" => __("Toggle widescreen mode"),
-				"toggle_embed_original" => __("Toggle embed original")),
+				"toggle_full_text" => __("Toggle full article text via Readability")),
 			__("Article selection") => array(
 				"select_all" => __("Select all articles"),
 				"select_unread" => __("Select unread"),
@@ -1124,7 +1124,7 @@
 			"N" => "article_scroll_down",
 			"P" => "article_scroll_up",
 			"a W" => "toggle_widescreen",
-			"a e" => "toggle_embed_original",
+			"a e" => "toggle_full_text",
 			"e" => "email_article",
 			"a q" => "close_article",
 			"a a" => "select_all",
@@ -1889,9 +1889,7 @@
 		date_default_timezone_set('UTC');
 		$root_dir = dirname(dirname(__FILE__));
 
-		if ('\\' === DIRECTORY_SEPARATOR) {
-			$ttrss_version['version'] = "UNKNOWN (Unsupported, Windows)";
-		} else if (PHP_OS === "Darwin") {
+		if (PHP_OS === "Darwin") {
 			$ttrss_version['version'] = "UNKNOWN (Unsupported, Darwin)";
 		} else if (file_exists("$root_dir/version_static.txt")) {
 			$ttrss_version['version'] = trim(file_get_contents("$root_dir/version_static.txt")) . " (Unsupported)";
@@ -1902,7 +1900,7 @@
 			$cwd = getcwd();
 
 			chdir($root_dir);
-			exec('git --no-pager log --pretty='.escapeshellarg('version: %ct %h').' -n1 HEAD 2>&1', $output, $rc);
+			exec('git --no-pager log --pretty="version: %ct %h" -n1 HEAD 2>&1', $output, $rc);
 			chdir($cwd);
 
 			if (is_array($output) && count($output) > 0) {

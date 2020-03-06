@@ -1,6 +1,6 @@
-@import "../css/defines.less";
-@import "../css/utility.less";
-@import "../css/zoom.less";
+@import "light/defines.less";
+@import "light/utility.less";
+@import "light/zoom.less";
 @import "../lib/flat-ttrss/flat_combined_dark.css";
 
 @color-accent: #b87d2c;
@@ -17,6 +17,11 @@
 @fg-text-muted: darken(@default-text, 20%);
 @fg-light : lighten(@default-text, 10%);
 
+@color-alert-info : #3a87ad;
+@color-alert-danger : #b94a48;
+
+@color-tooltip-bg : lighten(@color-accent, 10%);
+
 body.flat.ttrss_main.ttrss_prefs {
 	#main, #footer {
 		background: @color-panel-bg;
@@ -31,13 +36,8 @@ body.flat.ttrss_main.ttrss_prefs {
 		color : @fg-text-muted;
 	}
 
-	#filterNewRuleDlg {
-		.invalid {
-			background : #503030;
-		}
-		.valid {
-			background : #305030;
-		}
+	hr {
+		border-color : @border-light;
 	}
 }
 
@@ -83,6 +83,10 @@ body.flat.ttrss_main {
 
 			.dijitTreeRowSelected .dijitTreeLabel {
 				text-shadow : none;
+			}
+
+			i.icon.icon-inbox {
+				color : darken(@default-text, 20%);
 			}
 		}
 	}
@@ -320,7 +324,25 @@ body.flat.ttrss_main {
 	.alert {
 		background: @color-panel-bg;
 		border-color : darken(@color-accent, 20%);
+		color : @color-accent;
 	}
 
-}
+	.alert.alert-info {
+		color : @color-alert-info;
+		border-color: darken(@color-alert-info, 20%);
+	}
 
+	.alert.alert-danger {
+		color : @color-alert-danger;
+		border-color : darken(@color-alert-danger, 20%);
+	}
+
+	#filterNewRuleDlg {
+		.dijitValidationTextAreaError {
+			background : #503030;
+		}
+		.dijitValidationTextArea:not(.dijitValidationTextAreaError) {
+			background : #305030;
+		}
+	}
+}

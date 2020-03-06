@@ -1,5 +1,4 @@
 @import "../lib/flat-ttrss/flat_combined_dark.css";
-@import "../lib/flat-ttrss/flat_combined_dark_blue.css";
 body.ttrss_main,
 body.ttrss_prefs,
 #main {
@@ -120,11 +119,11 @@ body.ttrss_main h4 {
   text-rendering: optimizelegibility;
 }
 body.ttrss_main a {
-  color: #257aa7;
+  color: #b87d2c;
   text-decoration: none;
 }
 body.ttrss_main a:hover {
-  color: #133d54;
+  color: #664518;
   text-decoration: underline;
 }
 body.ttrss_main #notify.visible {
@@ -167,11 +166,11 @@ body.ttrss_main .notify.notify_progress {
   background-color: #fff7d5;
 }
 body.ttrss_main .notify.notify_info {
-  border-color: #257aa7;
-  background-color: #d5ebf6;
+  border-color: #b87d2c;
+  background-color: #faf3e9;
 }
 body.ttrss_main .notify.notify_info i.icon-notify {
-  color: #257aa7;
+  color: #b87d2c;
 }
 body.ttrss_main .notify.notify_error {
   background-color: #c00;
@@ -247,7 +246,7 @@ body.ttrss_main .hl span.feed a {
   color: #ccc;
 }
 body.ttrss_main .hl span.feed a:hover {
-  color: #257aa7;
+  color: #b87d2c;
 }
 body.ttrss_main .hl span.updated {
   color: #ccc;
@@ -285,16 +284,16 @@ body.ttrss_main .hl.Unread div.title a {
   color: black;
 }
 body.ttrss_main .hl.active div.title a {
-  color: #257aa7;
+  color: #b87d2c;
   /* text-shadow : 1px 1px 2px #fff; */
 }
 body.ttrss_main .hl.active {
-  background: #257aa7 ! important;
+  background: #b87d2c ! important;
 }
 body.ttrss_main .hl.active,
 body.ttrss_main .hl.Selected {
   color: white;
-  background: #3f728e;
+  background: #9c7948;
 }
 body.ttrss_main .hl.active a,
 body.ttrss_main .hl.Selected a,
@@ -510,7 +509,7 @@ body.ttrss_main div#cmdline {
   color: #ccc;
   font-weight: bold;
   background-color: #333;
-  border: 1px solid #257aa7;
+  border: 1px solid #b87d2c;
   padding: 3px 5px 3px 5px;
   z-index: 5;
 }
@@ -562,7 +561,7 @@ body.ttrss_main #feeds-holder #feedTree .counterNode.marked {
   border-color: #080808;
 }
 body.ttrss_main #feeds-holder #feedTree .counterNode.marked {
-  border-color: #257aa7;
+  border-color: #b87d2c;
   background: #ffffff;
 }
 body.ttrss_main #feeds-holder #feedTree .counterNode {
@@ -570,9 +569,9 @@ body.ttrss_main #feeds-holder #feedTree .counterNode {
   display: none;
   font-size: 9px;
   text-align: center;
-  border: 1px solid #2a89bc;
+  border: 1px solid #cd8b31;
   color: white;
-  background: #2a89bc;
+  background: #cd8b31;
   border-radius: 4px;
   vertical-align: middle;
   float: right;
@@ -629,7 +628,7 @@ body.ttrss_main #feeds-holder #feedTree i.icon.icon-restore {
   position: relative;
   top: -1px;
   font-weight: bold;
-  color: #257aa7;
+  color: #b87d2c;
 }
 body.ttrss_main #headlines-wrap-inner {
   padding: 0px;
@@ -648,7 +647,7 @@ body.ttrss_main #headlines-frame {
   -webkit-backface-visibility: hidden;
 }
 body.ttrss_main #headlines-frame div.feed-title {
-  border: 0px solid #257aa7;
+  border: 0px solid #b87d2c;
   border-bottom-width: 1px;
   padding: 5px 8px;
 }
@@ -660,7 +659,7 @@ body.ttrss_main #headlines-frame div.feed-title a {
   color: #ccc;
 }
 body.ttrss_main #headlines-frame div.feed-title a:hover {
-  color: #257aa7;
+  color: #b87d2c;
 }
 body.ttrss_main #headlines-frame.smooth-scroll {
   scroll-behavior: smooth;
@@ -730,7 +729,7 @@ body.ttrss_main #toolbar-frame #toolbar #selected_prompt {
   font-style: italic;
   text-align: right;
   margin-right: 4px;
-  color: #257aa7;
+  color: #b87d2c;
 }
 @media (max-width: 992px) {
   body.ttrss_main #toolbar-frame #toolbar #selected_prompt {
@@ -802,7 +801,7 @@ body.ttrss_main #headlines-spacer span {
   display: block;
 }
 body.ttrss_main #headlines-spacer a:hover {
-  color: #257aa7;
+  color: #b87d2c;
 }
 body.ttrss_main ul#filterDlg_Matches,
 body.ttrss_main ul#filterDlg_Actions {
@@ -832,7 +831,7 @@ body.ttrss_main ul.hotkeys-help li.desc {
   flex-grow: 2;
 }
 body.ttrss_main ul.hotkeys-help .hk {
-  color: #257aa7;
+  color: #b87d2c;
   width: 100px;
 }
 body.ttrss_main ul.hotkeys-help h3 {
@@ -867,20 +866,20 @@ body.ttrss_main #feedEditDlg img.feedIcon {
   width: auto;
 }
 body.ttrss_main .dijitTooltipContents {
-  background: #2e99d1;
+  background: #d29745;
   color: #222;
 }
 body.ttrss_main .dijitTooltipRight .dijitTooltipConnector {
-  border-right-color: #2e99d1;
+  border-right-color: #d29745;
 }
 body.ttrss_main .dijitTooltipLeft .dijitTooltipConnector {
-  border-left-color: #2e99d1;
+  border-left-color: #d29745;
 }
 body.ttrss_main .dijitTooltipBelow .dijitTooltipConnector {
-  border-bottom-color: #2e99d1;
+  border-bottom-color: #d29745;
 }
 body.ttrss_main .dijitTooltipAbove .dijitTooltipConnector {
-  border-top-color: #2e99d1;
+  border-top-color: #d29745;
 }
 body.ttrss_main .dijitDialog h1:first-of-type,
 body.ttrss_main .dijitDialog h2:first-of-type,
@@ -889,7 +888,7 @@ body.ttrss_main .dijitDialog h4:first-of-type {
   margin-top: 0px;
 }
 body.ttrss_main[view-mode="marked"] #feeds-holder #feedTree .dijitTreeRow.Has_Marked .dijitTreeLabel {
-  color: #257aa7;
+  color: #b87d2c;
 }
 body.ttrss_main[view-mode="marked"] #feeds-holder #feedTree .dijitTreeRow.Has_Marked .counterNode.marked {
   display: inline-block;
@@ -922,9 +921,9 @@ body.ttrss_main #toolbar-headlines #feed_current_unread {
   margin-left: 8px;
   font-weight: bold;
   text-align: center;
-  border: 1px solid #2a89bc;
+  border: 1px solid #cd8b31;
   color: white;
-  background: #2a89bc;
+  background: #cd8b31;
   border-radius: 4px;
   min-width: 23px;
 }
@@ -987,7 +986,7 @@ body.ttrss_main #prefFilterTestResultList .title {
   font-weight: bold;
 }
 body.ttrss_main #prefFilterTestResultList .feed {
-  color: #257aa7;
+  color: #b87d2c;
 }
 body.ttrss_main .alert,
 body.ttrss_utility .alert {
@@ -1115,14 +1114,14 @@ body.ttrss_utility div.autocomplete ul li {
   cursor: pointer;
 }
 ::selection {
-  background: #257aa7;
+  background: #b87d2c;
   color: #333;
 }
 ::-webkit-scrollbar {
   width: 4px;
 }
 ::-webkit-scrollbar-thumb {
-  background-color: #257aa7;
+  background-color: #b87d2c;
 }
 ::-webkit-scrollbar-track {
   background-color: #eee;
@@ -1239,7 +1238,7 @@ div.cdm.expanded.active {
   background: white;
 }
 div.cdm.expanded.active div.header a.title {
-  color: #257aa7;
+  color: #b87d2c;
 }
 div.cdm.expanded.Unread div.header a.title {
   color: black;
@@ -1257,7 +1256,7 @@ div.cdm.vgrlf .feed {
   display: none;
 }
 .cdm div.feed-title {
-  border: 0px solid #257aa7;
+  border: 0px solid #b87d2c;
   border-bottom-width: 1px;
   padding: 5px 3px 5px 5px;
 }
@@ -1269,7 +1268,7 @@ div.cdm.vgrlf .feed {
   color: #ccc;
 }
 .cdm div.feed-title a:hover {
-  color: #257aa7;
+  color: #b87d2c;
 }
 .cdm div.header span.feed {
   float: right;
@@ -1352,7 +1351,7 @@ div#floatingTitle .excerpt {
   display: none;
 }
 div#floatingTitle .collapse i.material-icons {
-  color: #257aa7;
+  color: #b87d2c;
   cursor: pointer;
 }
 div#floatingTitle span.author {
@@ -1409,7 +1408,7 @@ div#floatingTitle .feed-title a.catchup {
   white-space: nowrap;
 }
 div#floatingTitle .feed-title a.catchup:hover {
-  color: #257aa7;
+  color: #b87d2c;
 }
 div#floatingTitle.Unread a.title {
   color: black;
@@ -1441,7 +1440,7 @@ div#floatingTitle.Unread a.title {
   background: white;
 }
 .cdm.expandable.Selected:not(.active) {
-  background: #3f728e;
+  background: #9c7948;
 }
 .cdm.expandable.Selected:not(.active) a,
 .cdm.expandable.Selected:not(.active) .header a.title,
@@ -1466,14 +1465,14 @@ div.cdm.expandable.Unread div.header a.title {
   color: black;
 }
 div.cdm.expandable.active .collapse i.material-icons {
-  color: #257aa7;
+  color: #b87d2c;
   cursor: pointer;
 }
 div.cdm.expandable.active .excerpt {
   display: none;
 }
 div.cdm.expandable.active div.header a.title {
-  color: #257aa7;
+  color: #b87d2c;
   font-size: 16px;
   font-weight: 600;
   text-rendering: optimizelegibility;
@@ -1682,7 +1681,7 @@ body.ttrss_utility fieldset > label.checkbox {
   font-size: 13px;
 }
 .flat .dijitMenu .dijitMenuItem.dijitDisabled:not(.dijitMenuItemSelected) .dijitMenuItemLabel {
-  color: #2e99d1;
+  color: #d29745;
 }
 .flat .dijitMenu .dijitMenuItem td {
   padding: 0px;
@@ -1697,7 +1696,7 @@ body.ttrss_utility fieldset > label.checkbox {
 }
 .flat .dijitTab i.material-icons,
 .flat .dijitAccordionInnerContainer:not(.dijitSelected) i.material-icons {
-  color: #257aa7;
+  color: #b87d2c;
 }
 .flat .dijitTree .dijitFolderClosed,
 .flat .dijitTree .dijitFolderOpened {
@@ -1707,7 +1706,7 @@ body.ttrss_utility fieldset > label.checkbox {
   color: white;
 }
 .flat .dijitTree .dijitTreeRowSelected .dijitTreeExpando {
-  color: #257aa7;
+  color: #b87d2c;
 }
 .flat .dijitTree .dijitTreeNode .dijitTreeRow.dijitTreeRowSelected {
   color: white;
@@ -1815,7 +1814,7 @@ body.ttrss_utility .content h2:first-of-type {
 body.ttrss_utility .content h2,
 body.ttrss_utility .content h3,
 body.ttrss_utility .content h4 {
-  color: #257aa7;
+  color: #b87d2c;
   font-family: "Segoe WP Semibold", "Segoe UI Semibold", "Segoe UI Web Semibold", "Segoe UI", Ubuntu, "Helvetica Neue", Helvetica, Arial, sans-serif;
 }
 body.ttrss_utility .content h2 {
@@ -1825,12 +1824,12 @@ body.ttrss_utility .content h3 {
   font-size: 16px;
 }
 body.ttrss_utility a {
-  color: #257aa7;
+  color: #b87d2c;
   text-decoration: none;
 }
 body.ttrss_utility a:hover,
 body.ttrss_utility a:focus {
-  color: #133d54;
+  color: #664518;
   text-decoration: underline;
 }
 body.ttrss_utility h1 {
@@ -1847,7 +1846,7 @@ body.ttrss_utility .footer a {
   color: gray;
 }
 body.ttrss_utility .footer a:hover {
-  color: #257aa7;
+  color: #b87d2c;
 }
 body.ttrss_utility form {
   margin: 0;
@@ -1989,7 +1988,7 @@ body.flat.ttrss_main img[src*='indicator_white.gif'] {
   filter: invert(1);
 }
 body.flat.ttrss_main a:hover {
-  color: #58adda;
+  color: #dcae6e;
 }
 body.flat.ttrss_main #main,
 body.flat.ttrss_main #overlay {
@@ -2011,7 +2010,7 @@ body.flat.ttrss_main #feeds-holder #feedTree .counterNode.marked {
   border-color: #333;
 }
 body.flat.ttrss_main #feeds-holder #feedTree .counterNode.marked {
-  border-color: #257aa7;
+  border-color: #b87d2c;
 }
 body.flat.ttrss_main #feeds-holder #feedTree .dijitTreeRowSelected {
   background: #333;
@@ -2078,7 +2077,7 @@ body.flat.ttrss_main #headlines-frame .hl.active.published i.pub-pic {
 }
 body.flat.ttrss_main #headlines-frame .cdm.expanded.active .title,
 body.flat.ttrss_main #headlines-frame .cdm.expandable.active .title {
-  color: #257aa7;
+  color: #b87d2c;
 }
 body.flat.ttrss_main #headlines-frame .cdm.expandable.active {
   background: #222 ! important;
@@ -2163,7 +2162,7 @@ body.flat.ttrss_main .dijitDialog .panel {
 body.flat.ttrss_main #headlines-frame blockquote,
 body.flat.ttrss_main #content-insert blockquote {
   color: #ccc;
-  border-color: #257aa7;
+  border-color: #b87d2c;
 }
 body.flat.ttrss_main pre {
   color: #ccc;
@@ -2175,8 +2174,8 @@ body.flat.ttrss_main ul#filterDlg_Actions {
   border-color: #666;
 }
 body.flat.ttrss_main .article-note {
-  background: #257aa7;
-  border-color: #257aa7;
+  background: #b87d2c;
+  border-color: #b87d2c;
   color: #333;
 }
 body.flat.ttrss_main .article-note i.material-icons {
@@ -2193,8 +2192,8 @@ body.flat.ttrss_main ::-webkit-scrollbar-track {
 }
 body.flat.ttrss_main .alert {
   background: #222;
-  border-color: #133d54;
-  color: #257aa7;
+  border-color: #664518;
+  color: #b87d2c;
 }
 body.flat.ttrss_main .alert.alert-info {
   color: #3a87ad;
@@ -2210,4 +2209,24 @@ body.flat.ttrss_main #filterNewRuleDlg .dijitValidationTextAreaError {
 body.flat.ttrss_main #filterNewRuleDlg .dijitValidationTextArea:not(.dijitValidationTextAreaError) {
   background: #305030;
 }
-/*# sourceMappingURL=night_blue.css.map */
+/* rules specific to compact.css */
+body.ttrss_main.ttrss_index.flat #feedTree.dijitTree .dijitTreeLabel {
+  font-size: 13px ! important;
+}
+body.ttrss_main.ttrss_index.flat .dijitMenu .dijitMenuItemLabel,
+body.ttrss_main.ttrss_index.flat .content-inner,
+body.ttrss_main.ttrss_index.flat #content-insert,
+body.ttrss_main.ttrss_index.flat .cdm .content,
+body.ttrss_main.ttrss_index.flat .post .content {
+  font-size: 12px ! important;
+}
+body.ttrss_main.ttrss_index.flat div[id*=RROW] i.material-icons {
+  font-size: 18px;
+}
+body.ttrss_main.ttrss_index.flat .hl,
+body.ttrss_main.ttrss_index.flat .post .header .title,
+body.ttrss_main.ttrss_index.flat #floatingTitle a.title,
+body.ttrss_main.ttrss_index.flat .cdm .title {
+  font-size: 13px ! important;
+}
+/*# sourceMappingURL=compact_night.css.map */

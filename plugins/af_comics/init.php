@@ -52,7 +52,7 @@ class Af_Comics extends Plugin {
 
 		print "<p>" . __("The following comics are currently supported:") . "</p>";
 
-		$comics = array("GoComics");
+		$comics = [];
 
 		foreach ($this->filters as $f) {
 			foreach ($f->supported() as $comic) {
@@ -68,9 +68,9 @@ class Af_Comics extends Plugin {
 		}
 		print "</ul>";
 
-		print "<p>".__("To subscribe to GoComics use the comic's regular web page as the feed URL (e.g. for the <em>Garfield</em> comic use <code>http://www.gocomics.com/garfield</code>).")."</p>";
+		print_notice("To subscribe to GoComics use the comic's regular web page as the feed URL (e.g. for the <em>Garfield</em> comic use <code>http://www.gocomics.com/garfield</code>).");
 
-		print "<p>".__('Drop any updated filters into <code>filters.local</code> in plugin directory.')."</p>";
+		print_notice('Drop any updated filters into <code>filters.local</code> in plugin directory.');
 
 		print "</div>";
 	}
@@ -84,98 +84,35 @@ class Af_Comics extends Plugin {
 		return $article;
 	}
 
-	// GoComics dropped feed support so it needs to be handled when fetching the feed.
-	/**
-	 * @SuppressWarnings(PHPMD.UnusedFormalParameter)
-	 */
 	function hook_fetch_feed($feed_data, $fetch_url, $owner_uid, $feed, $last_article_timestamp, $auth_login, $auth_pass) {
-		if ($auth_login || $auth_pass)
-			return $feed_data;
+		foreach ($this->filters as $f) {
+			$res = $f->on_fetch($fetch_url);
 
-		if (preg_match('#^https?://(?:feeds\.feedburner\.com/uclick|www\.gocomics\.com)/([-a-z0-9]+)$#i', $fetch_url, $comic)) {
-			$site_url = 'https://www.gocomics.com/' . $comic[1];
-
-			$article_link = $site_url . date('/Y/m/d');
-
-			$body = fetch_file_contents(array('url' => $article_link, 'type' => 'text/html', 'followlocation' => false));
-
-			require_once 'lib/MiniTemplator.class.php';
-
-			$feed_title = htmlspecialchars($comic[1]);
-			$site_url = htmlspecialchars($site_url);
-			$article_link = htmlspecialchars($article_link);
-
-			$tpl = new MiniTemplator();
-
-			$tpl->readTemplateFromFile('templates/generated_feed.txt');
-
-			$tpl->setVariable('FEED_TITLE', $feed_title, true);
-			$tpl->setVariable('VERSION', get_version(), true);
-			$tpl->setVariable('FEED_URL', htmlspecialchars($fetch_url), true);
-			$tpl->setVariable('SELF_URL', $site_url, true);
-
-			if ($body) {
-				$doc = new DOMDocument();
-
-				if (@$doc->loadHTML($body)) {
-					$xpath = new DOMXPath($doc);
-
-					$node = $xpath->query('//picture[contains(@class, "item-comic-image")]/img')->item(0);
-
-					if ($node) {
-						$title = $xpath->query('//h1')->item(0);
-
-						if ($title) {
-							$title = clean(trim($title->nodeValue));
-						} else {
-							$title = date('l, F d, Y');
-						}
-
-						foreach (['srcset', 'sizes', 'data-srcset', 'width'] as $attr ) {
-							$node->removeAttribute($attr);
-						}
-
-						$tpl->setVariable('ARTICLE_ID', $article_link, true);
-						$tpl->setVariable('ARTICLE_LINK', $article_link, true);
-						$tpl->setVariable('ARTICLE_UPDATED_ATOM', date('c', mktime(11, 0, 0)), true);
-						$tpl->setVariable('ARTICLE_TITLE', htmlspecialchars($title), true);
-						$tpl->setVariable('ARTICLE_EXCERPT', '', true);
-						$tpl->setVariable('ARTICLE_CONTENT', $doc->saveHTML($node), true);
-
-						$tpl->setVariable('ARTICLE_AUTHOR', '', true);
-						$tpl->setVariable('ARTICLE_SOURCE_LINK', $site_url, true);
-						$tpl->setVariable('ARTICLE_SOURCE_TITLE', $feed_title, true);
-
-						$tpl->addBlock('entry');
-					}
-				}
-			}
-
-			$tpl->addBlock('feed');
-
-			if ($tpl->generateOutputToString($tmp_data))
-				$feed_data = $tmp_data;
+			if ($res)
+				return $res;
 		}
 
 		return $feed_data;
 	}
 
 	function hook_subscribe_feed($contents, $url, $auth_login, $auth_pass) {
-		if ($auth_login || $auth_pass)
-			return $contents;
+		foreach ($this->filters as $f) {
+			$res = $f->on_subscribe($url);
 
-		if (preg_match('#^https?://www\.gocomics\.com/([-a-z0-9]+)$#i', $url))
-			return '<?xml version="1.0" encoding="utf-8"?>'; // Get is_html() to return false.
+			if ($res)
+				return $res;
+		}
 
 		return $contents;
 	}
 
 	function hook_feed_basic_info($basic_info, $fetch_url, $owner_uid, $feed, $auth_login, $auth_pass) {
-		if ($auth_login || $auth_pass)
-			return $basic_info;
+		foreach ($this->filters as $f) {
+			$res = $f->on_basic_info($fetch_url);
 
-		if (preg_match('#^https?://www\.gocomics\.com/([-a-z0-9]+)$#i', $fetch_url, $matches))
-			$basic_info = array('title' => ucfirst($matches[1]), 'site_url' => $matches[0]);
+			if ($res)
+				return $res;
+		}
 
 		return $basic_info;
 	}
