@@ -149,14 +149,14 @@ define(["dojo/_base/declare"], function (declare) {
 		formatComments: function(hl) {
 			let comments = "";
 
-			if (hl.comments) {
+			if (hl.comments || hl.num_comments > 0) {
 				let comments_msg = __("comments");
 
 				if (hl.num_comments > 0) {
 					comments_msg = hl.num_comments + " " + ngettext("comment", "comments", hl.num_comments)
 				}
 
-				comments = `<a href="${escapeHtml(hl.comments)}">(${comments_msg})</a>`;
+				comments = `<a href="${escapeHtml(hl.comments ? hl.comments : hl.link)}">(${comments_msg})</a>`;
 			}
 
 			return comments;
@@ -178,9 +178,22 @@ define(["dojo/_base/declare"], function (declare) {
 				if (container.textContent.length == 0)
 					container.innerHTML += "&nbsp;";
 
+				// in expandable mode, save content for later, so that we can pack unfocused rows back
+				if (App.isCombinedMode() && $("main").hasClassName("expandable"))
+					row.setAttribute("data-content-original", row.getAttribute("data-content"));
+
 				row.removeAttribute("data-content");
 
 				PluginHost.run(PluginHost.HOOK_ARTICLE_RENDERED_CDM, row);
+			}
+		},
+		pack: function(row) {
+			if (row.hasAttribute("data-content-original")) {
+				console.log("packing", row.id);
+				row.setAttribute("data-content", row.getAttribute("data-content-original"));
+				row.removeAttribute("data-content-original");
+
+				row.querySelector(".content-inner").innerHTML = "&nbsp;";
 			}
 		},
 		view: function (id, noexpand) {
@@ -277,7 +290,7 @@ define(["dojo/_base/declare"], function (declare) {
 
 			dialog.show();
 		},
-		cdmScrollToId: function (id, force, event) {
+		cdmScrollToId: function (id, force, event, immediate) {
 			const ctr = $("headlines-frame");
 			const e = $("RROW-" + id);
 			const is_expanded = App.getInitParam("cdm_expanded");
@@ -287,7 +300,7 @@ define(["dojo/_base/declare"], function (declare) {
 			if (force || is_expanded || e.offsetTop + e.offsetHeight > (ctr.scrollTop + ctr.offsetHeight) ||
 				e.offsetTop < ctr.scrollTop) {
 
-				if (event && event.repeat || !is_expanded) {
+				if (immediate || event && event.repeat || !is_expanded) {
 					ctr.addClassName("forbid-smooth-scroll");
 					window.clearTimeout(this._scroll_reset_timeout);
 
@@ -307,8 +320,9 @@ define(["dojo/_base/declare"], function (declare) {
 		setActive: function (id) {
 			console.log("setActive", id);
 
-			$$("div[id*=RROW][class*=active]").each((e) => {
-				e.removeClassName("active");
+			$$("div[id*=RROW][class*=active]").each((row) => {
+				row.removeClassName("active");
+				Article.pack(row);
 			});
 
 			const row = $("RROW-" + id);
