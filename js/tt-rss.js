@@ -211,8 +211,8 @@ require(["dojo/_base/kernel",
 					if (event.target.nodeName == "INPUT" || event.target.nodeName == "TEXTAREA") return;
 
 					// Arrow buttons and escape are not reported via keypress, handle them via keydown.
-					// escape = 27, left = 37, up = 38, right = 39, down = 40, pgup = 33, pgdn = 34
-					if (event.type == "keydown" && event.which != 27 && (event.which < 33 || event.which > 40)) return;
+					// escape = 27, left = 37, up = 38, right = 39, down = 40, pgup = 33, pgdn = 34, insert = 45, delete = 46
+					if (event.type == "keydown" && event.which != 27 && (event.which < 33 || event.which > 46)) return;
 
 					const action_name = App.keyeventToAction(event);
 
@@ -304,6 +304,9 @@ require(["dojo/_base/kernel",
 					};
 					this.hotkey_actions["search_dialog"] = function () {
 						Feeds.search();
+					};
+					this.hotkey_actions["cancel_search"] = function () {
+						Feeds.cancelSearch();
 					};
 					this.hotkey_actions["toggle_mark"] = function () {
 						Headlines.selectionToggleMarked();
