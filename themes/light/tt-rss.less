@@ -65,6 +65,22 @@ body.ttrss_main {
 				max-width : 98%;
 				height: auto;
 			}
+
+			div.embed-responsive {
+				overflow : hidden;
+				padding-bottom : @embed-responsive-padding;
+				position : relative;
+
+				iframe {
+					border : 0;
+					bottom : 0;
+					height : 100%;
+					left : 0;
+					position : absolute;
+					top : 0;
+					width : 100%;
+				}
+			}
 		}
 	}
 
@@ -768,19 +784,6 @@ body.ttrss_main {
 		}
 	}
 
-	#headlines-frame.smooth-scroll {
-		scroll-behavior: smooth;
-	}
-
-	#headlines-frame.forbid-smooth-scroll,
-	#content-insert.forbid-smooth-scroll {
-		scroll-behavior : auto;
-	}
-
-	#toolbar-frame_splitter {
-		display : none;
-	}
-
 	#toolbar-frame {
 		padding : 0px;
 		margin : 0px;
@@ -876,7 +879,6 @@ body.ttrss_main {
 		line-height: 1.5;
 		overflow : auto;
 		-webkit-overflow-scrolling : touch;
-		scroll-behavior: smooth;
 	}
 
 	img.feed-icon, img.icon {
@@ -1108,13 +1110,11 @@ body.ttrss_main {
 		opacity : 0.5;
 	}
 
-	#floatingTitle.marked i.marked-pic,
 	.cdm.marked .left i.marked-pic,
 	.hl.marked .left i.marked-pic {
 		color : @color-marked;
 	}
 
-	#floatingTitle.published i.pub-pic,
 	.cdm.published .left i.pub-pic,
 	.hl.published .left i.pub-pic {
 		color : @color-published;

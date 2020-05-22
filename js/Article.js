@@ -139,7 +139,7 @@ define(["dojo/_base/declare"], function (declare) {
 			c.attr('content', article);
 			PluginHost.run(PluginHost.HOOK_ARTICLE_RENDERED, c.domNode);
 
-			Headlines.correctHeadlinesOffset(Article.getActive());
+			//Headlines.correctHeadlinesOffset(Article.getActive());
 
 			try {
 				c.focus();
@@ -196,10 +196,11 @@ define(["dojo/_base/declare"], function (declare) {
 				row.querySelector(".content-inner").innerHTML = "&nbsp;";
 			}
 		},
-		view: function (id, noexpand) {
+		view: function (id, no_expand) {
 			this.setActive(id);
+			Headlines.scrollToArticleId(id);
 
-			if (!noexpand) {
+			if (!no_expand) {
 				const hl = Headlines.objectById(id);
 
 				if (hl) {
@@ -293,53 +294,36 @@ define(["dojo/_base/declare"], function (declare) {
 		cdmMoveToId: function (id, params) {
 			params = params || {};
 
-			const force = params.force || true;
-			const event = params.event || null;
-			const noscroll = params.noscroll || false;
+			const force_to_top = params.force_to_top || false;
 
 			const ctr = $("headlines-frame");
-			const e = $("RROW-" + id);
-			const is_expanded = App.getInitParam("cdm_expanded");
+			const row = $("RROW-" + id);
 
-			if (!e || !ctr) return;
+			if (!row || !ctr) return;
 
-			if (force || is_expanded || e.offsetTop + e.offsetHeight > (ctr.scrollTop + ctr.offsetHeight) ||
-				e.offsetTop < ctr.scrollTop) {
-
-				if (noscroll || event && event.repeat || !is_expanded) {
-					ctr.addClassName("forbid-smooth-scroll");
-					window.clearTimeout(this._scroll_reset_timeout);
-
-					this._scroll_reset_timeout = window.setTimeout(() => {
-						if (ctr) ctr.removeClassName("forbid-smooth-scroll");
-					}, 250)
-
-				} else {
-					ctr.removeClassName("forbid-smooth-scroll");
-				}
-
-				ctr.scrollTop = e.offsetTop;
-
-				Element.hide("floatingTitle");
+			if (force_to_top || !App.Scrollable.fitsInContainer(row, ctr)) {
+				ctr.scrollTop = row.offsetTop;
 			}
 		},
 		setActive: function (id) {
-			console.log("setActive", id);
+			if (id != Article.getActive()) {
+				console.log("setActive", id, "was", Article.getActive());
 
-			$$("div[id*=RROW][class*=active]").each((row) => {
-				row.removeClassName("active");
-				Article.pack(row);
-			});
+				$$("div[id*=RROW][class*=active]").each((row) => {
+					row.removeClassName("active");
+					Article.pack(row);
+				});
 
-			const row = $("RROW-" + id);
+				const row = $("RROW-" + id);
 
-			if (row) {
-				Article.unpack(row);
+				if (row) {
+					Article.unpack(row);
 
-				row.removeClassName("Unread");
-				row.addClassName("active");
+					row.removeClassName("Unread");
+					row.addClassName("active");
 
-				PluginHost.run(PluginHost.HOOK_ARTICLE_SET_ACTIVE, row.getAttribute("data-article-id"));
+					PluginHost.run(PluginHost.HOOK_ARTICLE_SET_ACTIVE, row.getAttribute("data-article-id"));
+				}
 			}
 		},
 		getActive: function () {
@@ -350,30 +334,11 @@ define(["dojo/_base/declare"], function (declare) {
 			else
 				return 0;
 		},
-		scrollByPages: function (page_offset, event) {
-			const elem = App.isCombinedMode() ? $("headlines-frame") : $("content-insert");
-
-			const offset = elem.offsetHeight * page_offset * 0.99;
-
-			this.scroll(offset, event);
+		scrollByPages: function (page_offset) {
+			App.Scrollable.scrollByPages($("content-insert"), page_offset);
 		},
-		scroll: function (offset, event) {
-
-			const elem = App.isCombinedMode() ? $("headlines-frame") : $("content-insert");
-
-			if (event && event.repeat) {
-				elem.addClassName("forbid-smooth-scroll");
-				window.clearTimeout(this._scroll_reset_timeout);
-
-				this._scroll_reset_timeout = window.setTimeout(() => {
-					if (elem) elem.removeClassName("forbid-smooth-scroll");
-				}, 250)
-
-			} else {
-				elem.removeClassName("forbid-smooth-scroll");
-			}
-
-			elem.scrollTop += offset;
+		scroll: function (offset) {
+			App.Scrollable.scroll($("content-insert"), offset);
 		},
 		mouseIn: function (id) {
 			this.post_under_pointer = id;

@@ -7,6 +7,39 @@ define(["dojo/_base/declare"], function (declare) {
 		hotkey_prefix: 0,
 		hotkey_prefix_pressed: false,
 		hotkey_prefix_timeout: 0,
+		Scrollable: {
+			scrollByPages: function (elem, page_offset) {
+				if (!elem) return;
+
+				/* keep a line or so from the previous page  */
+				const offset = (elem.offsetHeight - (page_offset > 0 ? 50 : -50)) * page_offset;
+
+				this.scroll(elem, offset);
+			},
+			scroll: function(elem, offset) {
+				if (!elem) return;
+
+				elem.scrollTop += offset;
+			},
+			isChildVisible: function(elem, ctr) {
+				if (!elem) return;
+
+				const ctop = ctr.scrollTop;
+				const cbottom = ctop + ctr.offsetHeight;
+
+				const etop = elem.offsetTop;
+				const ebottom = etop + elem.offsetHeight;
+
+				return etop >= ctop && ebottom <= cbottom ||
+					etop < ctop && ebottom > ctop || ebottom > cbottom && etop < cbottom;
+			},
+			fitsInContainer: function (elem, ctr) {
+				if (!elem) return;
+
+				return elem.offsetTop + elem.offsetHeight <= ctr.scrollTop + ctr.offsetHeight &&
+					elem.offsetTop >= ctr.scrollTop;
+			}
+		},
 		constructor: function() {
 			window.onerror = this.Error.onWindowError;
 		},

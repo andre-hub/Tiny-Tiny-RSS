@@ -285,22 +285,28 @@ require(["dojo/_base/kernel",
 						if (rv) Feeds.open({feed: rv[0], is_cat: rv[1], delayed: true})
 					};
 					this.hotkey_actions["next_article_or_scroll"] = function (event) {
-						Headlines.move('next', {event: event});
+						if (App.isCombinedMode())
+							Headlines.scroll(Headlines.line_scroll_offset, event);
+						else
+							Headlines.move('next');
 					};
 					this.hotkey_actions["prev_article_or_scroll"] = function (event) {
-						Headlines.move('prev', {event: event});
+						if (App.isCombinedMode())
+							Headlines.scroll(-Headlines.line_scroll_offset, event);
+						else
+							Headlines.move('prev');
 					};
-					this.hotkey_actions["next_article_noscroll"] = function (event) {
-						Headlines.move('next', {noscroll: true, event: event});
+					this.hotkey_actions["next_article_noscroll"] = function () {
+						Headlines.move('next');
 					};
-					this.hotkey_actions["prev_article_noscroll"] = function (event) {
-						Headlines.move('prev', {noscroll: true, event: event});
+					this.hotkey_actions["prev_article_noscroll"] = function () {
+						Headlines.move('prev');
 					};
-					this.hotkey_actions["next_article_noexpand"] = function (event) {
-						Headlines.move('next', {noscroll: true, noexpand: true, event: event});
+					this.hotkey_actions["next_article_noexpand"] = function () {
+						Headlines.move('next', {no_expand: true});
 					};
-					this.hotkey_actions["prev_article_noexpand"] = function (event) {
-						Headlines.move('prev', {noscroll: true, noexpand: true, event: event});
+					this.hotkey_actions["prev_article_noexpand"] = function () {
+						Headlines.move('prev', {no_expand: true});
 					};
 					this.hotkey_actions["search_dialog"] = function () {
 						Feeds.search();
@@ -335,28 +341,34 @@ require(["dojo/_base/kernel",
 						Headlines.catchupRelativeTo(0);
 					};
 					this.hotkey_actions["article_scroll_down"] = function (event) {
-						const ctr = App.isCombinedMode() ? $("headlines-frame") : $("content-insert");
-
-						if (ctr)
-							Article.scroll(ctr.offsetHeight / 2, event);
+						if (App.isCombinedMode())
+							Headlines.scroll(Headlines.line_scroll_offset, event);
+						else
+							Article.scroll(Headlines.line_scroll_offset, event);
 					};
 					this.hotkey_actions["article_scroll_up"] = function (event) {
-						const ctr = App.isCombinedMode() ? $("headlines-frame") : $("content-insert");
-
-						if (ctr)
-							Article.scroll(-ctr.offsetHeight / 2, event);
+						if (App.isCombinedMode())
+							Headlines.scroll(-Headlines.line_scroll_offset, event);
+						else
+							Article.scroll(-Headlines.line_scroll_offset, event);
 					};
-					this.hotkey_actions["next_article_page"] = function (event) {
+					this.hotkey_actions["next_headlines_page"] = function (event) {
 						Headlines.scrollByPages(1, event);
 					};
-					this.hotkey_actions["prev_article_page"] = function (event) {
+					this.hotkey_actions["prev_headlines_page"] = function (event) {
 						Headlines.scrollByPages(-1, event);
 					};
 					this.hotkey_actions["article_page_down"] = function (event) {
-						Article.scrollByPages(1, event);
+						if (App.isCombinedMode())
+							Headlines.scrollByPages(1, event);
+						else
+							Article.scrollByPages(1, event);
 					};
 					this.hotkey_actions["article_page_up"] = function (event) {
-						Article.scrollByPages(-1, event);
+						if (App.isCombinedMode())
+							Headlines.scrollByPages(-1, event);
+						else
+							Article.scrollByPages(-1, event);
 					};
 					this.hotkey_actions["close_article"] = function () {
 						if (App.isCombinedMode()) {
