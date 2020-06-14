@@ -1,6 +1,8 @@
 // based on http://www.velvetcache.org/2010/08/19/a-simple-javascript-hooks-system
 
-PluginHost = {
+
+/* exported PluginHost */
+const PluginHost = {
 	HOOK_ARTICLE_RENDERED: 1,
 	HOOK_ARTICLE_RENDERED_CDM: 2,
 	HOOK_ARTICLE_SET_ACTIVE: 3,
@@ -31,7 +33,7 @@ PluginHost = {
 			}
 	},
 	unregister: function (name, callback) {
-		for (var i = 0; i < this.hooks[name].length; i++)
+		for (let i = 0; i < this.hooks[name].length; i++)
 			if (this.hooks[name][i] == callback)
 				this.hooks[name].splice(i, 1);
 	}
