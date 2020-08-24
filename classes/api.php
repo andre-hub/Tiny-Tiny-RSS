@@ -160,9 +160,9 @@ class API extends Handler {
 					$unread += Feeds::getCategoryChildrenUnread($line["id"]);
 
 				if ($unread || !$unread_only) {
-					array_push($cats, array("id" => $line["id"],
+					array_push($cats, array("id" => (int) $line["id"],
 						"title" => $line["title"],
-						"unread" => $unread,
+						"unread" => (int) $unread,
 						"order_id" => (int) $line["order_id"],
 					));
 				}
@@ -174,9 +174,9 @@ class API extends Handler {
 				$unread = getFeedUnread($cat_id, true);
 
 				if ($unread || !$unread_only) {
-					array_push($cats, array("id" => $cat_id,
+					array_push($cats, array("id" => (int) $cat_id,
 						"title" => Feeds::getCategoryTitle($cat_id),
-						"unread" => $unread));
+						"unread" => (int) $unread));
 				}
 			}
 		}
@@ -214,21 +214,7 @@ class API extends Handler {
 
 			$_SESSION['hasSandbox'] = $has_sandbox;
 
-			$skip_first_id_check = false;
-
-			$override_order = false;
-			switch (clean($_REQUEST["order_by"])) {
-				case "title":
-					$override_order = "ttrss_entries.title, date_entered, updated";
-					break;
-				case "date_reverse":
-					$override_order = "score DESC, date_entered, updated";
-					$skip_first_id_check = true;
-					break;
-				case "feed_dates":
-					$override_order = "updated DESC";
-					break;
-			}
+			list($override_order, $skip_first_id_check) = Feeds::order_to_override_query(clean($_REQUEST["order_by"]));
 
 			/* do not rely on params below */
 

@@ -8,7 +8,7 @@ class Opml extends Handler_Protected {
 	}
 
 	function export() {
-		$output_name = "tt-rss_".date("Y-m-d").".opml";
+		$output_name = sprintf("tt-rss_%s_%s.opml", $_SESSION["name"], date("Y-m-d"));
 		$include_settings = $_REQUEST["include_settings"] == "1";
 		$owner_uid = $_SESSION["uid"];
 
@@ -62,7 +62,7 @@ class Opml extends Handler_Protected {
 		$ttrss_specific_qpart = "";
 
 		if ($cat_id) {
-			$sth = $this->pdo->prepare("SELECT title,order_id 
+			$sth = $this->pdo->prepare("SELECT title,order_id
 				FROM ttrss_feed_categories WHERE id = ?
 					AND owner_uid = ?");
 			$sth->execute([$cat_id, $owner_uid]);
@@ -90,7 +90,7 @@ class Opml extends Handler_Protected {
 			$out .= $this->opml_export_category($owner_uid, $line["id"], $hide_private_feeds, $include_settings);
 		}
 
-		$fsth = $this->pdo->prepare("select title, feed_url, site_url, update_interval, order_id
+		$fsth = $this->pdo->prepare("select title, feed_url, site_url, update_interval, order_id, purge_interval
 				FROM ttrss_feeds WHERE
 					(cat_id = :cat OR (:cat = 0 AND cat_id IS NULL)) AND owner_uid = :uid AND $hide_qpart
 				ORDER BY order_id, title");
@@ -105,8 +105,9 @@ class Opml extends Handler_Protected {
 			if ($include_settings) {
 				$update_interval = (int)$fline["update_interval"];
 				$order_id = (int)$fline["order_id"];
+				$purge_interval = (int)$fline["purge_interval"];
 
-				$ttrss_specific_qpart = "ttrssSortOrder=\"$order_id\" ttrssUpdateInterval=\"$update_interval\"";
+				$ttrss_specific_qpart = "ttrssSortOrder=\"$order_id\" ttrssPurgeInterval=\"$purge_interval\" ttrssUpdateInterval=\"$update_interval\"";
 			} else {
 				$ttrss_specific_qpart = "";
 			}
@@ -327,11 +328,14 @@ class Opml extends Handler_Protected {
 				$order_id = (int) $attrs->getNamedItem('ttrssSortOrder')->nodeValue;
 				if (!$order_id) $order_id = 0;
 
-				$sth = $this->pdo->prepare("INSERT INTO ttrss_feeds
-					(title, feed_url, owner_uid, cat_id, site_url, order_id, update_interval) VALUES
-					(?, ?, ?, ?, ?, ?, ?)");
+				$purge_interval = (int) $attrs->getNamedItem('ttrssPurgeInterval')->nodeValue;
+				if (!$purge_interval) $purge_interval = 0;
 
-				$sth->execute([$feed_title, $feed_url, $owner_uid, $cat_id, $site_url, $order_id, $update_interval]);
+				$sth = $this->pdo->prepare("INSERT INTO ttrss_feeds
+					(title, feed_url, owner_uid, cat_id, site_url, order_id, update_interval, purge_interval) VALUES
+					(?, ?, ?, ?, ?, ?, ?, ?)");
+
+				$sth->execute([$feed_title, $feed_url, $owner_uid, $cat_id, $site_url, $order_id, $update_interval, $purge_interval]);
 
 			} else {
 				$this->opml_notice(T_sprintf("Duplicate feed: %s", $feed_title == '[Unknown]' ? $feed_url : $feed_title));
@@ -606,7 +610,7 @@ class Opml extends Handler_Protected {
 		if (is_file($tmp_file)) {
 			$doc = new DOMDocument();
 			libxml_disable_entity_loader(false);
-			$doc->load($tmp_file);
+			$loaded = $doc->load($tmp_file);
 			libxml_disable_entity_loader(true);
 			unlink($tmp_file);
 		} else if (!$doc) {
@@ -614,7 +618,7 @@ class Opml extends Handler_Protected {
 			return;
 		}
 
-		if ($doc) {
+		if ($loaded) {
 			$this->pdo->beginTransaction();
 			$this->opml_import_category($doc, false, $owner_uid, false);
 			$this->pdo->commit();

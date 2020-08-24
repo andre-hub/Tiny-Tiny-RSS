@@ -529,21 +529,7 @@ class Feeds extends Handler_Protected {
 
 		$reply['headlines'] = [];
 
-		$override_order = false;
-		$skip_first_id_check = false;
-
-		switch ($order_by) {
-		case "title":
-			$override_order = "ttrss_entries.title, date_entered, updated";
-			break;
-		case "date_reverse":
-			$override_order = "score DESC, date_entered, updated";
-			$skip_first_id_check = true;
-			break;
-		case "feed_dates":
-			$override_order = "updated DESC";
-			break;
-		}
+		list($override_order, $skip_first_id_check) = Feeds::order_to_override_query($order_by);
 
 		$ret = $this->format_headlines_list($feed, $method,
 			$view_mode, $limit, $cat_view, $offset,
@@ -2347,6 +2333,33 @@ class Feeds extends Handler_Protected {
 			$search_query_part = "false";
 
 		return array($search_query_part, $search_words);
+	}
+
+	static function order_to_override_query($order) {
+		$query = "";
+		$skip_first_id = false;
+
+		switch ($order) {
+			case "title":
+				$query = "ttrss_entries.title, date_entered, updated";
+				break;
+			case "date_reverse":
+				$query = "updated";
+				$skip_first_id = true;
+				break;
+			case "feed_dates":
+				$query = "updated DESC";
+				break;
+		}
+
+		if (!$query) {
+			foreach (PluginHost::getInstance()->get_hooks(PluginHost::HOOK_HEADLINES_CUSTOM_SORT_OVERRIDE) as $p) {
+				list ($query, $skip_first_id) = $p->hook_headlines_custom_sort_override($order);
+
+				if ($query)	break;
+			}
+		}
+		return [$query, $skip_first_id];
 	}
 }
 
