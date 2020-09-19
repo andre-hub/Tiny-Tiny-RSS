@@ -120,7 +120,7 @@
 					   onblur="UtilityApp.fetchProfiles()"
 					   value="<?php echo $_SESSION["fake_password"] ?>"/>
 			</fieldset>
-			<?php if (strpos(PLUGINS, "auth_internal") !== FALSE) { ?>
+			<?php if (strpos(PLUGINS, "auth_internal") !== false) { ?>
 				<fieldset class="align-right">
 					<a href="public.php?op=forgotpass"><?php echo __("I forgot my password") ?></a>
 				</fieldset>
@@ -145,6 +145,14 @@
 			<div dojoType="dijit.Tooltip" connectId="bw_limit_label" position="below" style="display:none">
 				<?php echo __("Does not display images in articles, reduces automatic refreshes."); ?>
 			</div>
+
+			<fieldset class="narrow">
+				<label> </label>
+
+				<label ><input dojoType="dijit.form.CheckBox" name="safe_mode" id="safe_mode"
+					  type="checkbox">
+					<?php echo __("Safe mode (no plugins)") ?></label>
+			</fieldset>
 
 			<?php if (SESSION_COOKIE_LIFETIME > 0) { ?>
 

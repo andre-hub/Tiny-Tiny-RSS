@@ -283,15 +283,20 @@ class Handler_Public extends Handler {
 	}
 
 	function logout() {
-		logout_user();
-		header("Location: index.php");
+		if (validate_csrf($_POST["csrf_token"])) {
+			logout_user();
+			header("Location: index.php");
+		} else {
+			header("Content-Type: text/json");
+			print error_json(6);
+		}
 	}
 
 	function share() {
 		$uuid = clean($_REQUEST["key"]);
 
 		if ($uuid) {
-			$sth = $this->pdo->prepare("SELECT ref_id, owner_uid 
+			$sth = $this->pdo->prepare("SELECT ref_id, owner_uid
 						FROM ttrss_user_entries WHERE uuid = ?");
 			$sth->execute([$uuid]);
 
@@ -366,7 +371,7 @@ class Handler_Public extends Handler {
 					}
                     body.css_loading * {
 						display : none;
-					}                   
+					}
 					</style>
                     <link rel='shortcut icon' type='image/png' href='images/favicon.png'>
                     <link rel='icon' type='image/png' sizes='72x72' href='images/favicon-72px.png'>";
@@ -668,6 +673,7 @@ class Handler_Public extends Handler {
 			$login = clean($_POST["login"]);
 			$password = clean($_POST["password"]);
 			$remember_me = clean($_POST["remember_me"]);
+			$safe_mode = checkbox_to_sql_bool(clean($_POST["safe_mode"]));
 
 			if ($remember_me) {
 				@session_set_cookie_params(SESSION_COOKIE_LIFETIME);
@@ -684,6 +690,7 @@ class Handler_Public extends Handler {
 
 				$_SESSION["ref_schema_version"] = get_schema_version(true);
 				$_SESSION["bw_limit"] = !!clean($_POST["bw_limit"]);
+				$_SESSION["safe_mode"] = $safe_mode;
 
 				if (clean($_POST["profile"])) {
 
@@ -728,6 +735,7 @@ class Handler_Public extends Handler {
 		if ($_SESSION["uid"]) {
 
 			$feed_url = trim(clean($_REQUEST["feed_url"]));
+			$csrf_token = clean($_POST["csrf_token"]);
 
 			header('Content-Type: text/html; charset=utf-8');
 			?>
@@ -774,13 +782,14 @@ class Handler_Public extends Handler {
 			<div class='content'>
 			<?php
 
-			if (!$feed_url) {
+			if (!$feed_url || !validate_csrf($csrf_token)) {
 				?>
 				<form method="post">
 					<input type="hidden" name="op" value="subscribe">
+					<?php print_hidden("csrf_token", $_SESSION["csrf_token"]) ?>
 					<fieldset>
 						<label>Feed or site URL:</label>
-						<input style="width: 300px" dojoType="dijit.form.ValidationTextBox" required="1" name="feed_url">
+						<input style="width: 300px" dojoType="dijit.form.ValidationTextBox" required="1" name="feed_url" value="<?php echo htmlspecialchars($feed_url) ?>">
 					</fieldset>
 
 					<button class="alt-primary" dojoType="dijit.form.Button" type="submit">
@@ -820,6 +829,7 @@ class Handler_Public extends Handler {
 
 					print "<form action='public.php'>";
 					print "<input type='hidden' name='op' value='subscribe'>";
+					print_hidden("csrf_token", $_SESSION["csrf_token"]);
 
 					print "<fieldset>";
 					print "<label style='display : inline'>" . __("Multiple feed URLs found:") . "</label>";
@@ -932,7 +942,7 @@ class Handler_Public extends Handler {
 
 					if ($timestamp && $resetpass_token &&
 						$timestamp >= time() - 15*60*60 &&
-						$resetpass_token == $hash) {
+						$resetpass_token === $hash) {
 
 							$sth = $this->pdo->prepare("UPDATE ttrss_users SET resetpass_token = NULL
 								WHERE id = ?");
@@ -1234,7 +1244,7 @@ class Handler_Public extends Handler {
 	public function pluginhandler() {
 		$host = new PluginHost();
 
-		$plugin_name = clean_filename($_REQUEST["plugin"]);
+		$plugin_name = basename(clean($_REQUEST["plugin"]));
 		$method = clean($_REQUEST["pmethod"]);
 
 		$host->load($plugin_name, PluginHost::KIND_USER, 0);
