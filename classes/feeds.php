@@ -204,14 +204,14 @@ class Feeds extends Handler_Protected {
 		}
 
 		$vfeed_group_enabled = get_pref("VFEED_GROUP_BY_FEED") &&
-			!(in_array($feed, Feeds::NEVER_GROUP_FEEDS) && !$cat_view);
+			!(in_array($feed, self::NEVER_GROUP_FEEDS) && !$cat_view);
 
 		$result = $qfh_ret[0]; // this could be either a PDO query result or a -1 if first id changed
 		$feed_title = $qfh_ret[1];
 		$feed_site_url = $qfh_ret[2];
 		$last_error = $qfh_ret[3];
 		$last_updated = strpos($qfh_ret[4], '1970-') === false ?
-			make_local_datetime($qfh_ret[4], false) : __("Never");
+			TimeHelper::make_local_datetime($qfh_ret[4], false) : __("Never");
 		$highlight_words = $qfh_ret[5];
 		$reply['first_id'] = $qfh_ret[6];
 		$reply['is_vfeed'] = $qfh_ret[7];
@@ -305,7 +305,7 @@ class Feeds extends Handler_Protected {
                     $line["buttons"] .= $p->hook_article_button($line);
                 }
 
-                $line["content"] = sanitize($line["content"],
+                $line["content"] = Sanitizer::sanitize($line["content"],
                     $line['hide_images'], false, $line["site_url"], $highlight_words, $line["id"]);
 
                 foreach (PluginHost::getInstance()->get_hooks(PluginHost::HOOK_RENDER_ARTICLE_CDM) as $p) {
@@ -343,12 +343,12 @@ class Feeds extends Handler_Protected {
                     }
                 }
 
-				$line["updated_long"] = make_local_datetime($line["updated"],true);
-				$line["updated"] = make_local_datetime($line["updated"], false, false, false, true);
+				$line["updated_long"] = TimeHelper::make_local_datetime($line["updated"],true);
+				$line["updated"] = TimeHelper::make_local_datetime($line["updated"], false, false, false, true);
 
 
 				$line['imported'] = T_sprintf("Imported at %s",
-					make_local_datetime($line["date_entered"], false));
+				TimeHelper::make_local_datetime($line["date_entered"], false));
 
 				if ($line["tag_cache"])
 					$tags = explode(",", $line["tag_cache"]);
@@ -357,7 +357,7 @@ class Feeds extends Handler_Protected {
 
 				$line["tags_str"] = Article::format_tags_string($tags, $id);
 
-				if (feeds::feedHasIcon($feed_id)) {
+				if (self::feedHasIcon($feed_id)) {
 					$line['feed_icon'] = "<img class=\"icon\" src=\"".ICONS_URL."/$feed_id.ico\" alt=\"\">";
 				} else {
 					$line['feed_icon'] = "<i class='icon-no-feed material-icons'>rss_feed</i>";
@@ -426,7 +426,7 @@ class Feeds extends Handler_Protected {
 					$sth->execute([$_SESSION['uid']]);
 					$row = $sth->fetch();
 
-					$last_updated = make_local_datetime($row["last_updated"], false);
+					$last_updated = TimeHelper::make_local_datetime($row["last_updated"], false);
 
 					$reply['content'] .= sprintf(__("Feeds last updated at %s"), $last_updated);
 
@@ -529,7 +529,7 @@ class Feeds extends Handler_Protected {
 
 		$reply['headlines'] = [];
 
-		list($override_order, $skip_first_id_check) = Feeds::order_to_override_query($order_by);
+		list($override_order, $skip_first_id_check) = self::order_to_override_query($order_by);
 
 		$ret = $this->format_headlines_list($feed, $method,
 			$view_mode, $limit, $cat_view, $offset,
@@ -550,7 +550,7 @@ class Feeds extends Handler_Protected {
             						"disable_cache" => (bool) $disable_cache];
 
 		// this is parsed by handleRpcJson() on first viewfeed() to set cdm expanded, etc
-		$reply['runtime-info'] = make_runtime_info();
+		$reply['runtime-info'] = RPC::make_runtime_info();
 
 		$reply_json = json_encode($reply);
 
@@ -580,7 +580,7 @@ class Feeds extends Handler_Protected {
 		$sth->execute([$_SESSION['uid']]);
 		$row = $sth->fetch();
 
-		$last_updated = make_local_datetime($row["last_updated"], false);
+		$last_updated = TimeHelper::make_local_datetime($row["last_updated"], false);
 
 		$reply['headlines']['content'] .= sprintf(__("Feeds last updated at %s"), $last_updated);
 
@@ -851,7 +851,7 @@ class Feeds extends Handler_Protected {
 
 			// fall back in case of no plugins
 			if (!$search_qpart) {
-				list($search_qpart, $search_words) = Feeds::search_to_sql($search[0], $search[1]);
+				list($search_qpart, $search_words) = self::search_to_sql($search[0], $search[1], $owner_uid);
 			}
 		} else {
 			$search_qpart = "true";
@@ -891,7 +891,7 @@ class Feeds extends Handler_Protected {
 				if ($feed >= 0) {
 
 					if ($feed > 0) {
-						$children = Feeds::getChildCategories($feed, $owner_uid);
+						$children = self::getChildCategories($feed, $owner_uid);
 						array_push($children, $feed);
 						$children = array_map("intval", $children);
 
@@ -1021,7 +1021,7 @@ class Feeds extends Handler_Protected {
 		$match_part = "";
 
 		if ($is_cat) {
-			return Feeds::getCategoryUnread($n_feed, $owner_uid);
+			return self::getCategoryUnread($n_feed, $owner_uid);
 		} else if ($n_feed == -6) {
 			return 0;
 		} else if ($feed != "0" && $n_feed == 0) {
@@ -1067,7 +1067,7 @@ class Feeds extends Handler_Protected {
 
 			$label_id = Labels::feed_to_label_id($feed);
 
-			return Feeds::getLabelUnread($label_id, $owner_uid);
+			return self::getLabelUnread($label_id, $owner_uid);
 		}
 
 		if ($match_part) {
@@ -1124,11 +1124,11 @@ class Feeds extends Handler_Protected {
 
 		$pdo = Db::pdo();
 
-		$url = validate_url($url);
+		$url = UrlHelper::validate($url);
 
 		if (!$url) return array("code" => 2);
 
-		$contents = @fetch_file_contents($url, false, $auth_login, $auth_pass);
+		$contents = @UrlHelper::fetch($url, false, $auth_login, $auth_pass);
 
 		foreach (PluginHost::getInstance()->get_hooks(PluginHost::HOOK_SUBSCRIBE_FEED) as $plugin) {
 			$contents = $plugin->hook_subscribe_feed($contents, $url, $auth_login, $auth_pass);
@@ -1142,8 +1142,8 @@ class Feeds extends Handler_Protected {
 			return array("code" => 5, "message" => $fetch_last_error);
 		}
 
-		if (mb_strpos($fetch_last_content_type, "html") !== false && Feeds::is_html($contents)) {
-			$feedUrls = Feeds::get_feeds_from_html($url, $contents);
+		if (mb_strpos($fetch_last_content_type, "html") !== false && self::is_html($contents)) {
+			$feedUrls = self::get_feeds_from_html($url, $contents);
 
 			if (count($feedUrls) == 0) {
 				return array("code" => 3);
@@ -1234,7 +1234,7 @@ class Feeds extends Handler_Protected {
 	    $pdo = Db::pdo();
 
 		if ($cat) {
-			return Feeds::getCategoryTitle($id);
+			return self::getCategoryTitle($id);
 		} else if ($id == -1) {
 			return __("Starred articles");
 		} else if ($id == -2) {
@@ -1346,8 +1346,8 @@ class Feeds extends Handler_Protected {
 		$unread = 0;
 
 		while ($line = $sth->fetch()) {
-			$unread += Feeds::getCategoryUnread($line["id"], $owner_uid);
-			$unread += Feeds::getCategoryChildrenUnread($line["id"], $owner_uid);
+			$unread += self::getCategoryUnread($line["id"], $owner_uid);
+			$unread += self::getCategoryChildrenUnread($line["id"], $owner_uid);
 		}
 
 		return $unread;
@@ -1450,7 +1450,7 @@ class Feeds extends Handler_Protected {
 
 			// fall back in case of no plugins
 			if (!$search_query_part) {
-				list($search_query_part, $search_words) = Feeds::search_to_sql($search, $search_language);
+				list($search_query_part, $search_words) = self::search_to_sql($search, $search_language, $owner_uid);
 			}
 
 			if (DB_TYPE == "pgsql") {
@@ -1488,7 +1488,7 @@ class Feeds extends Handler_Protected {
 				$unread = getFeedUnread($feed, $cat_view);
 
 				if ($cat_view && $feed > 0 && $include_children)
-					$unread += Feeds::getCategoryChildrenUnread($feed);
+					$unread += self::getCategoryChildrenUnread($feed);
 
 				if ($unread > 0) {
 					$view_query_part = " unread = true AND ";
@@ -1532,7 +1532,7 @@ class Feeds extends Handler_Protected {
 				if ($feed > 0) {
 					if ($include_children) {
 						# sub-cats
-						$subcats = Feeds::getChildCategories($feed, $owner_uid);
+						$subcats = self::getChildCategories($feed, $owner_uid);
 						array_push($subcats, $feed);
 						$subcats = array_map("intval", $subcats);
 
@@ -1651,7 +1651,7 @@ class Feeds extends Handler_Protected {
 			$feed_title = T_sprintf("Search results: %s", $search);
 		} else {
 			if ($cat_view) {
-				$feed_title = Feeds::getCategoryTitle($feed);
+				$feed_title = self::getCategoryTitle($feed);
 			} else {
 				if (is_numeric($feed) && $feed > 0) {
 					$ssth = $pdo->prepare("SELECT title,site_url,last_error,last_updated
@@ -1664,7 +1664,7 @@ class Feeds extends Handler_Protected {
 					$last_error = $row["last_error"];
 					$last_updated = $row["last_updated"];
 				} else {
-					$feed_title = Feeds::getFeedTitle($feed);
+					$feed_title = self::getFeedTitle($feed);
 				}
 			}
 		}
@@ -1688,7 +1688,7 @@ class Feeds extends Handler_Protected {
 			// proper override_order applied above
 			if ($vfeed_query_part && !$ignore_vfeed_group && get_pref('VFEED_GROUP_BY_FEED', $owner_uid)) {
 
-				if (!(in_array($feed, Feeds::NEVER_GROUP_BY_DATE) && !$cat_view)) {
+				if (!(in_array($feed, self::NEVER_GROUP_BY_DATE) && !$cat_view)) {
 					$yyiw_desc = $order_by == "date_reverse" ? "" : "desc";
 					$yyiw_order_qpart = "yyiw $yyiw_desc, ";
 				} else {
@@ -1869,7 +1869,7 @@ class Feeds extends Handler_Protected {
 
 		while ($line = $sth->fetch()) {
 			array_push($rv, $line["parent_cat"]);
-			$rv = array_merge($rv, Feeds::getParentCategories($line["parent_cat"], $owner_uid));
+			$rv = array_merge($rv, self::getParentCategories($line["parent_cat"], $owner_uid));
 		}
 
 		return $rv;
@@ -1886,7 +1886,7 @@ class Feeds extends Handler_Protected {
 
 		while ($line = $sth->fetch()) {
 			array_push($rv, $line["id"]);
-			$rv = array_merge($rv, Feeds::getChildCategories($line["id"], $owner_uid));
+			$rv = array_merge($rv, self::getChildCategories($line["id"], $owner_uid));
 		}
 
 		return $rv;
@@ -1924,13 +1924,13 @@ class Feeds extends Handler_Protected {
 	}
 
 	static function get_feeds_from_html($url, $content) {
-		$url     = validate_url($url);
+		$url     = UrlHelper::validate($url);
 		$baseUrl = substr($url, 0, strrpos($url, '/') + 1);
 
 		$feedUrls = [];
 
 		$doc = new DOMDocument();
-		if ($doc->loadHTML($content)) {
+		if (@$doc->loadHTML($content)) {
 			$xpath = new DOMXPath($doc);
 			$entries = $xpath->query('/html/head/link[@rel="alternate" and '.
 				'(contains(@type,"rss") or contains(@type,"atom"))]|/html/head/link[@rel="feed"]');
@@ -2032,7 +2032,7 @@ class Feeds extends Handler_Protected {
 	 */
 	static function purge_feed($feed_id, $purge_interval) {
 
-		if (!$purge_interval) $purge_interval = Feeds::feed_purge_interval($feed_id);
+		if (!$purge_interval) $purge_interval = self::feed_purge_interval($feed_id);
 
 		$pdo = Db::pdo();
 
@@ -2117,7 +2117,7 @@ class Feeds extends Handler_Protected {
 		}
 	}
 
-	static function search_to_sql($search, $search_language) {
+	static function search_to_sql($search, $search_language, $owner_uid) {
 
 		$keywords = str_getcsv(trim($search), " ");
 		$query_keywords = array();
@@ -2129,7 +2129,7 @@ class Feeds extends Handler_Protected {
 		if ($search_language)
 			$search_language = $pdo->quote(mb_strtolower($search_language));
 		else
-			$search_language = $pdo->quote("english");
+			$search_language = $pdo->quote(mb_strtolower(get_pref('DEFAULT_SEARCH_LANGUAGE', $owner_uid)));
 
 		foreach ($keywords as $k) {
 			if (strpos($k, "-") === 0) {
@@ -2239,7 +2239,7 @@ class Feeds extends Handler_Protected {
 
 						$user_tz_string = get_pref('USER_TIMEZONE', $_SESSION['uid']);
 						$orig_ts = strtotime(substr($k, 1));
-						$k = date("Y-m-d", convert_timestamp($orig_ts, $user_tz_string, 'UTC'));
+						$k = date("Y-m-d", TimeHelper::convert_timestamp($orig_ts, $user_tz_string, 'UTC'));
 
 						//$k = date("Y-m-d", strtotime(substr($k, 1)));
 

@@ -101,7 +101,7 @@ class Pref_Feeds extends Handler_Protected {
 			$feed['unread'] = -1;
 			$feed['error'] = $feed_line['last_error'];
 			$feed['icon'] = Feeds::getFeedIcon($feed_line['id']);
-			$feed['param'] = make_local_datetime(
+			$feed['param'] = TimeHelper::make_local_datetime(
 				$feed_line['last_updated'], true);
 			$feed['updates_disabled'] = (int)($feed_line['update_interval'] < 0);
 
@@ -268,7 +268,7 @@ class Pref_Feeds extends Handler_Protected {
 				$feed['checkbox'] = false;
 				$feed['error'] = $feed_line['last_error'];
 				$feed['icon'] = Feeds::getFeedIcon($feed_line['id']);
-				$feed['param'] = make_local_datetime(
+				$feed['param'] = TimeHelper::make_local_datetime(
 					$feed_line['last_updated'], true);
 				$feed['unread'] = -1;
 				$feed['type'] = 'feed';
@@ -303,7 +303,7 @@ class Pref_Feeds extends Handler_Protected {
 				$feed['checkbox'] = false;
 				$feed['error'] = $feed_line['last_error'];
 				$feed['icon'] = Feeds::getFeedIcon($feed_line['id']);
-				$feed['param'] = make_local_datetime(
+				$feed['param'] = TimeHelper::make_local_datetime(
 					$feed_line['last_updated'], true);
 				$feed['unread'] = -1;
 				$feed['type'] = 'feed';
@@ -1151,7 +1151,7 @@ class Pref_Feeds extends Handler_Protected {
 		$ids = explode(",", clean($_REQUEST["ids"]));
 
 		foreach ($ids as $id) {
-			Pref_Feeds::remove_feed($id, $_SESSION["uid"]);
+			self::remove_feed($id, $_SESSION["uid"]);
 		}
 
 		return;
@@ -1478,7 +1478,7 @@ class Pref_Feeds extends Handler_Protected {
 				htmlspecialchars($line["title"])."</a>";
 
 			print "</td><td class='text-muted' align='right'>";
-			print make_local_datetime($line['last_article'], false);
+			print TimeHelper::make_local_datetime($line['last_article'], false);
 			print "</td>";
 			print "</tr>";
 
@@ -1703,7 +1703,7 @@ class Pref_Feeds extends Handler_Protected {
 		foreach ($feeds as $feed) {
 			$feed = trim($feed);
 
-			if (validate_url($feed)) {
+			if (UrlHelper::validate($feed)) {
 
 				$this->pdo->beginTransaction();
 
