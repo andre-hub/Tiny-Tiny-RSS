@@ -3,6 +3,7 @@ class Af_RedditImgur extends Plugin {
 
 	/* @var PluginHost $host */
 	private $host;
+	private $domain_blacklist = [ "github.com" ];
 
 	function about() {
 		return array(1.0,
@@ -431,6 +432,9 @@ class Af_RedditImgur extends Plugin {
 				}
 			}
 
+			if ($content_link && $this->is_blacklisted($content_link->getAttribute("href")))
+				return $article;
+
 			$found = $this->inline_stuff($article, $doc, $xpath);
 
 			$node = $doc->getElementsByTagName('body')->item(0);
@@ -506,7 +510,7 @@ class Af_RedditImgur extends Plugin {
 		}
 	}
 
-	private function get_header($url, $useragent = SELF_USER_AGENT, $header) {
+	private function get_header($url, $header, $useragent = SELF_USER_AGENT) {
 		$ret = false;
 
 		if (function_exists("curl_init") && !defined("NO_CURL")) {
@@ -526,11 +530,11 @@ class Af_RedditImgur extends Plugin {
 	}
 
 	private function get_content_type($url, $useragent = SELF_USER_AGENT) {
-		return $this->get_header($url, $useragent, CURLINFO_CONTENT_TYPE);
+		return $this->get_header($url, CURLINFO_CONTENT_TYPE, $useragent);
 	}
 
 	private function get_location($url, $useragent = SELF_USER_AGENT) {
-		return $this->get_header($url, $useragent, CURLINFO_EFFECTIVE_URL);
+		return $this->get_header($url, CURLINFO_EFFECTIVE_URL, $useragent);
 	}
 
 	/**
@@ -566,5 +570,17 @@ class Af_RedditImgur extends Plugin {
 		}
 
 		return $article;
+	}
+
+	private function is_blacklisted($src) {
+		$src_domain = parse_url($src, PHP_URL_HOST);
+
+		foreach ($this->domain_blacklist as $domain) {
+			if (strstr($src_domain, $domain) !== false) {
+				return true;
+			}
+		}
+
+		return false;
 	}
 }
