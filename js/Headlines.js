@@ -1085,6 +1085,7 @@ const Headlines = {
 			}
 		}
 	},
+	/* not exposed in the UI by default, deprecated - ? */
 	archiveSelection: function () {
 		const rows = Headlines.getSelected();
 
@@ -1205,11 +1206,6 @@ const Headlines = {
 				});
 			});
 		}
-	},
-	onActionChanged: function (elem) {
-		// eslint-disable-next-line no-eval
-		eval(elem.value);
-		elem.attr('value', 'false');
 	},
 	scrollToArticleId: function (id) {
 		const container = $("headlines-frame");
