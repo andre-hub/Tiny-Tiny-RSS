@@ -457,6 +457,7 @@ body.ttrss_main .dijitDialog .dlgSecCont {
   margin: 10px 20px;
 }
 body.ttrss_main .dijitDialog header.horizontal + section,
+body.ttrss_main .dijitDialog section.horizontal,
 body.ttrss_main .dijitDialog .dlgSecHoriz + .dlgSecCont {
   margin: 10px 0;
 }
@@ -507,6 +508,11 @@ body.ttrss_main .dijitDialog .dlgButtons {
 body.ttrss_main .dijitDialog footer.text-center {
   text-align: center;
 }
+body.ttrss_main .dijitDialog textarea#tags_str {
+  height: 100px;
+  font-size: 12px;
+  width: 98%;
+}
 body.ttrss_main i.icon-label {
   color: #fff7d5;
 }
@@ -527,22 +533,13 @@ body.ttrss_main #feed_browser_spinner {
   height: 18px;
   width: 18px;
 }
-body.ttrss_main #exceptionDlg .dijitDialogTitleBar {
-  background: red;
-  color: white;
-}
-body.ttrss_main #exceptionDlg .dijitDialogPaneContent {
-  background: #fcc;
-}
-body.ttrss_main #exceptionDlg .error-contents .message {
+body.ttrss_main .exception-contents h3 {
   color: red;
 }
-body.ttrss_main #exceptionDlg .error-contents textarea {
+body.ttrss_main .exception-contents textarea {
   width: 99%;
   height: 200px;
-}
-body.ttrss_main #exceptionDlg .error-contents .dlgButtons {
-  text-align: center;
+  font-size: 11px;
 }
 body.ttrss_main #content-wrap {
   padding: 0px;
@@ -708,11 +705,14 @@ body.ttrss_main #toolbar-frame #toolbar .left i.icon-error {
 }
 body.ttrss_main #toolbar-frame #toolbar i.log-alert {
   color: #ddba1c;
+  cursor: pointer;
 }
 body.ttrss_main #toolbar-frame #toolbar i {
   margin: 0 4px;
 }
 body.ttrss_main #toolbar-frame #toolbar #toolbar-headlines {
+  font-size: 12px;
+  background: transparent;
   padding-right: 4px;
   flex-grow: 2;
   display: flex;
@@ -722,7 +722,8 @@ body.ttrss_main #toolbar-frame #toolbar #toolbar-headlines .left {
   display: flex;
   align-items: center;
 }
-body.ttrss_main #toolbar-frame #toolbar #toolbar-headlines .left #feed_title {
+body.ttrss_main #toolbar-frame #toolbar #toolbar-headlines .left .feed_title,
+body.ttrss_main #toolbar-frame #toolbar #toolbar-headlines .left .cancel_search {
   margin-left: 4px;
 }
 body.ttrss_main #toolbar-frame #toolbar #toolbar-headlines .right {
@@ -754,6 +755,21 @@ body.ttrss_main #header {
   right: 0px;
   top: 0px;
   z-index: 5;
+}
+body.ttrss_main #header i.net-alert,
+body.ttrss_main #header .left i.icon-error {
+  color: red;
+}
+body.ttrss_main #header i.log-alert {
+  color: #ddba1c;
+  cursor: pointer;
+}
+body.ttrss_main #header #updates-available {
+  color: #69C671;
+  padding-right: 4px;
+}
+body.ttrss_main #header i {
+  margin: 0 4px;
 }
 body.ttrss_main #content-insert {
   padding: 0px;
@@ -812,16 +828,18 @@ body.ttrss_main #headlines-spacer a:hover {
 }
 body.ttrss_main ul#filterDlg_Matches,
 body.ttrss_main ul#filterDlg_Actions {
-  max-height: 100px;
-  overflow: auto;
   list-style-type: none;
-  border-style: solid;
-  border-color: #222;
-  border-width: 1px 1px 1px 1px;
-  background-color: #333;
-  margin: 0px 0px 5px 0px;
-  padding: 4px;
-  min-height: 16px;
+  margin: 0;
+  padding: 0;
+  /*max-height : 100px;
+		overflow : auto;
+		border-style : solid;
+		border-color : @border-default;
+		border-width : 1px 1px 1px 1px;
+		background-color : @default-bg;
+		margin : 0px 0px 5px 0px;
+		padding : 4px;
+		min-height : 16px;*/
 }
 body.ttrss_main ul#filterDlg_Matches li,
 body.ttrss_main ul#filterDlg_Actions li {
@@ -860,9 +878,6 @@ body.ttrss_main span.highlight {
 body.ttrss_main #headlines-frame .dijitCheckBox {
   margin-right: 4px;
 }
-body.ttrss_main #editTagsDlg {
-  overflow: visible;
-}
 body.ttrss_main #feedEditDlg img.feedIcon {
   border: 1px solid #ccc;
   padding: 5px;
@@ -888,12 +903,14 @@ body.ttrss_main .dijitTooltipBelow .dijitTooltipConnector {
 body.ttrss_main .dijitTooltipAbove .dijitTooltipConnector {
   border-top-color: #d29745;
 }
-body.ttrss_main .dijitDialog h1:first-of-type,
-body.ttrss_main .dijitDialog h2:first-of-type,
-body.ttrss_main .dijitDialog h3:first-of-type,
-body.ttrss_main .dijitDialog h4:first-of-type {
-  margin-top: 0px;
-}
+/*body.ttrss_main .dijitDialog {
+	h1:first-of-type,
+	h2:first-of-type,
+	h3:first-of-type,
+	h4:first-of-type {
+		margin-top: 0px;
+	}
+}*/
 body.ttrss_main[view-mode="marked"] #feeds-holder #feedTree .dijitTreeRow.Has_Marked .dijitTreeLabel {
   color: #b87d2c;
 }
@@ -972,6 +989,10 @@ body.ttrss_main .panel-scrollable {
   overflow: auto;
   height: 200px;
 }
+body.ttrss_main .panel-scrollable-400px {
+  overflow: auto;
+  height: 400px;
+}
 body.ttrss_main ul.list li {
   padding: 2px;
 }
@@ -1017,6 +1038,10 @@ body.ttrss_utility .pull-right {
 body.ttrss_main .pull-left,
 body.ttrss_utility .pull-left {
   float: left;
+}
+body.ttrss_main .pre-wrap,
+body.ttrss_utility .pre-wrap {
+  white-space: pre-wrap;
 }
 body.ttrss_main .text-error,
 body.ttrss_utility .text-error {
@@ -1412,10 +1437,10 @@ body.ttrss_prefs h4 {
   font-weight: 600;
   color: #ccc;
 }
-body.ttrss_prefs .dijitContentPane h1:first-of-type,
-body.ttrss_prefs .dijitContentPane h2:first-of-type,
-body.ttrss_prefs .dijitContentPane h3:first-of-type {
-  margin-top: 0px;
+body.ttrss_prefs .dijitContentPane > h1:first-of-type,
+body.ttrss_prefs .dijitContentPane > h2:first-of-type,
+body.ttrss_prefs .dijitContentPane > h3:first-of-type {
+  margin-top: 0;
 }
 body.ttrss_prefs #footer,
 body.ttrss_prefs #header {
@@ -1450,22 +1475,13 @@ body.ttrss_prefs .dijitAccordionTitle i.material-icons {
 body.ttrss_prefs .dijitAccordionTitleSelected i.material-icons {
   color: white;
 }
+body.ttrss_prefs #feedsTab {
+  background: #222;
+}
 body.ttrss_prefs .dijitDialog #pref-profiles-list .dijitInlineEditBoxDisplayMode {
   padding: 0px;
 }
-body.ttrss_prefs div#feedlistLoading,
-body.ttrss_prefs div#filterlistLoading,
-body.ttrss_prefs div#labellistLoading {
-  text-align: center;
-  padding: 5px;
-  color: #ccc;
-}
-body.ttrss_prefs div#feedlistLoading img,
-body.ttrss_prefs div#filterlistLoading img,
-body.ttrss_prefs div#labellistLoading {
-  margin-right: 5px;
-}
-body.ttrss_prefs #errorButton {
+body.ttrss_prefs #pref_feeds_errors_btn {
   color: red;
 }
 body.ttrss_prefs .user-css-editor {
@@ -1489,27 +1505,108 @@ body.ttrss_prefs fieldset.prefs .help-text-bottom {
   margin-top: 10px;
 }
 body.ttrss_prefs fieldset.plugin label.description {
-  width: 600px;
+  width: 550px;
   margin-right: 150px;
   display: inline-block;
 }
 body.ttrss_prefs fieldset.plugin label.description .dijitCheckBox {
   margin-right: 10px;
 }
-body.ttrss_prefs .prefErrorLog tr td {
-  font-size: 10px;
+body.ttrss_prefs table th {
+  text-align: left;
 }
-body.ttrss_prefs .prefErrorLog tr .errno {
+body.ttrss_prefs table td.checkbox {
+  text-align: center;
+  width: 32px;
+}
+body.ttrss_prefs ul.prefs-plugin-list {
+  margin: 0;
+  padding: 0;
+}
+body.ttrss_prefs ul.prefs-plugin-list li {
+  display: flex;
+  align-items: center;
+  border-bottom: #222 1px solid;
+  line-height: 30px;
+}
+body.ttrss_prefs ul.prefs-plugin-list li.text-center {
+  border: 0;
+  display: block;
+}
+body.ttrss_prefs ul.prefs-plugin-list li > * {
+  padding: 8px;
+}
+body.ttrss_prefs ul.prefs-plugin-list li label.checkbox {
+  display: flex;
+  align-items: center;
+  min-width: 200px;
+  cursor: pointer;
+}
+body.ttrss_prefs ul.prefs-plugin-list li label.checkbox.system {
+  cursor: auto;
+}
+body.ttrss_prefs ul.prefs-plugin-list li label.checkbox .name {
+  flex-grow: 2;
+  display: inline-block;
+  text-align: right;
+  font-weight: bold;
+}
+body.ttrss_prefs ul.prefs-plugin-list li .actions {
+  flex-grow: 2;
+  text-align: right;
+}
+body.ttrss_prefs ul.prefs-plugin-list li .version {
+  min-width: 200px;
+  text-align: right;
+}
+body.ttrss_prefs .plugin-installer-list li,
+body.ttrss_prefs .plugin-updater-list li {
+  border-bottom: #222 1px solid;
+}
+body.ttrss_prefs .plugin-installer-list li > *,
+body.ttrss_prefs .plugin-updater-list li > * {
+  padding: 8px 4px;
+}
+body.ttrss_prefs .plugin-installer-list li > pre,
+body.ttrss_prefs .plugin-updater-list li > pre {
+  margin: 0;
+}
+body.ttrss_prefs .plugin-installer-list li h3,
+body.ttrss_prefs .plugin-updater-list li h3 {
+  margin: 0;
+}
+body.ttrss_prefs .plugin-installer-list li.text-center,
+body.ttrss_prefs .plugin-updater-list li.text-center {
+  border: 0;
+}
+body.ttrss_prefs .plugin-installer-list .plugin-installed > *,
+body.ttrss_prefs .plugin-updater-list .plugin-installed > * {
+  opacity: 0.5;
+}
+body.ttrss_prefs .users-list td,
+body.ttrss_prefs .event-log td,
+body.ttrss_prefs .users-list th,
+body.ttrss_prefs .event-log th {
+  cursor: pointer;
+  padding: 8px;
+  border-bottom: #222 1px solid;
+}
+body.ttrss_prefs .event-log tr td,
+body.ttrss_prefs .event-log tr th {
+  vertical-align: top;
+}
+body.ttrss_prefs .event-log tr .errno {
   font-style: italic;
   font-weight: bold;
   white-space: nowrap;
 }
-body.ttrss_prefs .prefErrorLog tr .errstr {
+body.ttrss_prefs .event-log tr .errstr {
   word-break: break-all;
+  white-space: pre-wrap;
 }
-body.ttrss_prefs .prefErrorLog tr .filename,
-body.ttrss_prefs .prefErrorLog tr .login,
-body.ttrss_prefs .prefErrorLog tr .timestamp {
+body.ttrss_prefs .event-log tr .filename,
+body.ttrss_prefs .event-log tr .login,
+body.ttrss_prefs .event-log tr .timestamp {
   color: #ccc;
 }
 body.ttrss_prefs hr {
@@ -1594,6 +1691,17 @@ body.ttrss_utility fieldset > label.checkbox {
 .flat .dijitToolbar {
   font-size: 13px;
   padding: 0px;
+}
+.flat .dijitToolbar .dijitTextBox .dijitInputContainer .dijitInputInner {
+  line-height: 10px;
+}
+.flat .dijitToolbar .dijitTextBox .dijitInputContainer .dijitPlaceHolder {
+  line-height: 15px;
+  margin-left: 0;
+}
+.flat .dijitToolbar label {
+  position: relative;
+  top: 2px;
 }
 .flat .dijitAccordionContainer {
   box-shadow: 0px 0px 8px rgba(0, 0, 0, 0.1);
@@ -1687,13 +1795,16 @@ body.ttrss_utility fieldset > label.checkbox {
   border-width: 1px;
   color: #ccc;
 }
+.flat .dijitDialog {
+  width: 600px;
+}
 @font-face {
   font-family: 'Material Icons';
   font-style: normal;
   font-weight: 400;
-  src: url(../lib/iconfont/MaterialIcons-Regular.eot);
+  src: url(../vendor/mervick/material-design-icons/fonts/MaterialIcons-Regular.eot);
   /* For IE6-8 */
-  src: local('Material Icons'), local('MaterialIcons-Regular'), url(../lib/iconfont/MaterialIcons-Regular.woff2) format('woff2'), url(../lib/iconfont/MaterialIcons-Regular.woff) format('woff'), url(../lib/iconfont/MaterialIcons-Regular.ttf) format('truetype');
+  src: local('Material Icons'), local('MaterialIcons-Regular'), url(../vendor/mervick/material-design-icons/fonts/MaterialIcons-Regular.woff2) format('woff2'), url(../vendor/mervick/material-design-icons/fonts/MaterialIcons-Regular.woff) format('woff'), url(../vendor/mervick/material-design-icons/fonts/MaterialIcons-Regular.ttf) format('truetype');
 }
 .material-icons {
   font-family: 'Material Icons';
@@ -1802,6 +1913,10 @@ body.ttrss_utility.installer,
 body.ttrss_utility.feed_debugger {
   margin: 2em;
 }
+body.ttrss_utility.installer pre,
+body.ttrss_utility.feed_debugger pre {
+  white-space: pre-wrap;
+}
 body.ttrss_utility.share_popup {
   margin: 0;
   padding: 0;
@@ -1888,23 +2003,6 @@ body.flat.ttrss_main.ttrss_prefs div.prefHelp {
 }
 body.flat.ttrss_main.ttrss_prefs hr {
   border-color: #666;
-}
-body.flat.ttrss_main {
-  /*
-	.post .content img,
-	.cdm .content-inner img,
-	.post .content video,
-	.cdm .content-inner video {
-		transition : opacity 0.2s linear, filter 0.2s linear;
-	}
-
-	.post .content img:not(:hover),
-	.cdm .content-inner img:not(:hover),
-	.post .content video:not(:hover),
-	.cdm .content-inner video:not(:hover) {
-		opacity : 0.5;
-		filter: grayscale(80%);
-	} */
 }
 body.flat.ttrss_main img[src*='indicator_white.gif'] {
   filter: invert(1);
@@ -2030,6 +2128,9 @@ body.flat.ttrss_main .dijitToolbar .dijitSelect:not(.dijitHover) .dijitButtonCon
 body.flat.ttrss_main .dijitToolbar .dijitSelect:not(.dijitHover) .dijitButtonNode {
   background-color: #222;
 }
+body.flat.ttrss_main .dijitSplitterHover {
+  background-color: rgba(255, 255, 255, 0.25);
+}
 body.flat.ttrss_main .dijitCheckBox:not(.dijitChecked)::before {
   color: #999999;
   background: #222;
@@ -2082,6 +2183,12 @@ body.flat.ttrss_main ul#filterDlg_Matches,
 body.flat.ttrss_main ul#filterDlg_Actions {
   background: #222;
   border-color: #666;
+}
+body.flat.ttrss_main .post .content img,
+body.flat.ttrss_main .cdm .content-inner img,
+body.flat.ttrss_main .post .content video,
+body.flat.ttrss_main .cdm .content-inner video {
+  filter: saturate(0.9) brightness(0.8);
 }
 body.flat.ttrss_main .article-note {
   background: #b87d2c;

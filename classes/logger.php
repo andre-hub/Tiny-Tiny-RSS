@@ -3,7 +3,7 @@ class Logger {
 	private static $instance;
 	private $adapter;
 
-	public static $errornames = array(
+	const ERROR_NAMES = [
 		1			=> 'E_ERROR',
 		2			=> 'E_WARNING',
 		4			=> 'E_PARSE',
@@ -19,10 +19,14 @@ class Logger {
 		4096		=> 'E_RECOVERABLE_ERROR',
 		8192		=> 'E_DEPRECATED',
 		16384		=> 'E_USER_DEPRECATED',
-		32767		=> 'E_ALL');
+		32767		=> 'E_ALL'];
 
-	function log_error($errno, $errstr, $file, $line, $context) {
-		if ($errno == E_NOTICE) return false;
+	static function log_error(int $errno, string $errstr, string $file, int $line, $context) {
+		return self::get_instance()->_log_error($errno, $errstr, $file, $line, $context);
+	}
+
+	private function _log_error($errno, $errstr, $file, $line, $context) {
+		//if ($errno == E_NOTICE) return false;
 
 		if ($this->adapter)
 			return $this->adapter->log_error($errno, $errstr, $file, $line, $context);
@@ -30,7 +34,11 @@ class Logger {
 			return false;
 	}
 
-	function log($errno, $errstr, $context = "") {
+	static function log(int $errno, string $errstr, $context = "") {
+		return self::get_instance()->_log($errno, $errstr, $context);
+	}
+
+	private function _log(int $errno, string $errstr, $context = "") {
 		if ($this->adapter)
 			return $this->adapter->log_error($errno, $errstr, '', 0, $context);
 		else
@@ -42,7 +50,7 @@ class Logger {
 	}
 
 	function __construct() {
-		switch (LOG_DESTINATION) {
+		switch (Config::get(Config::LOG_DESTINATION)) {
 		case "sql":
 			$this->adapter = new Logger_SQL();
 			break;
@@ -55,13 +63,20 @@ class Logger {
 		default:
 			$this->adapter = false;
 		}
+
+		if ($this->adapter && !implements_interface($this->adapter, "Logger_Adapter"))
+			user_error("Adapter for LOG_DESTINATION: " . Config::LOG_DESTINATION . " does not implement required interface.", E_USER_ERROR);
 	}
 
-	public static function get() {
+	private static function get_instance() : Logger {
 		if (self::$instance == null)
 			self::$instance = new self();
 
 		return self::$instance;
 	}
 
+	static function get() : Logger {
+		user_error("Please don't use Logger::get(), call Logger::log(...) instead.", E_USER_DEPRECATED);
+		return self::get_instance();
+	}
 }

@@ -10,10 +10,10 @@ body.ttrss_prefs {
 	}
 
 	.dijitContentPane {
-		h1:first-of-type,
-		h2:first-of-type,
-		h3:first-of-type {
-			margin-top: 0px;
+		> h1:first-of-type,
+		> h2:first-of-type,
+		> h3:first-of-type {
+			margin-top: 0;
 		}
 	}
 
@@ -57,21 +57,15 @@ body.ttrss_prefs {
 		color : white;
 	}
 
+	#feedsTab {
+		background : @color-panel-bg;
+	}
+
 	.dijitDialog #pref-profiles-list .dijitInlineEditBoxDisplayMode {
 		padding : 0px;
 	}
 
-	div#feedlistLoading, div#filterlistLoading, div#labellistLoading {
-		text-align : center;
-		padding : 5px;
-		color : @default-text;
-	}
-
-	div#feedlistLoading img, div#filterlistLoading img, div#labellistLoading {
-		margin-right : 5px;
-	}
-
-	#errorButton {
+	#pref_feeds_errors_btn {
 		color : red;
 	}
 
@@ -102,7 +96,7 @@ body.ttrss_prefs {
 
 	fieldset.plugin {
 		label.description {
-			width : 600px;
+			width : 550px;
 			margin-right : 150px;
 			display : inline-block;
 
@@ -112,10 +106,106 @@ body.ttrss_prefs {
 		}
 	}
 
-	.prefErrorLog {
+	table {
+		th {
+			text-align : left;
+		}
+
+		td.checkbox {
+			text-align : center;
+			width : 32px;
+		}
+
+	}
+
+	ul.prefs-plugin-list {
+		margin : 0;
+		padding : 0;
+
+		li {
+			display : flex;
+			align-items : center;
+			border-bottom: @border-default 1px solid;
+			line-height : 30px;
+
+			&.text-center {
+				border : 0;
+				display : block;
+			}
+
+			> * {
+				padding : 8px;
+			}
+
+			label.checkbox {
+				display : flex;
+				align-items : center;
+				min-width : 200px;
+				cursor : pointer;
+
+				&.system {
+					cursor : auto;
+				}
+
+				.name {
+					flex-grow: 2;
+					display: inline-block;
+					text-align: right;
+					font-weight : bold;
+				}
+			}
+
+			.actions {
+				flex-grow : 2;
+				text-align: right;
+			}
+
+			.version {
+				min-width: 200px;
+				text-align: right;
+			}
+		}
+	}
+
+	.plugin-installer-list, .plugin-updater-list {
+		li {
+			border-bottom: @border-default 1px solid;
+
+			> * {
+				padding : 8px 4px;
+			}
+
+			> pre {
+				margin : 0;
+			}
+
+			h3 {
+				margin : 0;
+			}
+
+			&.text-center {
+				border : 0;
+			}
+		}
+
+		.plugin-installed > * {
+			opacity : 0.5;
+		}
+	}
+
+	.users-list,
+	.event-log {
+		td, th {
+			cursor : pointer;
+			padding : 8px;
+			border-bottom: @border-default 1px solid;
+		}
+	}
+
+	.event-log {
 		tr {
-			td {
-				font-size: 10px;
+			td, th {
+				vertical-align : top;
 			}
 
 			.errno {
@@ -125,7 +215,8 @@ body.ttrss_prefs {
 			}
 
 			.errstr {
-				word-break: break-all;
+				word-break : break-all;
+				white-space : pre-wrap;
 			}
 
 			.filename, .login, .timestamp {

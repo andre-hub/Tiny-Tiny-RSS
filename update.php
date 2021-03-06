@@ -1,21 +1,19 @@
 #!/usr/bin/env php
 <?php
-	set_include_path(dirname(__FILE__) ."/include" . PATH_SEPARATOR .
+	set_include_path(__DIR__ ."/include" . PATH_SEPARATOR .
 		get_include_path());
 
 	define('DISABLE_SESSIONS', true);
 
-	chdir(dirname(__FILE__));
+	chdir(__DIR__);
 
 	require_once "autoload.php";
 	require_once "functions.php";
-	require_once "config.php";
-	require_once "sanity_check.php";
-	require_once "db.php";
-	require_once "db-prefs.php";
+
+	Config::sanity_check();
 
 	function make_stampfile($filename) {
-		$fp = fopen(LOCK_DIRECTORY . "/$filename", "w");
+		$fp = fopen(Config::get(Config::LOCK_DIRECTORY) . "/$filename", "w");
 
 		if (flock($fp, LOCK_EX | LOCK_NB)) {
 			fwrite($fp, time() . "\n");
@@ -31,9 +29,9 @@
 
 		$days = (int) $days;
 
-		if (DB_TYPE == "pgsql") {
+		if (Config::get(Config::DB_TYPE) == "pgsql") {
 			$interval_query = "date_updated < NOW() - INTERVAL '$days days'";
-		} else if (DB_TYPE == "mysql") {
+		} else /*if (Config::get(Config::DB_TYPE) == "mysql") */ {
 			$interval_query = "date_updated < DATE_SUB(NOW(), INTERVAL $days DAY)";
 		}
 
@@ -72,9 +70,6 @@
 		return $tags_deleted;
 	}
 
-	if (!defined('PHP_EXECUTABLE'))
-		define('PHP_EXECUTABLE', '/usr/bin/php');
-
 	$pdo = Db::pdo();
 
 	init_plugins();
@@ -106,33 +101,13 @@
 		array_push($longopts, $command . $data["suffix"]);
 	}
 
-	$options = getopt("", $longopts);
-
-	if (!is_array($options)) {
-		die("error: getopt() failed. ".
-			"Most probably you are using PHP CGI to run this script ".
-			"instead of required PHP CLI. Check tt-rss wiki page on updating feeds for ".
-			"additional information.\n");
-	}
-
-	if (count($options) == 0 && !defined('STDIN')) {
-		?>
-		<!DOCTYPE html>
-		<html>
-		<head>
-		<title>Tiny Tiny RSS data update script.</title>
-		<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
-		</head>
-
-		<body>
-		<h1><?php echo __("Tiny Tiny RSS data update script.") ?></h1>
-
-		<?php print_error("Please run this script from the command line. Use option \"--help\" to display command help if this error is displayed erroneously."); ?>
-
-		</body></html>
-	<?php
+	if (php_sapi_name() != "cli") {
+		header("Content-type: text/plain");
+		print "Please run this script from the command line.\n";
 		exit;
 	}
+
+	$options = getopt("", $longopts);
 
 	if (count($options) == 0 || isset($options["help"]) ) {
 		print "Tiny Tiny RSS data update script.\n\n";
@@ -170,12 +145,8 @@
 		require_once "errorhandler.php";
 	}
 
-	if (!isset($options['update-schema'])) {
-		$schema_version = get_schema_version();
-
-		if ($schema_version != SCHEMA_VERSION) {
-			die("Schema version is wrong, please upgrade the database (--update-schema).\n");
-		}
+	if (!isset($options['update-schema']) && Config::is_migration_needed()) {
+		die("Schema version is wrong, please upgrade the database (--update-schema).\n");
 	}
 
 	Debug::set_enabled(true);
@@ -236,10 +207,10 @@
 	}
 
 	if (isset($options["feeds"])) {
-		RSSUtils::update_daemon_common(DAEMON_FEED_LIMIT, $options);
+		RSSUtils::update_daemon_common(Config::get(Config::DAEMON_FEED_LIMIT), $options);
 		RSSUtils::housekeeping_common();
 
-		PluginHost::getInstance()->run_hooks(PluginHost::HOOK_UPDATE_TASK, "hook_update_task", $options);
+		PluginHost::getInstance()->run_hooks(PluginHost::HOOK_UPDATE_TASK, $options);
 	}
 
 	if (isset($options["daemon"])) {
@@ -248,10 +219,10 @@
 			$log = isset($options['log']) ? '--log '.$options['log'] : '';
 			$log_level = isset($options['log-level']) ? '--log-level '.$options['log-level'] : '';
 
-			passthru(PHP_EXECUTABLE . " " . $argv[0] ." --daemon-loop $quiet $log $log_level");
+			passthru(Config::get(Config::PHP_EXECUTABLE) . " " . $argv[0] ." --daemon-loop $quiet $log $log_level");
 
 			// let's enforce a minimum spawn interval as to not forkbomb the host
-			$spawn_interval = max(60, DAEMON_SLEEP_INTERVAL);
+			$spawn_interval = max(60, Config::get(Config::DAEMON_SLEEP_INTERVAL));
 
 			Debug::log("Sleeping for $spawn_interval seconds...");
 			sleep($spawn_interval);
@@ -261,14 +232,14 @@
 	if (isset($options["update-feed"])) {
 		try {
 
-			if (!RSSUtils::update_rss_feed($options["update-feed"], true))
+			if (!RSSUtils::update_rss_feed((int)$options["update-feed"], true))
 				exit(100);
 
 		} catch (PDOException $e) {
 			Debug::log(sprintf("Exception while updating feed %d: %s (%s:%d)",
 				$options["update-feed"], $e->getMessage(), $e->getFile(), $e->getLine()));
 
-			Logger::get()->log_error(E_USER_WARNING, $e->getMessage(), $e->getFile(), $e->getLine(), $e->getTraceAsString());
+			Logger::log_error(E_USER_WARNING, $e->getMessage(), $e->getFile(), $e->getLine(), $e->getTraceAsString());
 
 			exit(110);
 		}
@@ -279,12 +250,12 @@
 			Debug::log("warning: unable to create stampfile\n");
 		}
 
-		RSSUtils::update_daemon_common(isset($options["pidlock"]) ? 50 : DAEMON_FEED_LIMIT, $options);
+		RSSUtils::update_daemon_common(isset($options["pidlock"]) ? 50 : Config::get(Config::DAEMON_FEED_LIMIT), $options);
 
-		if (!isset($options["pidlock"]) || $options["task"] == 0)
+		if (!isset($options["pidlock"]) || $options["task"] == "0")
 			RSSUtils::housekeeping_common();
 
-		PluginHost::getInstance()->run_hooks(PluginHost::HOOK_UPDATE_TASK, "hook_update_task", $op);
+		PluginHost::getInstance()->run_hooks(PluginHost::HOOK_UPDATE_TASK, $options);
 	}
 
 	if (isset($options["cleanup-tags"])) {
@@ -301,7 +272,7 @@
 
 		Debug::log("clearing existing indexes...");
 
-		if (DB_TYPE == "pgsql") {
+		if (Config::get(Config::DB_TYPE) == "pgsql") {
 			$sth = $pdo->query( "SELECT relname FROM
 				pg_catalog.pg_class WHERE relname LIKE 'ttrss_%'
 					AND relname NOT LIKE '%_pkey'
@@ -312,7 +283,7 @@
 		}
 
 		while ($line = $sth->fetch()) {
-			if (DB_TYPE == "pgsql") {
+			if (Config::get(Config::DB_TYPE) == "pgsql") {
 				$statement = "DROP INDEX " . $line["relname"];
 				Debug::log($statement);
 			} else {
@@ -323,9 +294,9 @@
 			$pdo->query($statement);
 		}
 
-		Debug::log("reading indexes from schema for: " . DB_TYPE);
+		Debug::log("reading indexes from schema for: " . Config::get(Config::DB_TYPE));
 
-		$fp = fopen("schema/ttrss_schema_" . DB_TYPE . ".sql", "r");
+		$fp = fopen("schema/ttrss_schema_" . Config::get(Config::DB_TYPE) . ".sql", "r");
 		if ($fp) {
 			while ($line = fgets($fp)) {
 				$matches = array();
@@ -399,18 +370,7 @@
 	}
 
 	if (isset($options["update-schema"])) {
-		Debug::log("Checking for updates (" . DB_TYPE . ")...");
-
-		$updater = new DbUpdater(Db::pdo(), DB_TYPE, SCHEMA_VERSION);
-
-		if ($updater->isUpdateRequired()) {
-			Debug::log("Schema update required, version " . $updater->getSchemaVersion() . " to " . SCHEMA_VERSION);
-
-			if (DB_TYPE == "mysql")
-				Debug::Log("READ THIS: Due to MySQL limitations, your database is not completely protected while updating.\n".
-					"Errors may put it in an inconsistent state requiring manual rollback.\nBACKUP YOUR DATABASE BEFORE CONTINUING.");
-			else
-				Debug::log("WARNING: please backup your database before continuing.");
+		if (Config::is_migration_needed()) {
 
 			if ($options["update-schema"] != "force-yes") {
 				Debug::log("Type 'yes' to continue.");
@@ -418,29 +378,19 @@
 				if (read_stdin() != 'yes')
 					exit;
 			} else {
-				Debug::log("Proceeding to update without confirmation...");
+				Debug::log("Proceeding to update without confirmation.");
 			}
 
-			Debug::log("Performing updates to version " . SCHEMA_VERSION . "...");
-
-			for ($i = $updater->getSchemaVersion() + 1; $i <= SCHEMA_VERSION; $i++) {
-				Debug::log("* Updating to version $i...");
-
-				$result = $updater->performUpdateTo($i, false);
-
-				if ($result) {
-					Debug::log("* Completed.");
-				} else {
-					Debug::log("One of the updates failed. Either retry the process or perform updates manually.");
-					return;
-				}
+			if (!isset($options["log-level"])) {
+				Debug::set_loglevel(Debug::$LOG_VERBOSE);
 			}
 
-			Debug::log("All done.");
+			$migrations = Config::get_migrations();
+			$migrations->migrate();
+
 		} else {
 			Debug::log("Database schema is already at latest version.");
 		}
-
 	}
 
 	if (isset($options["gen-search-idx"])) {
@@ -483,8 +433,8 @@
 
 	if (isset($options["list-plugins"])) {
 		$tmppluginhost = new PluginHost();
-		$tmppluginhost->load_all($tmppluginhost::KIND_ALL, false);
-		$enabled = array_map("trim", explode(",", PLUGINS));
+		$tmppluginhost->load_all($tmppluginhost::KIND_ALL);
+		$enabled = array_map("trim", explode(",", Config::get(Config::PLUGINS)));
 
 		echo "List of all available plugins:\n";
 
@@ -504,7 +454,7 @@
 	}
 
 	if (isset($options["debug-feed"])) {
-		$feed = $options["debug-feed"];
+		$feed = (int) $options["debug-feed"];
 
 		if (isset($options["force-refetch"])) $_REQUEST["force_refetch"] = true;
 		if (isset($options["force-rehash"])) $_REQUEST["force_rehash"] = true;
@@ -525,13 +475,10 @@
 
 		Debug::log("Exporting feeds of user $user to $filename as OPML...");
 
-		$sth = $pdo->prepare("SELECT id FROM ttrss_users WHERE login = ?");
-		$sth->execute([$user]);
-
-		if ($res = $sth->fetch()) {
+		if ($owner_uid = UserHelper::find_user_by_login($user)) {
 			$opml = new OPML("");
 
-			$rc = $opml->opml_export($filename, $res["id"], false, true, true);
+			$rc = $opml->opml_export($filename, $owner_uid, false, true, true);
 
 			Debug::log($rc ? "Success." : "Failed.");
 		} else {
@@ -542,8 +489,8 @@
 
 	PluginHost::getInstance()->run_commands($options);
 
-	if (file_exists(LOCK_DIRECTORY . "/$lock_filename"))
+	if (file_exists(Config::get(Config::LOCK_DIRECTORY) . "/$lock_filename"))
 		if (strtoupper(substr(PHP_OS, 0, 3)) == 'WIN')
 			fclose($lock_handle);
-		unlink(LOCK_DIRECTORY . "/$lock_filename");
+		unlink(Config::get(Config::LOCK_DIRECTORY) . "/$lock_filename");
 ?>

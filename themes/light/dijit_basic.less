@@ -40,6 +40,22 @@
 	.dijitToolbar {
 		font-size: 13px;
 		padding: 0px;
+
+		.dijitTextBox .dijitInputContainer {
+			.dijitInputInner {
+				line-height : 10px;
+			}
+
+			.dijitPlaceHolder {
+				line-height : 15px;
+				margin-left : 0;
+			}
+		}
+
+		label {
+			position : relative;
+			top : 2px;
+		}
 	}
 
 	.dijitAccordionContainer {
@@ -165,6 +181,10 @@
 			border-width : 1px;
 			color : @default-text;
 		}
+	}
+
+	.dijitDialog {
+		width : 600px;
 	}
 
 }
