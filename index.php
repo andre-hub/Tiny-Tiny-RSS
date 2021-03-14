@@ -31,13 +31,11 @@
 	<?php if ($_SESSION["uid"] && empty($_SESSION["safe_mode"])) {
 		$theme = get_pref(Prefs::USER_CSS_THEME);
 		if ($theme && theme_exists("$theme")) {
-			echo stylesheet_tag(get_theme_path($theme), 'theme_css');
+			echo stylesheet_tag(get_theme_path($theme), ['id' => 'theme_css']);
 		}
 	} ?>
 
-	<?php if (theme_exists(Config::get(Config::LOCAL_OVERRIDE_STYLESHEET))) {
-		echo stylesheet_tag(get_theme_path(Config::get(Config::LOCAL_OVERRIDE_STYLESHEET)));
-	} ?>
+	<?= Config::get_override_links() ?>
 
 	<script type="text/javascript">
 		const __csrf_token = "<?= $_SESSION["csrf_token"]; ?>";
@@ -168,10 +166,10 @@
 
             </div>
 
-            <form id="toolbar-main" action="" style="order : 20" onsubmit='return false'>
+            <form id="toolbar-main" dojoType="dijit.form.Form" action="" style="order : 20" onsubmit="return false">
 
             <select name="view_mode" title="<?= __('Show articles') ?>"
-                onchange="App.onViewModeChanged()"
+                onchange="Feeds.onViewModeChanged()"
                 dojoType="fox.form.Select">
                 <option selected="selected" value="adaptive"><?= __('Adaptive') ?></option>
                 <option value="all_articles"><?= __('All Articles') ?></option>
@@ -179,11 +177,10 @@
                 <option value="published"><?= __('Published') ?></option>
                 <option value="unread"><?= __('Unread') ?></option>
                 <option value="has_note"><?= __('With Note') ?></option>
-                <!-- <option value="noscores"><?= __('Ignore Scoring') ?></option> -->
             </select>
 
 			<select title="<?= __('Sort articles') ?>"
-                onchange="App.onViewModeChanged()"
+                onchange="Feeds.onViewModeChanged()"
                 dojoType="fox.form.Select" name="order_by">
 
 				<option selected="selected" value="default"><?= __('Default') ?></option>
@@ -200,7 +197,7 @@
 				?>
             </select>
 
-            <div dojoType="fox.form.ComboButton" onclick="Feeds.catchupCurrent()">
+            <div class="catchup-button" dojoType="fox.form.ComboButton" onclick="Feeds.catchupCurrent()">
                 <span><?= __('Mark as read') ?></span>
                 <div dojoType="dijit.DropDownMenu">
                     <div dojoType="dijit.MenuItem" onclick="Feeds.catchupCurrent('1day')">

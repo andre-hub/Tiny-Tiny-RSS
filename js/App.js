@@ -18,6 +18,15 @@ const App = {
    is_prefs: false,
    LABEL_BASE_INDEX: -1024,
    _translations: {},
+   Hash: {
+      get: function() {
+         return dojo.queryToObject(window.location.hash.substring(1));
+      },
+      set: function(params) {
+         const obj = dojo.queryToObject(window.location.hash.substring(1));
+         window.location.hash = dojo.objectToQuery({...obj, ...params});
+      }
+   },
    l10n: {
       ngettext: function(msg1, msg2, n) {
          return self.__((parseInt(n) > 1) ? msg2 : msg1);
@@ -505,9 +514,12 @@ const App = {
                   this.LABEL_BASE_INDEX = parseInt(params[k]);
                   break;
                case "cdm_auto_catchup":
-                  if (params[k] == 1) {
-                     const hl = App.byId("headlines-frame");
-                     if (hl) hl.addClassName("auto_catchup");
+                  {
+                     const headlines = App.byId("headlines-frame");
+
+                  // we could be in preferences
+                     if (headlines)
+                        headlines.setAttribute("data-auto-catchup", params[k] ? "true" : "false");
                   }
                   break;
                case "hotkeys":
@@ -676,15 +688,16 @@ const App = {
    checkBrowserFeatures: function() {
       let errorMsg = "";
 
-      ['MutationObserver'].forEach(function(wf) {
-         if (!(wf in window)) {
-            errorMsg = `Browser feature check failed: <code>window.${wf}</code> not found.`;
+      ['MutationObserver', 'requestIdleCallback'].forEach((t) => {
+         if (!(t in window)) {
+            errorMsg = `Browser check failed: <code>window.${t}</code> not found.`;
             throw new Error(errorMsg);
          }
       });
 
-      if (errorMsg) {
-         this.Error.fatal(errorMsg, {info: navigator.userAgent});
+      if (typeof Promise.allSettled == "undefined") {
+         errorMsg = `Browser check failed: <code>Promise.allSettled</code> is not defined.`;
+         throw new Error(errorMsg);
       }
 
       return errorMsg == "";
@@ -768,13 +781,10 @@ const App = {
                }
             });
 
-         const toolbar = document.forms["toolbar-main"];
-
-         dijit.getEnclosingWidget(toolbar.view_mode).attr('value',
-            this.getInitParam("default_view_mode"));
-
-         dijit.getEnclosingWidget(toolbar.order_by).attr('value',
-            this.getInitParam("default_view_order_by"));
+         dijit.byId('toolbar-main').setValues({
+            view_mode: this.getInitParam("default_view_mode"),
+            order_by: this.getInitParam("default_view_order_by")
+         });
 
          this.setLoadingProgress(50);
 
@@ -841,13 +851,6 @@ const App = {
 
       document.title = tmp;
    },
-   onViewModeChanged: function() {
-      const view_mode = document.forms["toolbar-main"].view_mode.value;
-
-      App.findAll("body")[0].setAttribute("view-mode", view_mode);
-
-      return Feeds.reloadCurrent('');
-   },
    hotkeyHandler: function(event) {
       if (event.target.nodeName == "INPUT" || event.target.nodeName == "TEXTAREA") return;
 
@@ -869,40 +872,43 @@ const App = {
    },
    setWidescreen: function(wide) {
       const article_id = Article.getActive();
+      const headlines_frame = App.byId("headlines-frame");
+      const content_insert = dijit.byId("content-insert");
+
+      // TODO: setStyle stuff should probably be handled by CSS
 
       if (wide) {
          dijit.byId("headlines-wrap-inner").attr("design", 'sidebar');
-         dijit.byId("content-insert").attr("region", "trailing");
+         content_insert.attr("region", "trailing");
 
-         dijit.byId("content-insert").domNode.setStyle({width: '50%',
+         content_insert.domNode.setStyle({width: '50%',
             height: 'auto',
             borderTopWidth: '0px' });
 
          if (parseInt(Cookie.get("ttrss_ci_width")) > 0) {
-            dijit.byId("content-insert").domNode.setStyle(
+            content_insert.domNode.setStyle(
                {width: Cookie.get("ttrss_ci_width") + "px" });
          }
 
-         App.byId("headlines-frame").setStyle({ borderBottomWidth: '0px' });
-         App.byId("headlines-frame").addClassName("wide");
+         headlines_frame.setStyle({ borderBottomWidth: '0px' });
 
       } else {
 
-         dijit.byId("content-insert").attr("region", "bottom");
+         content_insert.attr("region", "bottom");
 
-         dijit.byId("content-insert").domNode.setStyle({width: 'auto',
+         content_insert.domNode.setStyle({width: 'auto',
             height: '50%',
             borderTopWidth: '0px'});
 
          if (parseInt(Cookie.get("ttrss_ci_height")) > 0) {
-            dijit.byId("content-insert").domNode.setStyle(
+            content_insert.domNode.setStyle(
                {height: Cookie.get("ttrss_ci_height") + "px" });
          }
 
-         App.byId("headlines-frame").setStyle({ borderBottomWidth: '1px' });
-         App.byId("headlines-frame").removeClassName("wide");
-
+         headlines_frame.setStyle({ borderBottomWidth: '1px' });
       }
+
+      headlines_frame.setAttribute("data-is-wide-screen", wide ? "true" : "false");
 
       Article.close();
 
@@ -1103,6 +1109,12 @@ const App = {
          this.hotkey_actions["feed_reverse"] = () => {
             Headlines.reverse();
          };
+         this.hotkey_actions["feed_toggle_grid"] = () => {
+            xhr.json("backend.php", {op: "rpc", method: "togglepref", key: "CDM_ENABLE_GRID"}, (reply) => {
+               App.setInitParam("cdm_enable_grid", reply.value);
+               Headlines.renderAgain();
+            })
+         };
          this.hotkey_actions["feed_toggle_vgroup"] = () => {
             xhr.post("backend.php", {op: "rpc", method: "togglepref", key: "VFEED_GROUP_BY_FEED"}, () => {
                Feeds.reloadCurrent();
@@ -1195,6 +1207,9 @@ const App = {
                Headlines.renderAgain();
             });
          };
+         this.hotkey_actions["article_span_grid"] = () => {
+            Article.cdmToggleGridSpan(Article.getActive());
+         };
       }
    },
    openPreferences: function(tab) {
@@ -1269,6 +1284,6 @@ const App = {
          default:
             console.log("quickMenuGo: unknown action: " + opid);
       }
-   }
+   },
 }
 

@@ -152,7 +152,7 @@ class Handler_Public extends Handler {
 					$tpl->setVariable('ARTICLE_ENCLOSURE_LENGTH', "", true);
 				}
 
-				list ($og_image, $og_stream) = Article::_get_image($enclosures, $line['content'], $feed_site_url);
+				list ($og_image, $og_stream) = Article::_get_image($enclosures, $line['content'], $feed_site_url, $line);
 
 				$tpl->setVariable('ARTICLE_OG_IMAGE', $og_image, true);
 
@@ -638,9 +638,7 @@ class Handler_Public extends Handler {
 
 			} ?>
 
-			<?php if (theme_exists(Config::get(Config::LOCAL_OVERRIDE_STYLESHEET))) {
-				echo stylesheet_tag(get_theme_path(Config::get(Config::LOCAL_OVERRIDE_STYLESHEET)));
-			} ?>
+			<?= Config::get_override_links() ?>
 
 			<style type="text/css">
 				@media (prefers-color-scheme: dark) {

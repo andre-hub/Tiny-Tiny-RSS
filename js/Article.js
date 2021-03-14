@@ -93,6 +93,16 @@ const Article = {
 		w.opener = null;
 		w.location = url;
 	},
+	cdmToggleGridSpan: function(id) {
+		const row = App.byId(`RROW-${id}`);
+
+		if (row) {
+			row.toggleClassName('grid-span-row');
+
+			this.setActive(id);
+			this.cdmMoveToId(id);
+		}
+	},
 	cdmUnsetActive: function (event) {
 		const row = App.byId(`RROW-${Article.getActive()}`);
 
@@ -144,10 +154,15 @@ const Article = {
 			).join(", ") : `${__("no tags")}`}</span>`;
 	},
 	renderLabels: function(id, labels) {
-		return `<span class="labels" data-labels-for="${id}">${labels.map((label) => `
-			<span class="label" data-label-id="${label[0]}"
-					style="color : ${label[2]}; background-color : ${label[3]}">${App.escapeHtml(label[1])}</span>`
-		).join("")}</span>`;
+		return `<span class="labels" data-labels-for="${id}">
+			${labels.map((label) => `
+				<a href="#" class="label" data-label-id="${label[0]}"
+					style="color : ${label[2]}; background-color : ${label[3]}"
+					onclick="event.stopPropagation(); Feeds.open({feed:'${label[0]}'})">
+						${App.escapeHtml(label[1])}
+				</a>`
+			).join("")}
+		</span>`;
 	},
 	renderEnclosures: function (enclosures) {
 		return `
@@ -317,7 +332,7 @@ const Article = {
 	},
 	editTags: function (id) {
 		const dialog = new fox.SingleUseDialog({
-			title: __("Edit article Tags"),
+			title: __("Article tags"),
 			content: `
 				${App.FormFields.hidden_tag("id", id.toString())}
 				${App.FormFields.hidden_tag("op", "article")}
@@ -329,7 +344,7 @@ const Article = {
 
 				<section>
 					<textarea dojoType='dijit.form.SimpleTextarea' rows='4' disabled='true'
-						id='tags_str' name='tags_str'></textarea>
+						id='tags_str' name='tags_str'>${__("Loading, please wait...")}</textarea>
 					<div class='autocomplete' id='tags_choices' style='display:none'></div>
 				</section>
 
@@ -384,10 +399,12 @@ const Article = {
 		const ctr = App.byId("headlines-frame");
 		const row = App.byId(`RROW-${id}`);
 
-		if (!row || !ctr) return;
+		if (ctr && row) {
+			const grid_gap = parseInt(window.getComputedStyle(ctr).gridGap) || 0;
 
-		if (force_to_top || !App.Scrollable.fitsInContainer(row, ctr)) {
-			ctr.scrollTop = row.offsetTop;
+			if (force_to_top || !App.Scrollable.fitsInContainer(row, ctr)) {
+				ctr.scrollTop = row.offsetTop - grid_gap;
+			}
 		}
 	},
 	setActive: function (id) {

@@ -54,6 +54,7 @@ class Pref_Prefs extends Handler_Protected {
 				'BLOCK_SEPARATOR',
 				Prefs::COMBINED_DISPLAY_MODE,
 				Prefs::CDM_EXPANDED,
+				Prefs::CDM_ENABLE_GRID,
 				'BLOCK_SEPARATOR',
 				Prefs::CDM_AUTO_CATCHUP,
 				Prefs::VFEED_GROUP_BY_FEED,
@@ -117,6 +118,7 @@ class Pref_Prefs extends Handler_Protected {
 			Prefs::HEADLINES_NO_DISTINCT => array(__("Don't enforce DISTINCT headlines"), __("May produce duplicate entries")),
 			Prefs::DEBUG_HEADLINE_IDS => array(__("Show article and feed IDs"), __("In the headlines buffer")),
 			Prefs::DISABLE_CONDITIONAL_COUNTERS => array(__("Disable conditional counter updates"), __("May increase server load")),
+			Prefs::CDM_ENABLE_GRID => array(__("Grid view"), __("On wider screens, if always expanded")),
 		];
 
 		// hidden in the main prefs UI (use to hide things that have description set above)
@@ -384,7 +386,7 @@ class Pref_Prefs extends Handler_Protected {
 	}
 
 	private function index_auth_app_passwords() {
-		print_notice("You can create separate passwords for API clients. Using one is required if you enable OTP.");
+		print_notice("Separate passwords used for API clients. Required if you enable OTP.");
 		?>
 
 		<div id='app_passwords_holder'>
@@ -454,15 +456,9 @@ class Pref_Prefs extends Handler_Protected {
 
 			} else {
 
-				print_notice("You will need to generate app passwords for the API clients if you enable OTP.");
+				print "<img src=".($this->_get_otp_qrcode_img()).">";
 
-				if (function_exists("imagecreatefromstring")) {
-					print "<h3>" . __("Scan the following code by the Authenticator application or copy the key manually") . "</h3>";
-					print "<img src=".($this->_get_otp_qrcode_img()).">";
-				} else {
-					print_error("PHP GD functions are required to generate QR codes.");
-					print "<h3>" . __("Use the following OTP key with a compatible Authenticator application") . "</h3>";
-				}
+				print_notice("You will need to generate app passwords for API clients if you enable OTP.");
 
 				$otp_secret = UserHelper::get_otp_secret($_SESSION["uid"]);
 				?>
@@ -1055,7 +1051,7 @@ class Pref_Prefs extends Handler_Protected {
 		}
 
 		$rv = array_values(array_filter($rv, function ($item) {
-			return !empty($item["rv"]["o"]);
+			return $item["rv"]["need_update"];
 		}));
 
 		return $rv;
@@ -1063,7 +1059,7 @@ class Pref_Prefs extends Handler_Protected {
 
 	private static function _plugin_needs_update($root_dir, $plugin_name) {
 		$plugin_dir = "$root_dir/plugins.local/" . basename($plugin_name);
-		$rv = [];
+		$rv = null;
 
 		if (is_dir($plugin_dir) && is_dir("$plugin_dir/.git")) {
 			$pipes = [];
@@ -1077,10 +1073,12 @@ class Pref_Prefs extends Handler_Protected {
 			$proc = proc_open("git fetch -q origin -a && git log HEAD..origin/master --oneline", $descriptorspec, $pipes, $plugin_dir);
 
 			if (is_resource($proc)) {
-				$rv["o"] = stream_get_contents($pipes[1]);
-				$rv["e"] = stream_get_contents($pipes[2]);
-				$status = proc_close($proc);
-				$rv["s"] = $status;
+				$rv = [
+					"stdout" => stream_get_contents($pipes[1]),
+					"stderr" => stream_get_contents($pipes[2]),
+					"git_status" => proc_close($proc),
+				];
+				$rv["need_update"] = !empty($rv["stdout"]);
 			}
 		}
 
@@ -1104,10 +1102,9 @@ class Pref_Prefs extends Handler_Protected {
 			$proc = proc_open("git fetch origin -a && git log HEAD..origin/master --oneline && git pull --ff-only origin master", $descriptorspec, $pipes, $plugin_dir);
 
 			if (is_resource($proc)) {
-				$rv["o"] = stream_get_contents($pipes[1]);
-				$rv["e"] = stream_get_contents($pipes[2]);
-				$status = proc_close($proc);
-				$rv["s"] = $status;
+				$rv["stdout"] = stream_get_contents($pipes[1]);
+				$rv["stderr"] = stream_get_contents($pipes[2]);
+				$rv["git_status"] = proc_close($proc);
 			}
 		}
 
@@ -1439,10 +1436,10 @@ class Pref_Prefs extends Handler_Protected {
 		<div class='panel panel-scrollable'>
 			<table width='100%' id='app-password-list'>
 				<tr>
-					<th width='2%'> </th>
-					<th align='left'><?= __("Description") ?></th>
-					<th align='right'><?= __("Created") ?></th>
-					<th align='right'><?= __("Last used") ?></th>
+					<th class="checkbox"> </th>
+					<th width='50%'><?= __("Description") ?></th>
+					<th><?= __("Created") ?></th>
+					<th><?= __("Last used") ?></th>
 				</tr>
 				<?php
 
@@ -1453,16 +1450,16 @@ class Pref_Prefs extends Handler_Protected {
 
 				foreach ($passwords as $pass) { ?>
 					<tr data-row-id='<?= $pass['id'] ?>'>
-						<td align='center'>
+						<td class="checkbox">
 							<input onclick='Tables.onRowChecked(this)' dojoType='dijit.form.CheckBox' type='checkbox'>
 						</td>
 						<td>
 							<?= htmlspecialchars($pass["title"]) ?>
 						</td>
-						<td align='right' class='text-muted'>
+						<td class='text-muted'>
 							<?= TimeHelper::make_local_datetime($pass['created'], false) ?>
 						</td>
-						<td align='right' class='text-muted'>
+						<td class='text-muted'>
 							<?= TimeHelper::make_local_datetime($pass['last_used'], false) ?>
 						</td>
 					</tr>

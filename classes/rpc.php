@@ -382,10 +382,10 @@ class RPC extends Handler_Protected {
 	}
 
 	function log() {
-		$msg = clean($_REQUEST['msg']);
-		$file = basename(clean($_REQUEST['file']));
-		$line = (int) clean($_REQUEST['line']);
-		$context = clean($_REQUEST['context']);
+		$msg = clean($_REQUEST['msg'] ?? "");
+		$file = basename(clean($_REQUEST['file'] ?? ""));
+		$line = (int) clean($_REQUEST['line'] ?? 0);
+		$context = clean($_REQUEST['context'] ?? "");
 
 		if ($msg) {
 			Logger::log_error(E_USER_WARNING,
@@ -431,7 +431,7 @@ class RPC extends Handler_Protected {
 			Prefs::ENABLE_FEED_CATS, Prefs::FEEDS_SORT_BY_UNREAD,
 			Prefs::CONFIRM_FEED_CATCHUP,  Prefs::CDM_AUTO_CATCHUP,
 			Prefs::FRESH_ARTICLE_MAX_AGE, Prefs::HIDE_READ_SHOWS_SPECIAL,
-			Prefs::COMBINED_DISPLAY_MODE, Prefs::DEBUG_HEADLINE_IDS] as $param) {
+			Prefs::COMBINED_DISPLAY_MODE, Prefs::DEBUG_HEADLINE_IDS, Prefs::CDM_ENABLE_GRID] as $param) {
 
 			$params[strtolower($param)] = (int) get_pref($param);
 		}
@@ -603,6 +603,7 @@ class RPC extends Handler_Protected {
 				"feed_catchup" => __("Mark as read"),
 				"feed_reverse" => __("Reverse headlines"),
 				"feed_toggle_vgroup" => __("Toggle headline grouping"),
+				"feed_toggle_grid" => __("Toggle grid view"),
 				"feed_debug_update" => __("Debug feed update"),
 				"feed_debug_viewfeed" => __("Debug viewfeed()"),
 				"catchup_all" => __("Mark all feeds as read"),
@@ -663,6 +664,7 @@ class RPC extends Handler_Protected {
 			"a e" => "toggle_full_text",
 			"e" => "email_article",
 			"a q" => "close_article",
+			"a s" => "article_span_grid",
 			"a a" => "select_all",
 			"a u" => "select_unread",
 			"a U" => "select_marked",
@@ -676,8 +678,9 @@ class RPC extends Handler_Protected {
 			"f q" => "feed_catchup",
 			"f x" => "feed_reverse",
 			"f g" => "feed_toggle_vgroup",
+			"f G" => "feed_toggle_grid",
 			"f D" => "feed_debug_update",
-			"f G" => "feed_debug_viewfeed",
+			"f %" => "feed_debug_viewfeed",
 			"f C" => "toggle_combined_mode",
 			"f c" => "toggle_cdm_expanded",
 			"Q" => "catchup_all",

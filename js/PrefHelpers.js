@@ -205,9 +205,9 @@ const	Helpers = {
 								</div>
 
 								<footer>
-									${App.FormFields.button_tag(__('Remove selected profiles'), "",
+									${App.FormFields.button_tag(App.FormFields.icon("delete") + " " +__('Remove selected profiles'), "",
 										{class: 'pull-left alt-danger', onclick: 'App.dialogOf(this).removeSelected()'})}
-									${App.FormFields.submit_tag(__('Activate profile'), {onclick: 'App.dialogOf(this).execute()'})}
+									${App.FormFields.submit_tag(App.FormFields.icon("check") + " " + __('Activate profile'), {onclick: 'App.dialogOf(this).execute()'})}
 									${App.FormFields.cancel_dialog_tag(__('Cancel'))}
 								</footer>
 							</form>
@@ -239,58 +239,70 @@ const	Helpers = {
 	},
 	Prefs: {
 		customizeCSS: function() {
-			xhr.json("backend.php", {op: "pref-prefs", method: "customizeCSS"}, (reply) => {
+			const dialog = new fox.SingleUseDialog({
+				title: __("Customize stylesheet"),
+				apply: function() {
+					xhr.post("backend.php", this.attr('value'), () => {
+						Element.show("css_edit_apply_msg");
+						App.byId("user_css_style").innerText = this.attr('value');
+					});
+				},
+				execute: function () {
+					Notify.progress('Saving data...', true);
 
-				const dialog = new fox.SingleUseDialog({
-					title: __("Customize stylesheet"),
-					apply: function() {
-						xhr.post("backend.php", this.attr('value'), () => {
-							Element.show("css_edit_apply_msg");
-							App.byId("user_css_style").innerText = this.attr('value');
-						});
-					},
-					execute: function () {
-						Notify.progress('Saving data...', true);
+					xhr.post("backend.php", this.attr('value'), () => {
+						window.location.reload();
+					});
+				},
+				content: `
+					<div class='alert alert-info'>
+						${__("You can override colors, fonts and layout of your currently selected theme with custom CSS declarations here.")}
+					</div>
 
-						xhr.post("backend.php", this.attr('value'), () => {
-							window.location.reload();
-						});
-					},
-					content: `
-						<div class='alert alert-info'>
-							${__("You can override colors, fonts and layout of your currently selected theme with custom CSS declarations here.")}
+					${App.FormFields.hidden_tag('op', 'rpc')}
+					${App.FormFields.hidden_tag('method', 'setpref')}
+					${App.FormFields.hidden_tag('key', 'USER_STYLESHEET')}
+
+					<div id='css_edit_apply_msg' style='display : none'>
+						<div class='alert alert-warning'>
+							${__("User CSS has been applied, you might need to reload the page to see all changes.")}
 						</div>
+					</div>
 
-						${App.FormFields.hidden_tag('op', 'rpc')}
-						${App.FormFields.hidden_tag('method', 'setpref')}
-						${App.FormFields.hidden_tag('key', 'USER_STYLESHEET')}
+					<textarea class='panel user-css-editor' disabled='true' dojoType='dijit.form.SimpleTextarea'
+						style='font-size : 12px;' name='value'>${__("Loading, please wait...")}</textarea>
 
-						<div id='css_edit_apply_msg' style='display : none'>
-							<div class='alert alert-warning'>
-								${__("User CSS has been applied, you might need to reload the page to see all changes.")}
-							</div>
-						</div>
+					<footer>
+						<button dojoType='dijit.form.Button' class='alt-success' onclick="App.dialogOf(this).apply()">
+							${App.FormFields.icon("check")}
+							${__('Apply')}
+						</button>
+						<button dojoType='dijit.form.Button' class='alt-primary' type='submit'>
+							${App.FormFields.icon("refresh")}
+							${__('Save and reload')}
+						</button>
+						<button dojoType='dijit.form.Button' onclick="App.dialogOf(this).hide()">
+							${__('Cancel')}
+						</button>
+					</footer>
+				`
+			});
 
-						<textarea class='panel user-css-editor' dojoType='dijit.form.SimpleTextarea'
-							style='font-size : 12px;' name='value'>${reply.value}</textarea>
+			const tmph = dojo.connect(dialog, 'onShow', function () {
+				dojo.disconnect(tmph);
 
-						<footer>
-							<button dojoType='dijit.form.Button' class='alt-success' onclick="App.dialogOf(this).apply()">
-								${__('Apply')}
-							</button>
-							<button dojoType='dijit.form.Button' class='alt-primary' type='submit'>
-								${__('Save and reload')}
-							</button>
-							<button dojoType='dijit.form.Button' onclick="App.dialogOf(this).hide()">
-								${__('Cancel')}
-							</button>
-						</footer>
-					`
+				xhr.json("backend.php", {op: "pref-prefs", method: "customizeCSS"}, (reply) => {
+
+					const editor = dijit.getEnclosingWidget(dialog.domNode.querySelector(".user-css-editor"));
+
+					editor.attr('value', reply.value);
+					editor.attr('disabled', false);
 				});
 
-				dialog.show();
-
 			});
+
+			dialog.show();
+
 		},
 		confirmReset: function() {
 			if (confirm(__("Reset to defaults?"))) {
@@ -354,16 +366,18 @@ const	Helpers = {
 
 						++results_rendered;
 
+						// only user-enabled actually counts in the checkbox when saving because system plugin checkboxes are disabled (see below)
 						container.innerHTML += `
-							<li data-row-value="${App.escapeHtml(plugin.name)}" data-plugin-name="${App.escapeHtml(plugin.name)}" title="${plugin.is_system ? __("System plugins are enabled using global configuration.") : ""}">
+							<li data-row-value="${App.escapeHtml(plugin.name)}" data-plugin-local="${plugin.is_local}"
+								data-plugin-name="${App.escapeHtml(plugin.name)}" title="${plugin.is_system ? __("System plugins are enabled using global configuration.") : ""}">
 								<label class="checkbox ${plugin.is_system ? "system text-info" : ""}">
 									${App.FormFields.checkbox_tag("plugins[]", plugin.user_enabled || plugin.system_enabled, plugin.name,
 										{disabled: plugin.is_system})}</div>
 									<span class='name'>${plugin.name}:</span>
+									<span class="description ${plugin.is_system ? "text-info" : ""}">
+										${plugin.description}
+									</span>
 								</label>
-								<div class="description ${plugin.is_system ? "text-info" : ""}">
-									${plugin.description}
-								</div>
 								<div class='actions'>
 									${plugin.is_system ?
 										App.FormFields.button_tag(App.FormFields.icon("security"), "",
@@ -385,11 +399,14 @@ const	Helpers = {
 								<div class='version text-muted'>${plugin.version}</div>
 							</li>
 						`;
+					} else {
+						// if plugin is outside of search scope, keep current value in case of saving (only user-enabled is needed)
+						container.innerHTML += App.FormFields.checkbox_tag("plugins[]", plugin.user_enabled, plugin.name, {style: 'display : none'});
 					}
 			});
 
 			if (results_rendered == 0) {
-				container.innerHTML = `<li class='text-center text-info'>${__("Could not find any plugins for this search query.")}</li>`;
+				container.innerHTML += `<li class='text-center text-info'>${__("Could not find any plugins for this search query.")}</li>`;
 			}
 
 			dojo.parser.parse(container);
@@ -494,12 +511,10 @@ const	Helpers = {
 				search: function() {
 					this.search_query = this.attr('value').search.toLowerCase();
 
-					if ('requestIdleCallback' in window)
-						window.requestIdleCallback(() => {
-							this.render_contents();
-						});
-					else
+					window.requestIdleCallback(() => {
 						this.render_contents();
+					});
+
 				},
 				render_contents: function() {
 					const container = dialog.domNode.querySelector(".contents");
@@ -529,7 +544,9 @@ const	Helpers = {
 
 								container.innerHTML += `
 									<li data-row-value="${App.escapeHtml(plugin.name)}" class="${is_installed ? "plugin-installed" : ""}">
-										${App.FormFields.button_tag(is_installed ? __("Already installed") : __('Install'), "", {class: 'alt-primary pull-right',
+										${App.FormFields.button_tag((is_installed ?
+												App.FormFields.icon("check") + " " +__("Already installed") :
+												App.FormFields.icon("file_download") + " " +__('Install')), "", {class: 'alt-primary pull-right',
 											disabled: is_installed,
 											onclick: `App.dialogOf(this).performInstall("${App.escapeHtml(plugin.name)}")`})}
 
@@ -574,7 +591,7 @@ const	Helpers = {
 					<ul style='clear : both' class="panel panel-scrollable-400px contents plugin-installer-list"> </ul>
 
 					<footer>
-						${App.FormFields.button_tag(__("Refresh"), "", {class: 'alt-primary', onclick: 'App.dialogOf(this).reload()'})}
+						${App.FormFields.button_tag(App.FormFields.icon("refresh") + " " +__("Refresh"), "", {class: 'alt-primary', onclick: 'App.dialogOf(this).reload()'})}
 						${App.FormFields.cancel_dialog_tag(__("Close"))}
 					</footer>
 				`,
@@ -596,6 +613,7 @@ const	Helpers = {
 				title: __("Update plugins"),
 				need_refresh: false,
 				plugins_to_update: [],
+				plugins_to_check: [],
 				onHide: function() {
 					if (this.need_refresh) {
 						Helpers.Prefs.refresh();
@@ -605,6 +623,7 @@ const	Helpers = {
 					const container = dialog.domNode.querySelector(".update-results");
 
 					console.log('updating', dialog.plugins_to_update);
+					dialog.attr('title', __('Updating...'));
 
 					container.innerHTML = `<li class='text-center'>${__("Updating, please wait...")}</li>`;
 					let enable_update_btn = false;
@@ -617,7 +636,7 @@ const	Helpers = {
 							container.innerHTML = "";
 
 							reply.forEach((p) => {
-								if (p.rv.s == 0)
+								if (p.rv.git_status == 0)
 									dialog.need_refresh = true;
 								else
 									enable_update_btn = true;
@@ -626,10 +645,10 @@ const	Helpers = {
 								`
 								<li>
 									<h3>${p.plugin}</h3>
-									${p.rv.e ? `<pre class="small text-error pre-wrap">${p.rv.e}</pre>` : ''}
-									${p.rv.o ? `<pre class="small text-success pre-wrap">${p.rv.o}</pre>` : ''}
+									${p.rv.stderr ? `<pre class="small text-error pre-wrap">${p.rv.stderr}</pre>` : ''}
+									${p.rv.stdout ? `<pre class="small text-success pre-wrap">${p.rv.stdout}</pre>` : ''}
 									<div class="small">
-										${p.rv.s ? App.FormFields.icon("error_outline") + " " + __("Exited with RC: %d").replace("%d", p.rv.s) :
+										${p.rv.git_status ? App.FormFields.icon("error_outline") + " " + __("Exited with RC: %d").replace("%d", p.rv.git_status) :
 											App.FormFields.icon("check") + " " + __("Update done.")}
 									</div>
 								</li>
@@ -637,16 +656,84 @@ const	Helpers = {
 							});
 						}
 
+						dialog.attr('title', __('Updates complete'));
 						dijit.getEnclosingWidget(dialog.domNode.querySelector(".update-btn")).attr('disabled', !enable_update_btn);
 					});
 				},
+				checkNextPlugin: function() {
+					const name = dialog.plugins_to_check.shift();
+
+					if (name) {
+						this.checkUpdates(name);
+					} else {
+						const num_updated = dialog.plugins_to_update.length;
+
+						if (num_updated > 0)
+							dialog.attr('title',
+								App.l10n.ngettext('Updates pending for %d plugin', 'Updates pending for %d plugins', num_updated)
+									.replace("%d", num_updated));
+						else
+							dialog.attr('title', __("No updates available"));
+
+						dijit.getEnclosingWidget(dialog.domNode.querySelector(".update-btn"))
+									.attr('disabled', num_updated == 0);
+
+					}
+				},
+				checkUpdates: function(name) {
+					console.log('checkUpdates', name);
+
+					const container = dialog.domNode.querySelector(".update-results");
+
+					dialog.attr('title', __("Checking: %s").replace("%s", name));
+
+					//container.innerHTML = `<li class='text-center'>${__("Checking: %s...").replace("%s", name)}</li>`;
+
+					xhr.json("backend.php", {op: "pref-prefs", method: "checkForPluginUpdates", name: name}, (reply) => {
+
+						if (!reply) {
+							container.innerHTML += `<li class='text-error'>${__("%s: Operation failed: check event log.").replace("%s", name)}</li>`;
+						} else {
+
+							reply.forEach((p) => {
+								if (p.rv) {
+									if (p.rv.need_update) {
+										dialog.plugins_to_update.push(p.plugin);
+
+										const update_button = dijit.getEnclosingWidget(
+											App.find(`*[data-update-btn-for-plugin="${p.plugin}"]`));
+
+										if (update_button)
+											update_button.domNode.show();
+									}
+
+									if (p.rv.need_update || p.rv.git_status != 0) {
+										container.innerHTML +=
+										`
+										<li><h3>${p.plugin}</h3>
+											${p.rv.stderr ? `<pre class="small text-error pre-wrap">${p.rv.stderr}</pre>` : ''}
+											${p.rv.stdout ? `<pre class="small text-success pre-wrap">${p.rv.stdout}</pre>` : ''}
+											<div class="small">
+												${p.rv.git_status ? App.FormFields.icon("error_outline") + " " + __("Exited with RC: %d").replace("%d", p.rv.git_status) :
+													App.FormFields.icon("check") + " " + __("Ready to update")}
+											</div>
+										</li>
+										`
+									}
+								}
+								dialog.checkNextPlugin();
+							});
+						}
+
+					});
+
+				},
 				content: `
 					<ul class="panel panel-scrollable plugin-updater-list update-results">
-						<li class='text-center'>${__("Looking for changes...")}</li>
 					</ul>
 
 					<footer>
-						${App.FormFields.button_tag(__("Update"), "", {disabled: true, class: "update-btn alt-primary", onclick: "App.dialogOf(this).performUpdate()"})}
+						${App.FormFields.button_tag(App.FormFields.icon("update") + " " + __("Update"), "", {disabled: true, class: "update-btn alt-primary", onclick: "App.dialogOf(this).performUpdate()"})}
 						${App.FormFields.cancel_dialog_tag(__("Close"))}
 					</footer>
 				`,
@@ -655,52 +742,14 @@ const	Helpers = {
 			const tmph = dojo.connect(dialog, 'onShow', function () {
 				dojo.disconnect(tmph);
 
-				xhr.json("backend.php", {op: "pref-prefs", method: "checkForPluginUpdates", name: name}, (reply) => {
-					const container = dialog.domNode.querySelector(".update-results");
-					let enable_update_btn = false;
+				dialog.plugins_to_update = [];
 
-					if (!reply) {
-						container.innerHTML = `<li class='text-center text-error'>${__("Operation failed: check event log.")}</li>`;
-					} else {
-						container.innerHTML = "";
-
-						dialog.plugins_to_update = [];
-
-						reply.forEach((p) => {
-							if (p.rv.s == 0) {
-								enable_update_btn = true;
-								dialog.plugins_to_update.push(p.plugin);
-							}
-
-							const update_button = dijit.getEnclosingWidget(
-									App.find(`*[data-update-btn-for-plugin="${p.plugin}"]`));
-
-							if (update_button)
-								update_button.domNode.show();
-
-							container.innerHTML +=
-							`
-							<li><h3>${p.plugin}</h3>
-								${p.rv.e ? `<pre class="small text-error pre-wrap">${p.rv.e}</pre>` : ''}
-								${p.rv.o ? `<pre class="small text-success pre-wrap">${p.rv.o}</pre>` : ''}
-								<div class="small">
-									${p.rv.s ? App.FormFields.icon("error_outline") + " " + __("Exited with RC: %d").replace("%d", p.rv.s) :
-									App.FormFields.icon("check") + " " + __("Ready to update")}
-								</div>
-							</li>
-							`
-						});
-
-						if (!enable_update_btn) {
-							container.innerHTML = `<li class='text-center text-info'>${name ? __("Plugin %s is up-to-date").replace("%s", name) :
-								__("All local plugins are up-to-date.")}</li>`;
-						}
-					}
-
-					dijit.getEnclosingWidget(dialog.domNode.querySelector(".update-btn")).attr('disabled', !enable_update_btn);
-
-				});
-
+				if (name) {
+					dialog.checkUpdates(name);
+				} else {
+					dialog.plugins_to_check = [...document.querySelectorAll('*[data-plugin-name][data-plugin-local=true]')].map((p) => p.getAttribute('data-plugin-name'));
+					dialog.checkNextPlugin();
+				}
 			});
 
 			dialog.show();
@@ -798,6 +847,7 @@ const	Helpers = {
 							</section>
 							<footer class='text-center'>
 								<button dojoType='dijit.form.Button' onclick="return App.dialogOf(this).regenOPMLKey()">
+									${App.FormFields.icon("refresh")}
 									${__('Generate new URL')}
 								</button>
 								<button dojoType='dijit.form.Button' type='submit' class='alt-primary'>

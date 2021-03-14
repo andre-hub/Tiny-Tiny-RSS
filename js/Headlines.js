@@ -17,17 +17,27 @@ const Headlines = {
 	sticky_header_observer: new IntersectionObserver(
 		(entries, observer) => {
 			entries.forEach((entry) => {
-				const header = entry.target.nextElementSibling;
+				const header = entry.target.closest('.cdm').querySelector(".header");
 
-				if (entry.intersectionRatio == 0) {
-					header.setAttribute("stuck", "1");
-
-				} else if (entry.intersectionRatio == 1) {
-					header.removeAttribute("stuck");
+				if (entry.isIntersecting) {
+					header.removeAttribute("data-is-stuck");
+				} else {
+					header.setAttribute("data-is-stuck", "true");
 				}
 
-				//console.log(entry.target, header, entry.intersectionRatio);
+				//console.log(entry.target, entry.intersectionRatio, entry.isIntersecting, entry.boundingClientRect.top);
+			});
+		},
+		{threshold: [0, 1], root: document.querySelector("#headlines-frame")}
+	),
+	sticky_content_observer: new IntersectionObserver(
+		(entries, observer) => {
+			entries.forEach((entry) => {
+				const header = entry.target.closest('.cdm').querySelector(".header");
 
+				header.style.position = entry.isIntersecting ? "sticky" : "unset";
+
+				//console.log(entry.target, entry.intersectionRatio, entry.isIntersecting, entry.boundingClientRect.top);
 			});
 		},
 		{threshold: [0, 1], root: document.querySelector("#headlines-frame")}
@@ -72,14 +82,13 @@ const Headlines = {
 			}
 		});
 
+		PluginHost.run(PluginHost.HOOK_HEADLINE_MUTATIONS, mutations);
+
 		Headlines.updateSelectedPrompt();
 
-		if ('requestIdleCallback' in window)
-			window.requestIdleCallback(() => {
-				Headlines.syncModified(modified);
-			});
-		else
+		window.requestIdleCallback(() => {
 			Headlines.syncModified(modified);
+		});
 	}),
 	syncModified: function (modified) {
 		const ops = {
@@ -173,14 +182,14 @@ const Headlines = {
 			});
 		}
 
-		Promise.all(promises).then((results) => {
+		Promise.allSettled(promises).then((results) => {
 			let feeds = [];
 			let labels = [];
 
 			results.forEach((res) => {
 				if (res) {
 					try {
-						const obj = JSON.parse(res);
+						const obj = JSON.parse(res.value);
 
 						if (obj.feeds)
 							feeds = feeds.concat(obj.feeds);
@@ -198,6 +207,8 @@ const Headlines = {
 				console.log('requesting counters for', feeds, labels);
 				Feeds.requestCounters(feeds, labels);
 			}
+
+			PluginHost.run(PluginHost.HOOK_HEADLINE_MUTATIONS_SYNCED, results);
 		});
 	},
 	click: function (event, id, in_body) {
@@ -278,7 +289,7 @@ const Headlines = {
 		}
 	},
 	loadMore: function () {
-		const view_mode = document.forms["toolbar-main"].view_mode.value;
+		const view_mode = dijit.byId("toolbar-main").getValues().view_mode;
 		const unread_in_buffer = App.findAll("#headlines-frame > div[id*=RROW][class*=Unread]").length;
 		const num_all = App.findAll("#headlines-frame > div[id*=RROW]").length;
 		const num_unread = Feeds.getUnread(Feeds.getActive(), Feeds.activeIsCat());
@@ -371,6 +382,9 @@ const Headlines = {
 					}
 				}
 			}
+
+			PluginHost.run(PluginHost.HOOK_HEADLINES_SCROLL_HANDLER);
+
 		} catch (e) {
 			console.warn("scrollHandler", e);
 		}
@@ -378,11 +392,17 @@ const Headlines = {
 	objectById: function (id) {
 		return this.headlines[id];
 	},
-	setCommonClasses: function () {
-		App.byId("headlines-frame").removeClassName("cdm");
-		App.byId("headlines-frame").removeClassName("normal");
+	setCommonClasses: function (headlines_count) {
+		const container = App.byId("headlines-frame");
 
-		App.byId("headlines-frame").addClassName(App.isCombinedMode() ? "cdm" : "normal");
+		container.removeClassName("cdm");
+		container.removeClassName("normal");
+
+		container.addClassName(App.isCombinedMode() ? "cdm" : "normal");
+		container.setAttribute("data-enable-grid", App.getInitParam("cdm_enable_grid") ? "true" : "false");
+		container.setAttribute("data-headlines-count", parseInt(headlines_count));
+		container.setAttribute("data-is-cdm", App.isCombinedMode() ? "true" : "false");
+		container.setAttribute("data-is-cdm-expanded", App.getInitParam("cdm_expanded"));
 
 		// for floating title because it's placed outside of headlines-frame
 		App.byId("main").removeClassName("expandable");
@@ -393,7 +413,7 @@ const Headlines = {
 	},
 	renderAgain: function () {
 		// TODO: wrap headline elements into a knockoutjs model to prevent all this stuff
-		Headlines.setCommonClasses();
+		Headlines.setCommonClasses(this.headlines.filter((h) => h.id).length);
 
 		App.findAll("#headlines-frame > div[id*=RROW]").forEach((row) => {
 			const id = row.getAttribute("data-article-id");
@@ -422,11 +442,18 @@ const Headlines = {
 			this.sticky_header_observer.observe(e)
 		});
 
+		App.findAll(".cdm .content").forEach((e) => {
+			this.sticky_content_observer.observe(e)
+		});
+
 		if (App.getInitParam("cdm_expanded"))
 			App.findAll("#headlines-frame > div[id*=RROW].cdm").forEach((e) => {
 				this.unpack_observer.observe(e)
 			});
 
+		dijit.byId('main').resize();
+
+		PluginHost.run(PluginHost.HOOK_HEADLINES_RENDERED);
 	},
 	render: function (headlines, hl) {
 		let row = null;
@@ -494,9 +521,10 @@ const Headlines = {
 							<span class="updated" title="${hl.imported}">${hl.updated}</span>
 
 							<div class="right">
+								<i class="material-icons icon-grid-span" title="${__("Span all columns")}" onclick="Article.cdmToggleGridSpan(${hl.id})">fullscreen</i>
 								<i class="material-icons icon-score" title="${hl.score}" onclick="Article.setScore(${hl.id}, this)">${Article.getScorePic(hl.score)}</i>
 
-								<span style="cursor : pointer" title="${App.escapeHtml(hl.feed_title)}" onclick="Feeds.open({feed:${hl.feed_id}})">
+								<span class="icon-feed" title="${App.escapeHtml(hl.feed_title)}" onclick="Feeds.open({feed:${hl.feed_id}})">
 									${Feeds.renderIcon(hl.feed_id, hl.has_icon)}
 								</span>
 							</div>
@@ -560,7 +588,7 @@ const Headlines = {
 			</div>
 			<div class="right">
 				<i class="material-icons icon-score" title="${hl.score}" onclick="Article.setScore(${hl.id}, this)">${Article.getScorePic(hl.score)}</i>
-				<span onclick="Feeds.open({feed:${hl.feed_id}})" style="cursor : pointer" title="${App.escapeHtml(hl.feed_title)}">${Feeds.renderIcon(hl.feed_id, hl.has_icon)}</span>
+				<span onclick="Feeds.open({feed:${hl.feed_id}})" class="icon-feed" title="${App.escapeHtml(hl.feed_title)}">${Feeds.renderIcon(hl.feed_id, hl.has_icon)}</span>
 			</div>
 			</div>
 		`;
@@ -614,7 +642,7 @@ const Headlines = {
 				</span>
 				<span class='right'>
 					<span id='selected_prompt'></span>
-					<div dojoType='fox.form.DropDownButton' title='"${__('Select articles')}'>
+					<div class='select-articles-dropdown' dojoType='fox.form.DropDownButton' title='"${__('Select articles')}'>
 						<span>${__("Select...")}</span>
 						<div dojoType='dijit.Menu' style='display: none;'>
 						<div dojoType='dijit.MenuItem' onclick='Headlines.select("all")'>${__('All')}</div>
@@ -671,10 +699,14 @@ const Headlines = {
 				console.log('infscroll_disabled=', Feeds.infscroll_disabled);
 
 				// also called in renderAgain() after view mode switch
-				Headlines.setCommonClasses();
+				Headlines.setCommonClasses(headlines_count);
 
+				/** TODO: remove @deprecated */
 				App.byId("headlines-frame").setAttribute("is-vfeed",
 					reply['headlines']['is_vfeed'] ? 1 : 0);
+
+				App.byId("headlines-frame").setAttribute("data-is-vfeed",
+					reply['headlines']['is_vfeed'] ? "true" : "false");
 
 				Article.setActive(0);
 
@@ -799,6 +831,10 @@ const Headlines = {
 				this.sticky_header_observer.observe(e)
 			});
 
+			App.findAll(".cdm .content").forEach((e) => {
+				this.sticky_content_observer.observe(e)
+			});
+
 			if (App.getInitParam("cdm_expanded"))
 				App.findAll("#headlines-frame > div[id*=RROW].cdm").forEach((e) => {
 					this.unpack_observer.observe(e)
@@ -816,22 +852,22 @@ const Headlines = {
 		// unpack visible articles, fill buffer more, etc
 		this.scrollHandler();
 
+		dijit.byId('main').resize();
+
+		PluginHost.run(PluginHost.HOOK_HEADLINES_RENDERED);
+
 		Notify.close();
 	},
 	reverse: function () {
-		const toolbar = document.forms["toolbar-main"];
-		const order_by = dijit.getEnclosingWidget(toolbar.order_by);
+		const toolbar = dijit.byId("toolbar-main");
+		let order_by = toolbar.getValues().order_by;
 
-		let value = order_by.attr('value');
-
-		if (value != "date_reverse")
-			value = "date_reverse";
+		if (order_by != "date_reverse")
+			order_by = "date_reverse";
 		else
-			value = "default";
+			order_by = App.getInitParam("default_view_order_by");
 
-		order_by.attr('value', value);
-
-		Feeds.reloadCurrent();
+		toolbar.setValues({order_by: order_by});
 	},
 	selectionToggleUnread: function (params = {}) {
 		const cmode = params.cmode != undefined ? params.cmode : 2;

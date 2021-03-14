@@ -47,9 +47,10 @@ class Share extends Plugin {
 			?>
 			<hr/>
 
-			<h2><?= __("You can disable all articles shared by unique URLs here.") ?></h2>
+			<?= format_notice("You can disable all articles shared by unique URLs here.") ?></h2>
 
 			<button class='alt-danger' dojoType='dijit.form.Button' onclick="return Plugins.Share.clearKeys()">
+				<?= \Controls\icon('delete') ?>
 				<?= __('Unshare all articles') ?></button>
 			<?php
 		}
@@ -141,7 +142,7 @@ class Share extends Plugin {
 				$line);
 
 			$enclosures = Article::_get_enclosures($line["id"]);
-			list ($og_image, $og_stream) = Article::_get_image($enclosures, $line['content'], $line["site_url"]);
+			list ($og_image, $og_stream) = Article::_get_image($enclosures, $line['content'], $line["site_url"], $line);
 
 			$content_decoded = html_entity_decode($line["title"], ENT_NOQUOTES | ENT_HTML401);
 			$parsed_updated = TimeHelper::make_local_datetime($line["updated"], true, $owner_uid, true);
@@ -188,17 +189,18 @@ class Share extends Plugin {
 				<body class='flat ttrss_utility ttrss_zoom css_loading'>
 					<div class='container'>
 
-					<?php if (!empty($line["link"])) { ?>
-						<h1>
-							<a target='_blank' rel='noopener noreferrer'
-								href="<?= htmlspecialchars($line["link"]) ?>"><?= htmlspecialchars($line["title"]) ?></a>
-						</h1>
-					<?php } else { ?>
-						<h1><?= $line["title"] ?></h1>
-					<?php } ?>
-
 					<div class='content post'>
 						<div class='header'>
+							<div class='row'>
+								<?php if (!empty($line["link"])) { ?>
+									<h1>
+										<a rel='noopener noreferrer'
+											href="<?= htmlspecialchars($line["link"]) ?>"><?= htmlspecialchars($line["title"]) ?></a>
+									</h1>
+								<?php } else { ?>
+									<h1><?= $line["title"] ?></h1>
+								<?php } ?>
+							</div>
 							<div class='row'>
 								<div><?= $line['author'] ?></div>
 								<div><?= $parsed_updated ?></div>

@@ -23,13 +23,11 @@
 	<?php if ($_SESSION["uid"] && empty($_SESSION["safe_mode"])) {
 		$theme = get_pref(Prefs::USER_CSS_THEME);
 		if ($theme && theme_exists("$theme")) {
-			echo stylesheet_tag(get_theme_path($theme), 'theme_css');
+			echo stylesheet_tag(get_theme_path($theme), ['id' => 'theme_css']);
 		}
 	} ?>
 
-	<?php if (theme_exists(Config::get(Config::LOCAL_OVERRIDE_STYLESHEET))) {
-		echo stylesheet_tag(get_theme_path(Config::get(Config::LOCAL_OVERRIDE_STYLESHEET)));
-	} ?>
+	<?= Config::get_override_links() ?>
 
 	<script type="text/javascript">
 		const __csrf_token = "<?= $_SESSION["csrf_token"]; ?>";

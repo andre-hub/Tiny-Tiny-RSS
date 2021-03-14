@@ -113,19 +113,25 @@ const	Feeds = {
 		this.hideOrShowFeeds(App.getInitParam("hide_read_feeds"));
 		this._counters_prev = elems;
 
-		PluginHost.run(PluginHost.HOOK_COUNTERS_PROCESSED);
+		PluginHost.run(PluginHost.HOOK_COUNTERS_PROCESSED, elems);
 	},
 	reloadCurrent: function(method) {
 		if (this.getActive() != undefined) {
-			console.log("reloadCurrent: " + method);
+			console.log("reloadCurrent", this.getActive(), this.activeIsCat(), method);
 
 			this.open({feed: this.getActive(), is_cat: this.activeIsCat(), method: method});
 		}
-		return false; // block unneeded form submits
 	},
 	openDefaultFeed: function() {
 		this.open({feed: this._default_feed_id});
 	},
+   onViewModeChanged: function() {
+		// TODO: is this still needed?
+      App.find("body").setAttribute("view-mode",
+			dijit.byId("toolbar-main").getValues().view_mode);
+
+      return Feeds.reloadCurrent('');
+   },
 	openNextUnread: function() {
 		const is_cat = this.activeIsCat();
 		const nuf = this.getNextUnread(this.getActive(), is_cat);
@@ -236,12 +242,12 @@ const	Feeds = {
 		//document.onkeypress = (event) => { return App.hotkeyHandler(event) };
 		window.onresize = () => { Headlines.scrollHandler(); }
 
-		/* global hash_get */
-		const hash_feed_id = hash_get('f');
-		const hash_feed_is_cat = hash_get('c') == "1";
+		const hash = App.Hash.get();
 
-		if (hash_feed_id != undefined) {
-			this.open({feed: hash_feed_id, is_cat: hash_feed_is_cat});
+		console.log('got hash', hash);
+
+		if (hash.f != undefined) {
+			this.open({feed: parseInt(hash.f), is_cat: parseInt(hash.c)});
 		} else {
 			this.openDefaultFeed();
 		}
@@ -305,15 +311,22 @@ const	Feeds = {
 	setActive: function(id, is_cat) {
 		console.log('setActive', id, is_cat);
 
-		/* global hash_set */
-		hash_set('f', id);
-		hash_set('c', is_cat ? 1 : 0);
+		window.requestIdleCallback(() => {
+			App.Hash.set({f: id, c: is_cat ? 1 : 0});
+		});
 
 		this._active_feed_id = id;
 		this._active_feed_is_cat = is_cat;
 
-		App.byId("headlines-frame").setAttribute("feed-id", id);
-		App.byId("headlines-frame").setAttribute("is-cat", is_cat ? 1 : 0);
+		const container = App.byId("headlines-frame");
+
+		// TODO @deprecated: these two should be removed (replaced with data- attributes below)
+		container.setAttribute("feed-id", id);
+		container.setAttribute("is-cat", is_cat ? 1 : 0);
+		// ^
+
+		container.setAttribute("data-feed-id", id);
+		container.setAttribute("data-is-cat", is_cat ? "true" : "false");
 
 		this.select(id, is_cat);
 
@@ -366,10 +379,7 @@ const	Feeds = {
 			}, 10 * 1000);
 		}
 
-		//Form.enable("toolbar-main");
-
-		let query = Object.assign({op: "feeds", method: "view", feed: feed},
-			dojo.formToObject("toolbar-main"));
+		let query = {...{op: "feeds", method: "view", feed: feed}, ...dojo.formToObject("toolbar-main")};
 
 		if (method) query.m = method;
 
@@ -612,7 +622,7 @@ const	Feeds = {
 													{class: 'alt-info pull-left', onclick: "window.open('https://tt-rss.org/wiki/SearchSyntax')"})}
 													` : ''}
 
-											${App.FormFields.submit_tag(__('Search'), {onclick: "App.dialogOf(this).execute()"})}
+											${App.FormFields.submit_tag(App.FormFields.icon("search") + " " + __('Search'), {onclick: "App.dialogOf(this).execute()"})}
 											${App.FormFields.cancel_dialog_tag(__('Cancel'))}
 										</footer>
 									</form>
