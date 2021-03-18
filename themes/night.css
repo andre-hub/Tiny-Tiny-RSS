@@ -183,6 +183,11 @@ body.ttrss_main .notify.notify_progress {
   border-color: #d7c47a;
   background-color: #fff7d5;
 }
+body.ttrss_main .notify.notify_progress img {
+  width: 18px;
+  height: 18px;
+  filter: saturate(0);
+}
 body.ttrss_main .notify.notify_info {
   border-color: #b87d2c;
   background-color: #faf3e9;
@@ -512,15 +517,26 @@ body.ttrss_main #feeds-holder #feedTree {
   text-rendering: optimizelegibility;
   font-family: "Segoe UI", Ubuntu, "Helvetica Neue", Helvetica, Arial, sans-serif;
 }
-body.ttrss_main #feeds-holder #feedTree .dijitTreeNode .loadingExpando {
-  left: -3px;
-  height: 22px;
-  position: relative;
-  top: -3px;
-}
 body.ttrss_main #feeds-holder #feedTree .dijitTreeNode .dijitTreeRow {
   border: 1px solid transparent;
-  cursor: pointer;
+}
+body.ttrss_main #feeds-holder #feedTree .dijitTreeNode .dijitTreeRow .loadingNode {
+  display: none;
+}
+body.ttrss_main #feeds-holder #feedTree .dijitTreeNode .dijitTreeRow .loadingNode.visible {
+  display: inline;
+}
+body.ttrss_main #feeds-holder #feedTree .dijitTreeNode .dijitTreeRow.Is_Feed .loadingNode {
+  left: 2px;
+  height: 14px;
+  width: 14px;
+  position: relative;
+  top: -1px;
+}
+body.ttrss_main #feeds-holder #feedTree .dijitTreeNode .dijitTreeRow.Is_Cat .loadingNode {
+  height: 11px;
+  width: 18px;
+  margin-left: 4px;
 }
 body.ttrss_main #feeds-holder #feedTree .dijitTreeNode .dijitTreeRow .counterNode {
   font-weight: bold;
@@ -554,6 +570,9 @@ body.ttrss_main #feeds-holder #feedTree .dijitTreeNode .dijitTreeRow[data-feed-i
   background-color: #3ea447;
   border-color: #307f37;
 }
+body.ttrss_main #feeds-holder #feedTree .dijitTreeNode .dijitTreeRow .dijitTreeLabel {
+  cursor: pointer;
+}
 body.ttrss_main #feeds-holder #feedTree .dijitTreeNode .dijitTreeRow .dijitTreeLabel.Unread {
   font-weight: bold;
 }
@@ -564,16 +583,16 @@ body.ttrss_main #feeds-holder #feedTree .dijitTreeNode .dijitTreeRow.dijitTreeRo
   box-shadow: -1px 0px 2px -1px rgba(0, 0, 0, 0.1);
   border-color: #222 transparent;
   background: #333;
-  color: #333;
+  color: #ccc;
 }
 body.ttrss_main #feeds-holder #feedTree .dijitTreeNode .dijitTreeRow .dijitIcon.feed-icon {
   margin-right: 2px;
 }
 body.ttrss_main #feeds-holder #feedTree .dijitTreeNode .dijitTreeRow i.icon.icon-inbox {
-  color: #555;
+  color: #ffffff;
 }
 body.ttrss_main #feeds-holder #feedTree .dijitTreeNode .dijitTreeRow i.icon.icon-archive {
-  color: #c77b2e;
+  color: #cf7800;
 }
 body.ttrss_main #feeds-holder #feedTree .dijitTreeNode .dijitTreeRow i.icon.icon-star {
   position: relative;
@@ -689,7 +708,6 @@ body.ttrss_main #headlines-frame #headlines-spacer {
   text-align: center;
   color: #ccc;
   font-size: 11px;
-  font-style: italic;
 }
 body.ttrss_main #headlines-frame #headlines-spacer a,
 body.ttrss_main #headlines-frame #headlines-spacer span {
@@ -1030,14 +1048,22 @@ body.ttrss_main .text-right {
 body.ttrss_main .text-left {
   text-align: left;
 }
-body.ttrss_main #prefFilterTestResultList .preview {
+body.ttrss_main .dijitDialog .filter-results-list .preview {
   margin: 8px;
 }
-body.ttrss_main #prefFilterTestResultList .title {
+body.ttrss_main .dijitDialog .filter-results-list .title {
   font-weight: bold;
 }
-body.ttrss_main #prefFilterTestResultList .feed {
-  color: #b87d2c;
+body.ttrss_main .dijitDialog #feed_add_spinner {
+  position: relative;
+  top: 5px;
+  width: 18px;
+  height: 18px;
+}
+body.ttrss_main .icon-three-dots {
+  width: 18px;
+  height: 18px;
+  vertical-align: middle;
 }
 body.ttrss_main,
 body.ttrss_utility {
@@ -2070,25 +2096,28 @@ body.flat.ttrss_main #feeds-holder {
   background: #222;
   box-shadow: inset -1px 0px 2px -1px #666;
 }
-body.flat.ttrss_main #feeds-holder #feedTree .counterNode.aux,
-body.flat.ttrss_main #feeds-holder #feedTree .counterNode.marked {
+body.flat.ttrss_main #feeds-holder #feedTree .dijitTreeRow .counterNode.aux,
+body.flat.ttrss_main #feeds-holder #feedTree .dijitTreeRow .counterNode.marked {
   background: #222;
   color: #ccc;
   border-color: #333;
 }
-body.flat.ttrss_main #feeds-holder #feedTree .counterNode.marked {
+body.flat.ttrss_main #feeds-holder #feedTree .dijitTreeRow .counterNode.marked {
   border-color: #b87d2c;
 }
-body.flat.ttrss_main #feeds-holder #feedTree .dijitTreeRowSelected {
+body.flat.ttrss_main #feeds-holder #feedTree .dijitTreeRow .dijitTreeRowSelected {
   background: #333;
   border-color: #333 transparent;
   color: #e6e6e6;
 }
-body.flat.ttrss_main #feeds-holder #feedTree .dijitTreeRowSelected .dijitTreeLabel {
+body.flat.ttrss_main #feeds-holder #feedTree .dijitTreeRow .dijitTreeRowSelected .dijitTreeLabel {
   text-shadow: none;
 }
-body.flat.ttrss_main #feeds-holder #feedTree i.icon.icon-inbox {
+body.flat.ttrss_main #feeds-holder #feedTree .dijitTreeRow i.icon.icon-inbox {
   color: #999999;
+}
+body.flat.ttrss_main #feeds-holder #feedTree .dijitTreeRow .loadingNode {
+  filter: invert(1);
 }
 body.flat.ttrss_main #headlines-frame {
   /*.cdm.expanded {
@@ -2274,4 +2303,7 @@ body.flat.ttrss_main #filterNewRuleDlg .dijitValidationTextAreaError {
 }
 body.flat.ttrss_main #filterNewRuleDlg .dijitValidationTextArea:not(.dijitValidationTextAreaError) {
   background: #305030;
+}
+body.flat.ttrss_main .dijitDialog #feed_add_spinner {
+  filter: invert(1);
 }

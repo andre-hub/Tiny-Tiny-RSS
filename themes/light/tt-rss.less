@@ -192,6 +192,12 @@ body.ttrss_main {
 	.notify.notify_progress {
 		border-color : #d7c47a;
 		background-color : #fff7d5;
+
+		img {
+			width : 18px;
+			height : 18px;
+			filter : saturate(0);
+		}
 	}
 
 	.notify.notify_info {
@@ -584,16 +590,34 @@ body.ttrss_main {
 			font-family : @fonts-ui;
 
 			.dijitTreeNode {
-				.loadingExpando {
-					left : -3px;
-					height : 22px;
-					position : relative;
-					top : -3px;
-				}
-
 				.dijitTreeRow {
 					border : 1px solid transparent;
-					cursor : pointer;
+
+					.loadingNode {
+						display : none;
+
+						&.visible {
+							display : inline;
+						}
+					}
+
+					&.Is_Feed {
+						.loadingNode {
+							left : 2px;
+							height : 14px;
+							width : 14px;
+							position : relative;
+							top : -1px;
+						}
+					}
+
+					&.Is_Cat {
+						.loadingNode {
+							height : 11px;
+							width : 18px;
+							margin-left : 4px;
+						}
+					}
 
 					.counterNode {
 						font-weight : bold;
@@ -631,8 +655,12 @@ body.ttrss_main {
 						border-color: darken(@color-checked, 25%);
 					}
 
-					.dijitTreeLabel.Unread {
-						font-weight : bold;
+					.dijitTreeLabel {
+						cursor : pointer;
+
+						&.Unread {
+							font-weight : bold;
+						}
 					}
 
 					&.Error .dijitTreeLabel {
@@ -643,7 +671,7 @@ body.ttrss_main {
 						box-shadow : -1px 0px 2px -1px rgba(0,0,0,0.1);
 						border-color : @border-default transparent;
 						background : @default-bg;
-						color : #333;
+						color : @default-text;
 					}
 
 					.dijitIcon.feed-icon {
@@ -651,11 +679,11 @@ body.ttrss_main {
 					}
 
 					i.icon.icon-inbox {
-						color : #555;
+						color : lighten(@default-text, 20%);
 					}
 
 					i.icon.icon-archive {
-						color : #c77b2e;
+						color : darken(@color-marked, 30%);
 					}
 
 					i.icon.icon-star {
@@ -804,7 +832,6 @@ body.ttrss_main {
 			text-align : center;
 			color : @default-text;
 			font-size : @font-size-small;
-			font-style : italic;
 
 			a, span {
 				color : @default-text;
@@ -1227,20 +1254,30 @@ body.ttrss_main {
 		text-align : left;
 	}
 
-	#prefFilterTestResultList {
-		.preview {
-			margin : 8px;
+	.dijitDialog {
+		.filter-results-list {
+			.preview {
+				margin : 8px;
+			}
+
+			.title {
+				font-weight: bold;
+			}
 		}
 
-		.title {
-			font-weight: bold;
-		}
-
-		.feed {
-			color : @color-accent;
+		#feed_add_spinner {
+			position : relative;
+			top : 5px;
+			width : 18px;
+			height : 18px;
 		}
 	}
 
+	.icon-three-dots {
+		width : 18px;
+		height : 18px;
+		vertical-align : middle;
+	}
 }
 
 body.ttrss_main, body.ttrss_utility {
@@ -1368,7 +1405,6 @@ body.ttrss_main, body.ttrss_utility {
 			cursor : pointer;
 		}
 	}*/
-
 }
 
 ::selection {

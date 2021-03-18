@@ -351,8 +351,7 @@ const Headlines = {
 
 					// invoke lazy load if last article in buffer is nearly visible OR is active
 					if (Article.getActive() == last_row.getAttribute("data-article-id") || last_row.offsetTop - 250 <= container.scrollTop + container.offsetHeight) {
-						hsp.innerHTML = "<span class='loading'><img src='images/indicator_tiny.gif'> " +
-							__("Loading, please wait...") + "</span>";
+						hsp.innerHTML = `<span class='text-muted text-small text-center'><img class="icon-three-dots" src="${App.getInitParam('icon_three_dots')}"> ${__("Loading, please wait...")}</span>`;
 
 						Headlines.loadMore();
 						return;
@@ -534,7 +533,9 @@ const Headlines = {
 						<div class="content" onclick="return Headlines.click(event, ${hl.id}, true);">
 							${Article.renderNote(hl.id, hl.note)}
 							<div class="content-inner" lang="${hl.lang ? hl.lang : 'en'}">
-								<img src="${App.getInitParam('icon_indicator_white')}">
+								<div class="text-center text-muted">
+									${__("Loading, please wait...")}
+								</div>
 							</div>
 							<div class="intermediate">
 								${Article.renderEnclosures(hl.enclosures)}
@@ -748,6 +749,9 @@ const Headlines = {
 					hsp.id = "headlines-spacer";
 				}
 
+				// clear out hsp contents in case there's a power-hungry svg icon rotating there
+				hsp.innerHTML = "";
+
 				dijit.byId('headlines-frame').domNode.appendChild(hsp);
 
 				this.initHeadlinesMenu();
@@ -798,6 +802,9 @@ const Headlines = {
 					hsp = document.createElement("div");
 					hsp.id = "headlines-spacer";
 				}
+
+				// clear out hsp contents in case there's a power-hungry svg icon rotating there
+				hsp.innerHTML = "";
 
 				c.domNode.appendChild(hsp);
 
