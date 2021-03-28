@@ -138,12 +138,12 @@ define(["dojo/_base/declare", "dojo/dom-construct", "dojo/_base/array", "dojo/co
 				tnode.rowNode.setAttribute('data-feed-id', bare_id);
 				tnode.rowNode.setAttribute('data-is-cat', "true");
 
-				tnode.loadingNode = dojo.create('img', { className: 'loadingNode', src: App.getInitParam('icon_three_dots')});
+				tnode.loadingNode = dojo.create('img', { className: 'loadingNode', src: App.getInitParam('icon_blank')});
 				domConstruct.place(tnode.loadingNode, tnode.labelNode, 'after');
 			}
 
 			if (id.match("FEED:")) {
-				tnode.loadingNode = dojo.create('img', { className: 'loadingNode', src: App.getInitParam('icon_oval')});
+				tnode.loadingNode = dojo.create('img', { className: 'loadingNode', src: App.getInitParam('icon_blank')});
 				domConstruct.place(tnode.loadingNode, tnode.expandoNode, 'only');
 			}
 
@@ -202,7 +202,7 @@ define(["dojo/_base/declare", "dojo/dom-construct", "dojo/_base/array", "dojo/co
 			return (item.unread <= 0) ? "dijitTreeLabel" : "dijitTreeLabel Unread";
 		},
 		getRowClass: function (item/*, opened */) {
-			let rc = "dijitTreeRow";
+			let rc = "dijitTreeRow dijitTreeRowFlex";
 
 			const is_cat = String(item.id).indexOf('CAT:') != -1;
 
@@ -352,10 +352,14 @@ define(["dojo/_base/declare", "dojo/dom-construct", "dojo/_base/array", "dojo/co
 			if (treeNode) {
 				treeNode = treeNode[0];
 
-				if (show)
+				if (show) {
 					treeNode.loadingNode.addClassName("visible");
-				else
+					treeNode.loadingNode.setAttribute("src",
+						is_cat ? App.getInitParam("icon_three_dots") : App.getInitParam("icon_oval"));
+				} else {
 					treeNode.loadingNode.removeClassName("visible");
+					treeNode.loadingNode.setAttribute("src", App.getInitParam("icon_blank"))
+				}
 
 				return true
 			}
@@ -394,7 +398,7 @@ define(["dojo/_base/declare", "dojo/dom-construct", "dojo/_base/array", "dojo/co
 			}
 
 			const items = this.model.store._arrayOfAllItems;
-			let item = items[0];
+			let item = false;
 
 			for (let i = 0; i < items.length; i++) {
 				if (items[i] == treeItem) {
@@ -422,7 +426,7 @@ define(["dojo/_base/declare", "dojo/dom-construct", "dojo/_base/array", "dojo/co
 				return [this.model.store.getValue(item, 'bare_id'),
 					!this.model.store.getValue(item, 'id').match('FEED:')];
 			} else {
-				return false;
+				return [false, false];
 			}
 		},
 		getPreviousFeed: function (feed, is_cat) {
@@ -435,7 +439,7 @@ define(["dojo/_base/declare", "dojo/dom-construct", "dojo/_base/array", "dojo/co
 			}
 
 			const items = this.model.store._arrayOfAllItems;
-			let item = items[0] == treeItem ? items[items.length-1] : items[0];
+			let item = false;
 
 			for (let i = 0; i < items.length; i++) {
 				if (items[i] == treeItem) {
@@ -453,7 +457,6 @@ define(["dojo/_base/declare", "dojo/dom-construct", "dojo/_base/array", "dojo/co
 								break;
 							}
 						}
-
 					}
 					break;
 				}
@@ -463,7 +466,7 @@ define(["dojo/_base/declare", "dojo/dom-construct", "dojo/_base/array", "dojo/co
 				return [this.model.store.getValue(item, 'bare_id'),
 					!this.model.store.getValue(item, 'id').match('FEED:')];
 			} else {
-				return false;
+				return [false, false];
 			}
 
 		},

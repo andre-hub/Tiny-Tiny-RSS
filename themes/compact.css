@@ -11,7 +11,7 @@ body.ttrss_prefs,
 }
 body.ttrss_main {
   background: white;
-  color: black;
+  color: #555;
   font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
   font-size: 14px;
   overflow: hidden;
@@ -68,7 +68,7 @@ body.ttrss_main .post .header .title {
   font-size: 15px;
   font-weight: 600;
   text-rendering: optimizelegibility;
-  font-family: "Segoe WP Semibold", "Segoe UI Semibold", "Segoe UI Web Semibold", "Segoe UI", Ubuntu, "Helvetica Neue", Helvetica, Arial, sans-serif;
+  font-family: "Segoe WP Semibold", "Segoe UI Semibold", "Segoe UI Web Semibold", "Segoe UI", Ubuntu, Cantarell, "Helvetica Neue", Helvetica, Arial, sans-serif;
 }
 body.ttrss_main .post div.content {
   padding: 10px;
@@ -289,7 +289,7 @@ body.ttrss_main .hl .updated div {
 body.ttrss_main .hl div.title a {
   font-weight: 600;
   text-rendering: optimizelegibility;
-  font-family: "Segoe UI", Ubuntu, "Helvetica Neue", Helvetica, Arial, sans-serif;
+  font-family: "Segoe UI", Ubuntu, Cantarell, "Helvetica Neue", Helvetica, Arial, sans-serif;
   color: #555;
 }
 body.ttrss_main .hl a.title.high,
@@ -372,7 +372,7 @@ body.ttrss_main .label {
   vertical-align: middle;
   background-color: #fff7d5;
   font-size: 9px;
-  color: black;
+  color: #555;
   font-weight: normal;
   margin-left: 2px;
   padding: 2px 4px;
@@ -410,7 +410,7 @@ body.ttrss_main .dijitDialog .dlgSecHoriz {
   font-size: 16px;
   font-weight: 600;
   color: #555;
-  font-family: "Segoe WP Semibold", "Segoe UI Semibold", "Segoe UI Web Semibold", "Segoe UI", Ubuntu, "Helvetica Neue", Helvetica, Arial, sans-serif;
+  font-family: "Segoe WP Semibold", "Segoe UI Semibold", "Segoe UI Web Semibold", "Segoe UI", Ubuntu, Cantarell, "Helvetica Neue", Helvetica, Arial, sans-serif;
 }
 body.ttrss_main .dijitDialog section,
 body.ttrss_main .dijitDialog .dlgSecCont {
@@ -514,30 +514,26 @@ body.ttrss_main #feeds-holder #feedTree {
   height: 100%;
   overflow-x: hidden;
   text-rendering: optimizelegibility;
-  font-family: "Segoe UI", Ubuntu, "Helvetica Neue", Helvetica, Arial, sans-serif;
+  font-family: "Segoe UI", Ubuntu, Cantarell, "Helvetica Neue", Helvetica, Arial, sans-serif;
 }
 body.ttrss_main #feeds-holder #feedTree .dijitTreeNode .dijitTreeRow {
   border: 1px solid transparent;
 }
-body.ttrss_main #feeds-holder #feedTree .dijitTreeNode .dijitTreeRow .loadingNode {
-  display: none;
-}
-body.ttrss_main #feeds-holder #feedTree .dijitTreeNode .dijitTreeRow .loadingNode.visible {
-  display: inline;
-}
 body.ttrss_main #feeds-holder #feedTree .dijitTreeNode .dijitTreeRow.Is_Feed .loadingNode {
-  left: 2px;
+  left: -2px;
   height: 14px;
   width: 14px;
   position: relative;
-  top: -1px;
 }
 body.ttrss_main #feeds-holder #feedTree .dijitTreeNode .dijitTreeRow.Is_Cat .loadingNode {
   height: 11px;
   width: 18px;
   margin-left: 4px;
+  position: relative;
+  top: 2px;
 }
 body.ttrss_main #feeds-holder #feedTree .dijitTreeNode .dijitTreeRow .counterNode {
+  order: 2;
   font-weight: bold;
   display: none;
   font-size: 9px;
@@ -546,14 +542,11 @@ body.ttrss_main #feeds-holder #feedTree .dijitTreeNode .dijitTreeRow .counterNod
   color: white;
   background: #2a89bc;
   border-radius: 4px;
-  vertical-align: middle;
-  float: right;
-  position: relative;
   line-height: 14px;
   margin-right: 8px;
-  margin-top: 2px;
   min-width: 23px;
   height: 14px;
+  flex-shrink: 0;
 }
 body.ttrss_main #feeds-holder #feedTree .dijitTreeNode .dijitTreeRow .counterNode.aux,
 body.ttrss_main #feeds-holder #feedTree .dijitTreeNode .dijitTreeRow .counterNode.marked {
@@ -569,8 +562,19 @@ body.ttrss_main #feeds-holder #feedTree .dijitTreeNode .dijitTreeRow[data-feed-i
   background-color: #3ea447;
   border-color: #307f37;
 }
+body.ttrss_main #feeds-holder #feedTree .dijitTreeNode .dijitTreeRow .dijitTreeContent {
+  display: flex;
+  align-items: center;
+  flex-grow: 2;
+  min-width: 0;
+}
 body.ttrss_main #feeds-holder #feedTree .dijitTreeNode .dijitTreeRow .dijitTreeLabel {
   cursor: pointer;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  position: relative;
+  top: -0.5px;
 }
 body.ttrss_main #feeds-holder #feedTree .dijitTreeNode .dijitTreeRow .dijitTreeLabel.Unread {
   font-weight: bold;
@@ -606,8 +610,6 @@ body.ttrss_main #feeds-holder #feedTree .dijitTreeNode .dijitTreeRow i.icon.icon
   color: #69C671;
 }
 body.ttrss_main #feeds-holder #feedTree .dijitTreeNode .dijitTreeRow i.icon.icon-restore {
-  position: relative;
-  top: -1px;
   font-weight: bold;
   color: #257aa7;
 }
@@ -1351,7 +1353,7 @@ body.ttrss_utility hr {
   font-weight: 600;
   transition: color 0.2s, background 0.2s;
   text-rendering: optimizelegibility;
-  font-family: "Segoe WP Semibold", "Segoe UI Semibold", "Segoe UI Web Semibold", "Segoe UI", Ubuntu, "Helvetica Neue", Helvetica, Arial, sans-serif;
+  font-family: "Segoe WP Semibold", "Segoe UI Semibold", "Segoe UI Web Semibold", "Segoe UI", Ubuntu, Cantarell, "Helvetica Neue", Helvetica, Arial, sans-serif;
 }
 .cdm.expanded.active .content,
 .cdm.expanded.Unread .content {
@@ -1444,7 +1446,7 @@ body.ttrss_utility hr {
   font-size: 14px;
   transition: color 0.2s, background 0.2s;
   text-rendering: optimizelegibility;
-  font-family: "Segoe WP Semibold", "Segoe UI Semibold", "Segoe UI Web Semibold", "Segoe UI", Ubuntu, "Helvetica Neue", Helvetica, Arial, sans-serif;
+  font-family: "Segoe WP Semibold", "Segoe UI Semibold", "Segoe UI Web Semibold", "Segoe UI", Ubuntu, Cantarell, "Helvetica Neue", Helvetica, Arial, sans-serif;
 }
 .cdm.expandable.Unread div.header a.title {
   color: black;
@@ -1461,7 +1463,7 @@ body.ttrss_utility hr {
   font-size: 16px;
   font-weight: 600;
   text-rendering: optimizelegibility;
-  font-family: "Segoe WP Semibold", "Segoe UI Semibold", "Segoe UI Web Semibold", "Segoe UI", Ubuntu, "Helvetica Neue", Helvetica, Arial, sans-serif;
+  font-family: "Segoe WP Semibold", "Segoe UI Semibold", "Segoe UI Web Semibold", "Segoe UI", Ubuntu, Cantarell, "Helvetica Neue", Helvetica, Arial, sans-serif;
 }
 .cdm.expandable:not(.active) {
   cursor: pointer;
@@ -1488,7 +1490,7 @@ body.ttrss_prefs h1,
 body.ttrss_prefs h2,
 body.ttrss_prefs h3,
 body.ttrss_prefs h4 {
-  font-family: "Segoe WP Semibold", "Segoe UI Semibold", "Segoe UI Web Semibold", "Segoe UI", Ubuntu, "Helvetica Neue", Helvetica, Arial, sans-serif;
+  font-family: "Segoe WP Semibold", "Segoe UI Semibold", "Segoe UI Web Semibold", "Segoe UI", Ubuntu, Cantarell, "Helvetica Neue", Helvetica, Arial, sans-serif;
   font-weight: 600;
   color: #555;
 }
@@ -1727,7 +1729,7 @@ body.ttrss_utility.sanity_failed {
 }
 body.ttrss_utility {
   background: #f5f5f5;
-  color: black;
+  color: #555;
   font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
   font-size: 14px;
   margin: 4em;
@@ -1745,7 +1747,7 @@ body.ttrss_utility .content h2,
 body.ttrss_utility .content h3,
 body.ttrss_utility .content h4 {
   color: #257aa7;
-  font-family: "Segoe WP Semibold", "Segoe UI Semibold", "Segoe UI Web Semibold", "Segoe UI", Ubuntu, "Helvetica Neue", Helvetica, Arial, sans-serif;
+  font-family: "Segoe WP Semibold", "Segoe UI Semibold", "Segoe UI Web Semibold", "Segoe UI", Ubuntu, Cantarell, "Helvetica Neue", Helvetica, Arial, sans-serif;
 }
 body.ttrss_utility .content h2 {
   font-size: 18px;
@@ -1764,7 +1766,7 @@ body.ttrss_utility a:focus {
 }
 body.ttrss_utility h1 {
   color: gray;
-  font-family: "Segoe WP Semibold", "Segoe UI Semibold", "Segoe UI Web Semibold", "Segoe UI", Ubuntu, "Helvetica Neue", Helvetica, Arial, sans-serif;
+  font-family: "Segoe WP Semibold", "Segoe UI Semibold", "Segoe UI Web Semibold", "Segoe UI", Ubuntu, Cantarell, "Helvetica Neue", Helvetica, Arial, sans-serif;
   font-size: 18px;
   margin: 10px 0 0 0;
 }
@@ -1820,11 +1822,15 @@ body.ttrss_utility.share_popup .content {
   border-width: 0;
   box-shadow: none;
 }
+.flat {
+  /*#feedTree {
+		.dijitTreeContent .dijitInline {
+			vertical-align : baseline;
+		}
+	}*/
+}
 .flat li {
   padding: 2px;
-}
-.flat #feedTree .dijitTreeContent .dijitInline {
-  vertical-align: baseline;
 }
 .flat .dijitButton i.material-icons {
   position: relative;
@@ -1849,7 +1855,7 @@ body.ttrss_utility.share_popup .content {
 }
 .flat .dijitToolbar {
   font-size: 13px;
-  font-family: "Segoe UI", Ubuntu, "Helvetica Neue", Helvetica, Arial, sans-serif;
+  font-family: "Segoe UI", Ubuntu, Cantarell, "Helvetica Neue", Helvetica, Arial, sans-serif;
   padding: 0;
 }
 .flat .dijitToolbar .dijitTextBox .dijitInputContainer .dijitInputInner {
@@ -1873,7 +1879,7 @@ body.ttrss_utility.share_popup .content {
 .flat .dijitMenu .dijitMenuItem .dijitMenuItemLabel {
   padding: 4px 8px;
   font-size: 13px;
-  font-family: "Segoe UI", Ubuntu, "Helvetica Neue", Helvetica, Arial, sans-serif;
+  font-family: "Segoe UI", Ubuntu, Cantarell, "Helvetica Neue", Helvetica, Arial, sans-serif;
 }
 .flat .dijitMenu .dijitMenuItem.dijitDisabled:not(.dijitMenuItemSelected) .dijitMenuItemLabel {
   color: #2e99d1;
@@ -1891,11 +1897,30 @@ body.ttrss_utility.share_popup .content {
 }
 .flat .dijitTab,
 .flat .dijitAccordionTitle {
-  font-family: "Segoe UI", Ubuntu, "Helvetica Neue", Helvetica, Arial, sans-serif;
+  font-family: "Segoe UI", Ubuntu, Cantarell, "Helvetica Neue", Helvetica, Arial, sans-serif;
 }
 .flat .dijitTab i.material-icons,
 .flat .dijitAccordionInnerContainer:not(.dijitSelected) i.material-icons {
   color: #257aa7;
+}
+.flat .dijitTree {
+  /*.dijitTreeRow .dijitTreeExpando {
+			position : relative;
+			top : -2px;
+		}*/
+}
+.flat .dijitTree .dijitTreeRowFlex {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+}
+.flat .dijitTree .dijitTreeRowFlex .dijitTreeIcon {
+  font-size: inherit;
+  height: auto;
+}
+.flat .dijitTree .dijitTreeRowFlex .dijitTreeExpando {
+  height: auto;
+  line-height: 0;
 }
 .flat .dijitTree .dijitFolderClosed,
 .flat .dijitTree .dijitFolderOpened {
@@ -1909,10 +1934,6 @@ body.ttrss_utility.share_popup .content {
 }
 .flat .dijitTree .dijitTreeNode .dijitTreeRow.dijitTreeRowSelected {
   color: white;
-}
-.flat .dijitTree .dijitTreeRow .dijitTreeExpando {
-  position: relative;
-  top: -2px;
 }
 .flat .dijitTree .labelParam {
   float: right;

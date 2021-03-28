@@ -4,11 +4,11 @@
 		padding: 2px;
 	}
 
-	#feedTree {
+	/*#feedTree {
 		.dijitTreeContent .dijitInline {
 			vertical-align : baseline;
 		}
-	}
+	}*/
 
 	.dijitButton i.material-icons {
 		position: relative;
@@ -107,6 +107,23 @@
 	}
 
 	.dijitTree {
+		.dijitTreeRowFlex {
+			display : flex;
+			flex-direction : row;
+			align-items : center;
+
+			// AAAAAA (pushes element down)
+			.dijitTreeIcon {
+				font-size : inherit;
+				height : auto;
+			}
+
+			.dijitTreeExpando {
+				height : auto;
+				line-height : 0;
+			}
+		}
+
 		.dijitFolderClosed,
 		.dijitFolderOpened {
 			display : none;
@@ -126,10 +143,10 @@
 			color : white;
 		}
 
-		.dijitTreeRow .dijitTreeExpando {
+		/*.dijitTreeRow .dijitTreeExpando {
 			position : relative;
 			top : -2px;
-		}
+		}*/
 
 		.labelParam {
 			float: right;

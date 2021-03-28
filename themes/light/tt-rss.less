@@ -593,21 +593,12 @@ body.ttrss_main {
 				.dijitTreeRow {
 					border : 1px solid transparent;
 
-					.loadingNode {
-						display : none;
-
-						&.visible {
-							display : inline;
-						}
-					}
-
 					&.Is_Feed {
 						.loadingNode {
-							left : 2px;
+							left : -2px;
 							height : 14px;
 							width : 14px;
 							position : relative;
-							top : -1px;
 						}
 					}
 
@@ -616,10 +607,13 @@ body.ttrss_main {
 							height : 11px;
 							width : 18px;
 							margin-left : 4px;
+							position : relative;
+							top : 2px;
 						}
 					}
 
 					.counterNode {
+						order : 2;
 						font-weight : bold;
 						display : none;
 						font-size : @font-size-tiny;
@@ -628,14 +622,15 @@ body.ttrss_main {
 						color : white;
 						background : lighten(@color-accent, 5%);
 						border-radius : 4px;
-						vertical-align : middle;
-						float : right;
-						position : relative;
+						//vertical-align : middle;
+						//float : right;
+						//position : relative;
 						line-height : 14px;
 						margin-right : 8px;
-						margin-top : 2px;
+						//margin-top : 2px;
 						min-width : 23px;
 						height : 14px;
+						flex-shrink : 0;
 
 						&.aux, &.marked {
 							background : @color-panel-bg;
@@ -655,8 +650,22 @@ body.ttrss_main {
 						border-color: darken(@color-checked, 25%);
 					}
 
+					.dijitTreeContent {
+						display : flex;
+						align-items : center;
+						flex-grow : 2;
+						min-width : 0;
+					}
+
 					.dijitTreeLabel {
 						cursor : pointer;
+						min-width : 0;
+						overflow : hidden;
+						text-overflow : ellipsis;
+						position : relative;
+
+						// Segoe UI (@fonts-ui) seems to have wrong baseline set
+						top : -0.5px;
 
 						&.Unread {
 							font-weight : bold;
@@ -702,8 +711,8 @@ body.ttrss_main {
 					}
 
 					i.icon.icon-restore {
-						position : relative;
-						top : -1px;
+						//position : relative;
+						//top : -1px;
 						font-weight : bold;
 						color : @color-accent;
 					}

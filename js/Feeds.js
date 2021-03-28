@@ -133,9 +133,10 @@ const	Feeds = {
       return Feeds.reloadCurrent('');
    },
 	openNextUnread: function() {
-		const is_cat = this.activeIsCat();
-		const nuf = this.getNextUnread(this.getActive(), is_cat);
-		if (nuf) this.open({feed: nuf, is_cat: is_cat});
+		const [feed, is_cat] = this.getNextUnread(this.getActive(), this.activeIsCat());
+
+		if (feed !== false)
+			this.open({feed: feed, is_cat: is_cat});
 	},
 	toggle: function() {
 		Element.toggle("feeds-holder");
@@ -478,10 +479,10 @@ const	Feeds = {
 
 			// only select next unread feed if catching up entirely (as opposed to last week etc)
 			if (show_next_feed && !mode) {
-				const nuf = this.getNextUnread(feed, is_cat);
+				const [next_feed, next_is_cat] = this.getNextUnread(feed, is_cat);
 
-				if (nuf) {
-					this.open({feed: nuf, is_cat: is_cat});
+				if (next_feed !== false) {
+					this.open({feed: next_feed, is_cat: next_is_cat});
 				}
 			} else if (feed == this.getActive() && is_cat == this.activeIsCat()) {
 				this.reloadCurrent();
@@ -582,12 +583,26 @@ const	Feeds = {
 
 		return false;
 	},
+	getNextFeed: function(feed, is_cat) {
+		const tree = dijit.byId("feedTree");
+
+		if (tree) return tree.getNextFeed(feed, is_cat, false);
+
+		return [false, false];
+	},
+	getPreviousFeed: function(feed, is_cat) {
+		const tree = dijit.byId("feedTree");
+
+		if (tree) return tree.getPreviousFeed(feed, is_cat);
+
+		return [false, false];
+	},
 	getNextUnread: function(feed, is_cat) {
 		const tree = dijit.byId("feedTree");
 
 		if (tree) return tree.getNextUnread(feed, is_cat);
 
-		return false;
+		return [false, false];
 	},
 	search: function() {
 		xhr.json("backend.php",
