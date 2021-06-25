@@ -1,5 +1,11 @@
 <?php
 class UrlHelper {
+	const EXTRA_HREF_SCHEMES = [
+		"magnet",
+		"mailto",
+		"tel"
+	];
+
 	static $fetch_last_error;
 	static $fetch_last_error_code;
 	static $fetch_last_error_content;
@@ -21,23 +27,35 @@ class UrlHelper {
 
 	/**
 	 * Converts a (possibly) relative URL to a absolute one, using provided base URL.
+	 * Provides some exceptions for additional schemes like data: if called with owning element/attribute.
 	 *
 	 * @param string $base_url     Base URL (i.e. from where the document is)
 	 * @param string $rel_url Possibly relative URL in the document
+	 * @param string $owner_element Owner element tag name (i.e. "a") (optional)
+	 * @param string $owner_attribute Owner attribute (i.e. "href") (optional)
 	 *
 	 * @return string Absolute URL
 	 */
-	public static function rewrite_relative($base_url, $rel_url) {
+	public static function rewrite_relative($base_url, $rel_url, string $owner_element = "", string $owner_attribute = "") {
 
 		$rel_parts = parse_url($rel_url);
 
 		if (!empty($rel_parts['host']) && !empty($rel_parts['scheme'])) {
 			return self::validate($rel_url);
+
+		// protocol-relative URL (rare but they exist)
 		} else if (strpos($rel_url, "//") === 0) {
-			# protocol-relative URL (rare but they exist)
 			return self::validate("https:" . $rel_url);
-		} else if (strpos($rel_url, "magnet:") === 0) {
-			# allow magnet links
+		// allow some extra schemes for A href
+		} else if (in_array($rel_parts["scheme"] ?? "", self::EXTRA_HREF_SCHEMES, true) &&
+				$owner_element == "a" &&
+				$owner_attribute == "href") {
+			return $rel_url;
+		// allow limited subset of inline base64-encoded images for IMG elements
+		} else if (($rel_parts["scheme"] ?? "") == "data" &&
+				preg_match('%^image/(webp|gif|jpg|png|svg);base64,%', $rel_parts["path"]) &&
+				$owner_element == "img" &&
+				$owner_attribute == "src") {
 			return $rel_url;
 		} else {
 			$base_parts = parse_url($base_url);
